@@ -1,7 +1,7 @@
 "use client";
 
 import { type FormEvent, type KeyboardEvent, useEffect, useId, useRef, useState } from "react";
-import { Check, CircleUserRound, Copy, LoaderCircle, PanelLeft, Pencil, RotateCcw, SendHorizontal, Square, Trash2 } from "lucide-react";
+import { Check, CircleUserRound, Copy, Download, Languages, LoaderCircle, LockKeyhole, PanelLeft, Pencil, RotateCcw, SendHorizontal, Sparkles, Square, Trash2 } from "lucide-react";
 import { SophonModelSidebar } from "@/components/sophon-model-sidebar";
 import { InspectableMessage, type InspectableToken } from "@/components/token-lens";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
@@ -47,6 +47,7 @@ type GenerationState =
   | { status: "running"; activity: RuntimeActivity; draft: string; turn: Omit<FailedTurn, "reason"> };
 type BrowserStorage = StorageEstimate & { persistent: boolean };
 const LAST_READY_MODEL_KEY = "sophon:last-ready-model";
+const RECOMMENDED_MODEL_ID = "tiny-aya-global";
 const PROMPT_MAX_HEIGHT = 192;
 const PROMPT_SHORTCUT_HELP = "Enter to send · Shift+Enter for a new line";
 const STARTER_MESSAGES: ChatMessage[] = [
@@ -74,6 +75,7 @@ export function SophonWorkbench() {
   const [capabilities, setCapabilities] = useState<RuntimeCapabilities | null>(null);
   const [browserStorage, setBrowserStorage] = useState<BrowserStorage | null>();
   const [cacheSummaries, setCacheSummaries] = useState<ModelCacheSummary[]>([]);
+  const [cacheInventoryResolved, setCacheInventoryResolved] = useState(false);
   const [deletingModelId, setDeletingModelId] = useState<string | null>(null);
   const [storageRevision, setStorageRevision] = useState(0);
   const [autoRestoreEnabled, setAutoRestoreEnabled] = useState(true);
@@ -94,8 +96,12 @@ export function SophonWorkbench() {
   const modelLoadCancelLabel = isNetworkDownload ? "Pause model download" : "Cancel model loading";
   const modelLoadCancelText = isNetworkDownload ? "Pause" : "Cancel";
   const selectedModel = MODEL_REGISTRY.find((model) => model.id === modelId) ?? null;
+  const recommendedModel = MODEL_REGISTRY.find((model) => model.id === RECOMMENDED_MODEL_ID)!;
+  const recommendedCache = cacheSummaries.find((model) => model.modelId === RECOMMENDED_MODEL_ID);
+  const recommendedCompatibility = getModelCompatibility(capabilities, recommendedModel);
   const pendingDeleteModel = MODEL_REGISTRY.find((model) => model.id === pendingDeleteModelId) ?? null;
   const pendingDeleteSummary = cacheSummaries.find((model) => model.modelId === pendingDeleteModelId);
+  const pendingDeleteBytes = pendingDeleteSummary?.state === "partial" ? pendingDeleteSummary.resumableBytes : pendingDeleteSummary?.totalBytes;
   const modelCompatibility = getModelCompatibility(capabilities, selectedModel);
   const modelReady = selectedModel !== null && loadedModelId === selectedModel.id;
   const runtimeStatus = getRuntimeStatus(capabilities, selectedModel, loadedModelId, runtimeActivity);
@@ -106,7 +112,7 @@ export function SophonWorkbench() {
     ? getWelcomeMessage(message, selectedModel, modelReady, isModelLoading)
     : message);
   const promptPlaceholder = !selectedModel
-    ? "Choose a model to start chatting..."
+    ? "Choose a model above to unlock chat..."
     : modelReady
       ? "Ask the local model anything..."
       : "Write a prompt while the model gets ready...";
@@ -155,8 +161,14 @@ export function SophonWorkbench() {
             ? rememberedModelId ?? current
             : current;
         });
+        setCacheInventoryResolved(true);
       })
-      .catch(() => { if (active) setCacheSummaries([]); });
+      .catch(() => {
+        if (active) {
+          setCacheSummaries([]);
+          setCacheInventoryResolved(true);
+        }
+      });
     return () => { active = false; };
   }, [autoRestoreEnabled, storageRevision]);
 
@@ -520,7 +532,7 @@ export function SophonWorkbench() {
                 <h1 className="font-mono text-sm font-semibold tracking-[0.12em] text-white">SOPHON</h1>
                 <span className="hidden items-center rounded-md border border-sophon-signal-bright/35 bg-sophon-signal/15 px-2 py-0.5 font-mono text-[9px] font-medium uppercase tracking-widest text-[#ffb4a4] min-[360px]:inline-flex">Local AI</span>
               </div>
-              <p className="hidden font-mono text-[10px] uppercase tracking-[0.18em] text-white/60 sm:block">Private inference console</p>
+              <p className="hidden font-mono text-[10px] uppercase tracking-[0.18em] text-white/60 sm:block">Private AI in your browser</p>
             </div>
           </div>
 
@@ -530,9 +542,11 @@ export function SophonWorkbench() {
               {runtimeStatus.label}{downloadPercent === undefined ? null : ` · ${downloadPercent}%`}
             </div>
             {generation.status === "loading" ? <Button aria-label={modelLoadCancelLabel} className="h-11 rounded-xl sm:h-9" onClick={cancelModelLoad} size="sm" title={modelLoadCancelLabel} type="button" variant="sophon"><Square aria-hidden="true" className="size-3 fill-current" /><span className="hidden sm:inline">{modelLoadCancelText}</span></Button> : null}
-            <Button aria-label="Reset conversation" className="size-11 rounded-xl text-white/70 hover:text-sophon-signal-bright sm:size-9" disabled={isBusy || !canResetConversation} onClick={requestResetConversation} ref={resetTriggerRef} size="icon" title="Reset conversation" type="button" variant="sophon">
-              <Trash2 aria-hidden="true" />
-            </Button>
+            {canResetConversation ? (
+              <Button aria-label="Reset conversation" className="size-11 rounded-xl text-white/70 hover:text-sophon-signal-bright sm:size-9" disabled={isBusy} onClick={requestResetConversation} ref={resetTriggerRef} size="icon" title="Reset conversation" type="button" variant="sophon">
+                <Trash2 aria-hidden="true" />
+              </Button>
+            ) : null}
             <Button aria-controls="model-library-mobile" aria-expanded={modelSidebarOpen} aria-label="Open model library" className="h-11 rounded-xl lg:hidden" onClick={() => setModelSidebarOpen(true)} size="sm" type="button" variant="sophon"><PanelLeft aria-hidden="true" /> Models</Button>
           </div>
           {isModelLoading && selectedModel ? <span aria-label={`Loading ${selectedModel.label}`} aria-valuemax={100} aria-valuemin={0} aria-valuenow={downloadPercent} aria-valuetext={downloadProgress ? formatDownloadAriaText(downloadProgress) : "Preparing model download"} className="absolute inset-x-0 bottom-0 h-1 overflow-hidden bg-white/10" role="progressbar"><span className={cn("block h-full bg-gradient-to-r from-sophon-signal to-sophon-signal-bright shadow-[0_0_12px_var(--sophon-signal-bright)] transition-[width] duration-200 motion-reduce:transition-none", downloadPercent === undefined && "w-1/3 animate-pulse motion-reduce:animate-none")} style={downloadPercent === undefined ? undefined : { width: `${downloadPercent}%` }} /></span> : null}
@@ -546,7 +560,18 @@ export function SophonWorkbench() {
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
               <div className="mx-auto flex min-w-0 w-full max-w-6xl flex-col px-4 py-6 sm:px-12 sm:py-9">
                 <div aria-live={isRunning ? "off" : "polite"} aria-relevant="additions text" className="min-w-0 space-y-6" role="log">
-                  {displayedMessages.map((message, index) => (
+                  {!selectedModel ? (
+                    cacheInventoryResolved ? (
+                      <FirstRunWelcome
+                        cacheState={recommendedCache?.state}
+                        compatibility={recommendedCompatibility}
+                        onOpenModels={() => setModelSidebarOpen(true)}
+                        onSelectRecommended={() => selectModel(RECOMMENDED_MODEL_ID)}
+                      />
+                    ) : (
+                      <FirstRunCheck />
+                    )
+                  ) : displayedMessages.map((message, index) => (
                     <Message align={message.role === "user" ? "end" : "start"} aria-label={message.role === "user" ? "Message from you" : "Message from Sophon"} key={message.id} role="article">
                       <MessageAvatar className={message.role === "user" ? "!self-start mt-1 rounded-xl border border-sophon-signal-bright/50 bg-gradient-to-br from-sophon-signal-bright to-sophon-signal text-[#210b07] shadow-[0_0_20px_rgb(255_77_46/.16)]" : "sophon-glass-tile !self-start mt-1 rounded-xl text-sophon-signal-soft"}>
                         {message.role === "user" ? <CircleUserRound aria-hidden="true" className="size-4" /> : <GreekGlyph className="text-lg font-semibold">Σ</GreekGlyph>}
@@ -604,7 +629,8 @@ export function SophonWorkbench() {
               </div>
             </div>
 
-            <div className="sophon-glass-strong z-10 shrink-0 border-x-0 border-b-0 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6 sm:pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+            {selectedModel ? (
+              <div className="sophon-glass-strong z-10 shrink-0 border-x-0 border-b-0 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6 sm:pb-[max(1.5rem,env(safe-area-inset-bottom))]">
               <form className="mx-auto max-w-6xl" onSubmit={submitPrompt}>
                 {failedTurn ? (
                   <div className="sophon-glass-tile mb-3 flex flex-col gap-3 rounded-xl border-destructive/35 px-4 py-3 text-sm text-[#ffb4b7] sm:flex-row sm:items-center" id="prompt-error" role="alert">
@@ -632,11 +658,12 @@ export function SophonWorkbench() {
                     onKeyDown={handleKeyDown}
                     placeholder={promptPlaceholder}
                     ref={promptRef}
+                    disabled={!selectedModel || modelCompatibility === "incompatible"}
                     value={prompt}
                   />
                   <div className="flex items-center justify-between border-t border-white/[.1] bg-black/10 px-3 py-2">
                     <span className="truncate pr-3 font-mono text-[10px] uppercase tracking-widest text-white/60">
-                      {selectedModel ? `${selectedModel.family} · ${formatQuantization(selectedModel.format.quantization)} · ${selectedModel.format.sizeLabel}` : "Select a Tiny Aya model to download"}
+                      {selectedModel ? `${selectedModel.family} · ${formatQuantization(selectedModel.format.quantization)} · ${selectedModel.format.sizeLabel}` : "Choose a model above to unlock chat"}
                     </span>
                     {isRunning ? (
                       <Button aria-label="Stop generation" className="h-10 shrink-0 rounded-xl" onClick={stopGeneration} size="sm" type="button" variant="sophon">
@@ -664,7 +691,8 @@ export function SophonWorkbench() {
                   </div>
                 </footer>
               </form>
-            </div>
+              </div>
+            ) : null}
           </section>
         </div>
       </div>
@@ -684,13 +712,108 @@ export function SophonWorkbench() {
           busyLabel="Deleting…"
           cancelLabel="Keep model"
           confirmLabel="Delete files"
-          description={`The ${pendingDeleteSummary?.totalBytes ? `${formatStorageBytes(pendingDeleteSummary.totalBytes)} ` : ""}download for ${pendingDeleteModel.label.split(" · ")[0]} will be removed from this browser. You can download it again later.`}
+          description={`The ${pendingDeleteBytes ? `${formatStorageBytes(pendingDeleteBytes)} ` : ""}saved model data for ${pendingDeleteModel.label.split(" · ")[0]} will be removed from this browser. You can download it again later.`}
           onCancel={closeDeleteModelConfirmation}
           onConfirm={() => void confirmDeleteModelDownload()}
           title="Delete downloaded model?"
         />
       ) : null}
     </main>
+  );
+}
+
+function FirstRunCheck() {
+  return (
+    <div className="sophon-glass-tile mx-auto flex w-full max-w-xl items-center gap-3 rounded-2xl px-5 py-4" role="status">
+      <LoaderCircle aria-hidden="true" className="size-5 shrink-0 animate-spin text-sophon-signal-soft motion-reduce:animate-none" />
+      <span>
+        <span className="block text-sm font-medium text-white">Checking this browser</span>
+        <span className="mt-0.5 block text-xs text-white/55">Looking for a model you have already downloaded…</span>
+      </span>
+    </div>
+  );
+}
+
+function FirstRunWelcome({ cacheState, compatibility, onOpenModels, onSelectRecommended }: {
+  cacheState?: ModelCacheSummary["state"];
+  compatibility: ReturnType<typeof getModelCompatibility>;
+  onOpenModels: () => void;
+  onSelectRecommended: () => void;
+}) {
+  const canStart = compatibility === "compatible";
+  const primaryLabel = cacheState === "cached"
+    ? "Use Tiny Aya Global"
+    : cacheState === "partial"
+      ? "Resume model download"
+      : "Download recommended model";
+
+  return (
+    <section aria-labelledby="first-run-title" className="mx-auto w-full max-w-3xl" data-testid="first-run-welcome">
+      <div className="sophon-glass-strong overflow-hidden rounded-3xl">
+        <div className="border-b border-white/10 px-5 py-6 sm:px-8 sm:py-8">
+          <div className="mb-4 flex items-center gap-2 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-[#ffb4a4]">
+            <Sparkles aria-hidden="true" className="size-4" />
+            Start here
+          </div>
+          <h2 className="max-w-2xl text-2xl font-semibold tracking-tight text-white sm:text-3xl" id="first-run-title">Private AI, right in your browser</h2>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-white/65 sm:text-base">
+            Choose one open model to run locally. No account is needed, and your prompts and responses are not sent to an inference server.
+          </p>
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            <div className="flex gap-3 rounded-2xl border border-white/10 bg-white/[.035] p-4">
+              <LockKeyhole aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-sophon-verified" />
+              <span>
+                <span className="block text-sm font-medium text-white">Stays private</span>
+                <span className="mt-1 block text-xs leading-5 text-white/55">Chats remain in this browser.</span>
+              </span>
+            </div>
+            <div className="flex gap-3 rounded-2xl border border-white/10 bg-white/[.035] p-4">
+              <Download aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-sophon-signal-soft" />
+              <span>
+                <span className="block text-sm font-medium text-white">Download once</span>
+                <span className="mt-1 block text-xs leading-5 text-white/55">About 2.35 GB, then reused on future visits.</span>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="px-5 py-5 sm:px-8 sm:py-6">
+          <div className="rounded-2xl border border-sophon-signal-bright/35 bg-sophon-signal/10 p-4 sm:flex sm:items-center sm:gap-5 sm:p-5">
+            <span aria-hidden="true" className="grid size-11 shrink-0 place-items-center rounded-xl border border-sophon-signal-bright/40 bg-sophon-signal/15 text-[#ffb4a4]">
+              <Languages className="size-5" />
+            </span>
+            <div className="mt-3 min-w-0 flex-1 sm:mt-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-base font-semibold text-white">Tiny Aya Global</h3>
+                <span className="rounded-full border border-sophon-verified/30 bg-sophon-verified/10 px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-wider text-sophon-verified">Recommended</span>
+              </div>
+              <p className="mt-1 text-sm text-white/60">The best starting point for most people, with support for 70+ languages.</p>
+            </div>
+            <Button
+              className="mt-4 h-11 w-full shrink-0 rounded-xl bg-gradient-to-br from-sophon-signal-bright to-sophon-signal px-5 text-[#210b07] shadow-[0_0_24px_rgb(255_77_46/.2)] hover:from-[#ff8068] hover:to-sophon-signal-bright sm:mt-0 sm:w-auto"
+              data-testid="first-run-primary"
+              disabled={!canStart}
+              onClick={onSelectRecommended}
+              type="button"
+            >
+              {compatibility === "probing" ? <><LoaderCircle aria-hidden="true" className="animate-spin motion-reduce:animate-none" /> Checking browser…</>
+                : compatibility === "incompatible" ? "Browser GPU unavailable"
+                  : <><Download aria-hidden="true" /> {primaryLabel}</>}
+            </Button>
+          </div>
+          {compatibility === "incompatible" ? (
+            <p className="mt-3 rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm leading-5 text-[#ffb4b7]" role="alert">
+              This device does not expose the browser GPU support required to run Tiny Aya locally.
+            </p>
+          ) : null}
+          <div className="mt-4 flex flex-col gap-3 text-xs text-white/45 sm:flex-row sm:items-center sm:justify-between">
+            <span>Open weights · Non-commercial use · Downloads can be paused and resumed</span>
+            <Button className="self-start lg:hidden" onClick={onOpenModels} size="sm" type="button" variant="sophon">Compare all 4 models</Button>
+            <span className="hidden lg:inline">Regional models are available in the library.</span>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -788,7 +911,7 @@ function getPromptHelp({
   modelReady: boolean;
   runtimeActivity: RuntimeActivity | null;
 }) {
-  if (modelCompatibility === "unselected") return "Choose a model to begin";
+  if (modelCompatibility === "unselected") return "Choose a model above to begin";
   if (modelCompatibility === "probing") return "Checking browser GPU…";
   if (modelCompatibility === "incompatible") return "Selected model needs browser GPU support";
   if (!modelReady) {
@@ -872,7 +995,7 @@ function getRuntimeStatus(
     return { label: activity.label, className: "text-[#dbe7ff]", dotClassName: "bg-sophon-signal-soft shadow-[0_0_10px_var(--sophon-signal-soft)]" };
   }
   if (!model) {
-    return { label: "Select model", className: "text-white/70", dotClassName: "bg-sophon-warning shadow-[0_0_10px_var(--sophon-warning)]" };
+    return { label: "Choose model", className: "text-white/70", dotClassName: "bg-sophon-warning shadow-[0_0_10px_var(--sophon-warning)]" };
   }
   if (!capabilities) {
     return { label: "Checking browser GPU", className: "text-white/70", dotClassName: "animate-pulse bg-white/60 motion-reduce:animate-none" };

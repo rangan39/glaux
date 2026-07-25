@@ -4,7 +4,26 @@ import test from "node:test";
 
 register("./alias-loader.mjs", import.meta.url);
 const { env, pipelineCalls, pipelineRemotePathTemplates } = await import("@huggingface/transformers");
-const { preloadOnnxModel, prepareGenerationInput, readGeneratedText, runOnnxTextModel } = await import("../src/lib/onnx-runner.ts");
+const {
+  compactTinyAyaChatTemplate,
+  preloadOnnxModel,
+  prepareGenerationInput,
+  readGeneratedText,
+  runOnnxTextModel
+} = await import("../src/lib/onnx-runner.ts");
+
+test("compacts only Tiny Aya's redundant language enumeration", () => {
+  const safety = "You are in contextual safety mode. Keep this policy unchanged.";
+  const languages = "You have been trained on data in English, Dutch, French, Italian, Portuguese, Romanian, Spanish, Czech, Polish, Ukrainian, Russian, Greek, German, Danish, Swedish, Norwegian, Catalan, Galician, Welsh, Irish, Basque, Croatian, Latvian, Lithuanian, Slovak, Slovenian, Estonian, Finnish, Hungarian, Serbian, Bulgarian, Arabic, Persian, Urdu, Turkish, Maltese, Hebrew, Hindi, Marathi, Bengali, Gujarati, Punjabi, Tamil, Telugu, Nepali, Tagalog, Malay, Indonesian, Vietnamese, Javanese, Khmer, Thai, Lao, Chinese, Burmese, Japanese, Korean, Amharic, Hausa, Igbo, Malagasy, Shona, Swahili, Wolof, Xhosa, Yoruba and Zulu but have the ability to speak many more languages.";
+  const defaults = "# Default Preamble\n- Prefer the active voice.";
+  const template = `${safety}\n\n${languages}\n\n${defaults}`;
+
+  assert.equal(
+    compactTinyAyaChatTemplate(template),
+    `${safety}\n\nYou have multilingual training and can respond in many languages.\n\n${defaults}`
+  );
+  assert.equal(compactTinyAyaChatTemplate("an unrelated template"), "an unrelated template");
+});
 
 test("preserves structured turns for Cohere chat templates", () => {
   assert.deepEqual(prepareGenerationInput([

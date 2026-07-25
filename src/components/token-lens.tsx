@@ -40,6 +40,7 @@ type InspectableMessageProps = {
 export const InspectableMessage = memo(function InspectableMessage({ content, meta, role, tokens = [] }: InspectableMessageProps) {
   const [mode, setMode] = useState<TokenMode>("text");
   const [selection, setSelection] = useState<TokenSelection>(null);
+  const [inspectorOpen, setInspectorOpen] = useState(false);
   const words = useMemo(() => mode === "words" ? groupTokenPieces(tokens) : [], [mode, tokens]);
   const segments = useMemo<InspectableSegment[]>(() => {
     if (mode === "tokens") {
@@ -70,6 +71,12 @@ export const InspectableMessage = memo(function InspectableMessage({ content, me
     setSelection(null);
   }
 
+  function closeInspector() {
+    setMode("text");
+    setSelection(null);
+    setInspectorOpen(false);
+  }
+
   return (
     <div className={cn("flex max-w-full flex-col gap-2", role === "user" ? "items-end" : "items-start")} data-message-role={role}>
       <Bubble align={role === "user" ? "end" : "start"} variant={role === "user" ? "default" : "muted"}>
@@ -86,7 +93,16 @@ export const InspectableMessage = memo(function InspectableMessage({ content, me
         <div className={cn("flex max-w-full flex-wrap items-center gap-x-2 gap-y-1.5 px-1", role === "user" && "flex-row-reverse")}>
           {meta ? <span className={cn("min-w-0 max-w-full break-words text-xs text-[#aab4c3]", role === "user" && "text-right")}>{meta}</span> : null}
           {role === "assistant" && meta && hasTokens ? <InfoHint concept="generationMetrics" /> : null}
-          {hasTokens ? <TokenModeControl mode={mode} onChange={changeMode} /> : null}
+          {hasTokens ? (
+            <TokenModeControl
+              expanded={inspectorOpen}
+              mode={mode}
+              onChange={changeMode}
+              onClose={closeInspector}
+              onOpen={() => setInspectorOpen(true)}
+              tokenCount={tokens.length}
+            />
+          ) : null}
         </div>
       ) : null}
 
@@ -125,7 +141,29 @@ function MarkdownMessage({ content, role }: Pick<InspectableMessageProps, "conte
   );
 }
 
-function TokenModeControl({ mode, onChange }: { mode: TokenMode; onChange: (mode: TokenMode) => void }) {
+function TokenModeControl({ expanded, mode, onChange, onClose, onOpen, tokenCount }: {
+  expanded: boolean;
+  mode: TokenMode;
+  onChange: (mode: TokenMode) => void;
+  onClose: () => void;
+  onOpen: () => void;
+  tokenCount: number;
+}) {
+  if (!expanded) {
+    return (
+      <button
+        aria-expanded={false}
+        aria-label={`Inspect ${tokenCount} message tokens`}
+        className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-md border border-white/[.16] bg-black/25 px-3 font-mono text-[10px] uppercase tracking-[0.1em] text-[#aab4c3] transition-colors hover:bg-white/[.07] hover:text-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-warning sm:min-h-9"
+        onClick={onOpen}
+        type="button"
+      >
+        <span aria-hidden="true" className="font-serif text-sm normal-case text-sophon-signal-soft">τ</span>
+        Inspect
+        <span aria-hidden="true" className="tabular-nums text-white/40">{tokenCount}</span>
+      </button>
+    );
+  }
   return (
     <div aria-label="Message display granularity" className="flex max-w-full shrink-0 flex-wrap items-center rounded-md border border-white/[.16] bg-black/25 p-0.5 font-mono text-[10px] uppercase tracking-[0.1em] text-[#aab4c3]" role="group">
       <InfoHint className="text-sophon-signal-soft" concept="tokenLens" />
@@ -140,6 +178,14 @@ function TokenModeControl({ mode, onChange }: { mode: TokenMode; onChange: (mode
           {option}
         </button>
       ))}
+      <button
+        aria-label="Close token inspector"
+        className="min-h-11 rounded px-2.5 py-1 text-white/55 transition-colors hover:bg-white/[.07] hover:text-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-warning sm:min-h-9"
+        onClick={onClose}
+        type="button"
+      >
+        Done
+      </button>
     </div>
   );
 }

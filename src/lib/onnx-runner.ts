@@ -25,6 +25,8 @@ type PreparedGenerationInput = ChatTurn[];
 
 const pipelineCache = new Map<string, Promise<PipelineLike>>();
 let runtimeCapabilitiesPromise: Promise<RuntimeCapabilities> | null = null;
+const TINY_AYA_LANGUAGE_PREAMBLE = "You have been trained on data in English, Dutch, French, Italian, Portuguese, Romanian, Spanish, Czech, Polish, Ukrainian, Russian, Greek, German, Danish, Swedish, Norwegian, Catalan, Galician, Welsh, Irish, Basque, Croatian, Latvian, Lithuanian, Slovak, Slovenian, Estonian, Finnish, Hungarian, Serbian, Bulgarian, Arabic, Persian, Urdu, Turkish, Maltese, Hebrew, Hindi, Marathi, Bengali, Gujarati, Punjabi, Tamil, Telugu, Nepali, Tagalog, Malay, Indonesian, Vietnamese, Javanese, Khmer, Thai, Lao, Chinese, Burmese, Japanese, Korean, Amharic, Hausa, Igbo, Malagasy, Shona, Swahili, Wolof, Xhosa, Yoruba and Zulu but have the ability to speak many more languages.";
+const COMPACT_TINY_AYA_LANGUAGE_PREAMBLE = "You have multilingual training and can respond in many languages.";
 
 export function getRuntimeCapabilities() {
   runtimeCapabilitiesPromise ??= detectRuntimeCapabilities();
@@ -36,6 +38,10 @@ export function prepareGenerationInput(messages: readonly ChatTurn[]): PreparedG
     const content = message.content.trim();
     return content ? [{ role: message.role, content }] : [];
   });
+}
+
+export function compactTinyAyaChatTemplate(template: string) {
+  return template.replace(TINY_AYA_LANGUAGE_PREAMBLE, COMPACT_TINY_AYA_LANGUAGE_PREAMBLE);
 }
 
 export function readGeneratedText(output: unknown) {
@@ -120,6 +126,7 @@ async function runTransformersJsModel(
     const truncatedInputTokens = Math.max(0, promptTokenCount - contextTokenCount);
     const tokenTimestamps: number[] = [];
     const streamedTokenIds: number[] = [];
+    let streamedText = "";
     const shouldPublishTelemetry = createGenerationTelemetryGate();
     const specialTokenIds = new Set((generator.tokenizer.all_special_ids ?? []).map(Number));
     const { InterruptableStoppingCriteria, TextStreamer } = await import("@huggingface/transformers");
@@ -129,7 +136,9 @@ async function runTransformersJsModel(
     const streamer = new TextStreamer(generator.tokenizer, {
       skip_prompt: true,
       skip_special_tokens: true,
-      callback_function: () => undefined,
+      callback_function: (text) => {
+        streamedText += text;
+      },
       token_callback_function: (tokens) => {
         if (options.signal?.aborted) return;
         const emittedAt = performance.now();
@@ -141,7 +150,7 @@ async function runTransformersJsModel(
           tokenTimestamps.push(emittedAt);
         }
         if (streamedTokenIds.length === previousTokenCount) return;
-        emitTelemetry(options, shouldPublishTelemetry, "decode", generationStartedAt, tokenTimestamps, promptTokenCount, contextTokenCount, emittedAt);
+        emitTelemetry(options, shouldPublishTelemetry, "decode", generationStartedAt, tokenTimestamps, promptTokenCount, contextTokenCount, emittedAt, streamedText);
       }
     });
     options.signal?.addEventListener("abort", interrupt, { once: true });
@@ -162,7 +171,7 @@ async function runTransformersJsModel(
     } finally {
       options.signal?.removeEventListener("abort", interrupt);
     }
-    const timing = emitTelemetry(options, shouldPublishTelemetry, "complete", generationStartedAt, tokenTimestamps, promptTokenCount, contextTokenCount);
+    const timing = emitTelemetry(options, shouldPublishTelemetry, "complete", generationStartedAt, tokenTimestamps, promptTokenCount, contextTokenCount, undefined, streamedText);
     const generatedText = readGeneratedText(output);
     const outputTokenIds = streamedTokenIds.length > 0
       ? streamedTokenIds
@@ -240,7 +249,7 @@ async function getPipeline(model: ModelManifest, provider: ModelProvider, log: (
         env.allowLocalModels = true;
         env.allowRemoteModels = false;
       }
-      return await pipeline("text-generation", source, {
+      const generator = await pipeline("text-generation", source, {
         device: provider,
         dtype: model.format.quantization,
         progress_callback: delivery ? undefined : progressCallback,
@@ -251,6 +260,10 @@ async function getPipeline(model: ModelManifest, provider: ModelProvider, log: (
         } : {}),
         ...(model.source.kind === "huggingface" ? { revision: model.source.revision } : {})
       });
+      if (model.family === "cohere" && typeof generator.tokenizer?.chat_template === "string") {
+        generator.tokenizer.chat_template = compactTinyAyaChatTemplate(generator.tokenizer.chat_template);
+      }
+      return generator;
     } finally {
       env.allowLocalModels = allowLocalModels;
       env.allowRemoteModels = allowRemoteModels;
@@ -362,12 +375,14 @@ function emitTelemetry(
   tokenTimestampsMs: readonly number[],
   promptTokenCount: number,
   contextTokenCount: number,
-  observedAtMs = performance.now()
+  observedAtMs = performance.now(),
+  generatedText?: string
 ) {
   const event: GenerationTelemetryEvent = {
     phase,
     promptTokenCount,
     contextTokenCount,
+    ...(generatedText === undefined ? {} : { generatedText }),
     ...calculateGenerationTiming(startedAtMs, tokenTimestampsMs, observedAtMs, {
       includePercentiles: phase === "complete"
     })

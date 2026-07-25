@@ -137,6 +137,10 @@ async function validateExtension(externalizedScripts) {
       relativePath.split(path.sep).every((segment) => !segment.startsWith("_")),
       `Chrome-reserved filename remains: ${relativePath}.`
     );
+    assert.ok(
+      !relativePath.endsWith(".sophon-model") && !relativePath.includes(".onnx_data"),
+      `Model data must not be bundled in the extension: ${relativePath}.`
+    );
   }
   const htmlFiles = files.filter((file) => file.endsWith(".html"));
   for (const file of htmlFiles) {

@@ -1,4 +1,5 @@
 import { MODEL_SEGMENT_DIGESTS } from "@/lib/model-delivery/segment-digests";
+import type { SophonModelPackLicense } from "@/lib/model-delivery/pack-format";
 
 export const MODEL_SEGMENT_SIZE = 64 * 1024 * 1024;
 
@@ -16,6 +17,8 @@ export type ModelDeliveryManifest = {
   modelId: string;
   repo: string;
   revision: string;
+  quantization: "q4f16";
+  license: SophonModelPackLicense;
   externalData: readonly ModelDeliveryArtifact[];
   auxiliary: readonly ModelAuxiliaryArtifact[];
 };
@@ -88,6 +91,8 @@ function manifest(
     modelId,
     repo,
     revision,
+    quantization: "q4f16",
+    license: modelPackLicense(modelId),
     externalData: artifacts.map(([path, size, sha256]) => ({
       path,
       externalPath: path.slice(path.lastIndexOf("/") + 1),
@@ -96,6 +101,17 @@ function manifest(
       segmentSha256: getSegmentDigests(path, size, sha256)
     })),
     auxiliary: auxiliary.map(([path, size, sha256]) => ({ path, size, sha256 }))
+  };
+}
+
+function modelPackLicense(modelId: string): SophonModelPackLicense {
+  const region = modelId.slice("tiny-aya-".length);
+  const name = region.charAt(0).toUpperCase() + region.slice(1);
+  return {
+    spdx: "CC-BY-NC-4.0",
+    modelCardUrl: `https://huggingface.co/CohereLabs/${modelId}`,
+    acceptableUsePolicyUrl: "https://docs.cohere.com/docs/cohere-labs-acceptable-use-policy",
+    attribution: `Tiny Aya ${name} by Cohere Labs, licensed under CC BY-NC 4.0 for non-commercial use.`
   };
 }
 

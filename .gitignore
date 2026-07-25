@@ -12,6 +12,9 @@ dist/
 coverage/
 artifacts/models/
 artifacts/model-build-venv/
+*.sophon-model
+*.sophon-model.sha256
+*.sophon-model.provenance.txt
 .DS_Store
 .vercel
 .env*

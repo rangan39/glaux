@@ -8,7 +8,7 @@ import {
 } from "@/lib/model-delivery/adaptive-range-queue";
 import { createOrderedArtifactHasher } from "@/lib/model-delivery/ordered-artifact-hasher";
 
-export type DeliveryStage = "download" | "resume" | "verify" | "cache";
+export type DeliveryStage = "validate" | "download" | "resume" | "import" | "verify" | "cache" | "ready";
 export type DeliveryProgress = {
   loaded: number;
   total: number;
@@ -17,6 +17,7 @@ export type DeliveryProgress = {
   networkBytes?: number;
   bytesPerSecond?: number;
   etaMs?: number;
+  elapsedMs?: number;
 };
 
 export type ArtifactDownloadState = {
@@ -120,6 +121,10 @@ export class RetryableRangeError extends Error {
   }
 }
 
+export function markArtifactVerifiedThisSession(key: string) {
+  verifiedThisSession.add(key);
+}
+
 export function getRangeDownloadProfile(
   userAgent: string,
   maxTouchPoints = 0,
@@ -169,7 +174,9 @@ export async function downloadRangeArtifact(options: DownloadOptions): Promise<F
     if (!(error instanceof ArtifactIntegrityError)) throw error;
     await resetArtifact(options.file, options.stateStore, options.artifact.key);
     try {
-      return await downloadAndVerify(options);
+      return await downloadAndVerify(options.etag?.includes("sophon-pack-v1:")
+        ? { ...options, etag: undefined }
+        : options);
     } catch (retryError) {
       if (retryError instanceof ArtifactIntegrityError) await resetArtifact(options.file, options.stateStore, options.artifact.key);
       throw retryError;

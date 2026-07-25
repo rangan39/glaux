@@ -10,16 +10,19 @@ import { InfoHint } from "@/components/ui/info-hint";
 import { Message, MessageAvatar, MessageContent } from "@/components/ui/message";
 import {
   cancelGeneration,
+  cancelModelImport,
   cancelModelPreload,
   deleteCachedModel,
   getCachedModels,
   getCapabilities,
+  importModelPack,
+  inspectModelPack,
   preloadModel,
   runPrompt,
   terminateRuntimeWorker
 } from "@/lib/interp-client";
 import { getModelRuntimeProfile, MODEL_REGISTRY, RECOMMENDED_MODEL_ID, resolveModelProvider, type ModelManifest } from "@/lib/onnx-models";
-import type { GenerationTelemetryEvent, ModelCacheSummary, OnnxLogEvent, RuntimeCapabilities } from "@/lib/onnx-types";
+import type { GenerationTelemetryEvent, ModelCacheSummary, ModelPackInspection, OnnxLogEvent, RuntimeCapabilities } from "@/lib/onnx-types";
 import { cn } from "@/lib/utils";
 
 type ChatMessage = {
@@ -32,9 +35,13 @@ type ChatMessage = {
 type RuntimeActivity = {
   detail?: string;
   label: string;
-  phase: "download" | "runtime" | "tokenize" | "prefill" | "decode" | "complete";
+  phase: "download" | "import" | "runtime" | "tokenize" | "prefill" | "decode" | "complete";
   progress?: OnnxLogEvent["progress"];
 };
+type OfflinePackOperation =
+  | { status: "validating"; modelId: string; file: File; activity: RuntimeActivity }
+  | { status: "review"; modelId: string; file: File; inspection: ModelPackInspection }
+  | { status: "importing"; modelId: string; file: File; inspection: ModelPackInspection; activity: RuntimeActivity };
 type FailedTurn = {
   messageId: string;
   reason: string;
@@ -78,22 +85,30 @@ export function SophonWorkbench() {
   const [deletingModelId, setDeletingModelId] = useState<string | null>(null);
   const [storageRevision, setStorageRevision] = useState(0);
   const [autoRestoreEnabled, setAutoRestoreEnabled] = useState(true);
+  const [offlinePack, setOfflinePack] = useState<OfflinePackOperation | null>(null);
+  const [offlineLicenseAccepted, setOfflineLicenseAccepted] = useState(false);
   const generationIdRef = useRef(0);
   const modelDeleteFromMobileRef = useRef(false);
   const modelDeleteTriggerRef = useRef<HTMLElement | null>(null);
   const messageEndRef = useRef<HTMLDivElement>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const resetTriggerRef = useRef<HTMLButtonElement>(null);
+  const offlineImportCancelledRef = useRef(false);
   const isRunning = generation.status === "running";
-  const isBusy = generation.status !== "idle";
-  const runtimeActivity = generation.status === "idle" ? null : generation.activity;
-  const isModelLoading = generation.status === "loading" || runtimeActivity?.phase === "download";
+  const isPackBusy = offlinePack?.status === "validating" || offlinePack?.status === "importing";
+  const isBusy = generation.status !== "idle" || isPackBusy;
+  const generationActivity = generation.status === "idle" ? null : generation.activity;
+  const runtimeActivity = offlinePack?.status === "validating" || offlinePack?.status === "importing"
+    ? offlinePack.activity
+    : generationActivity;
+  const isModelLoading = generation.status === "loading" || runtimeActivity?.phase === "download" || runtimeActivity?.phase === "import";
   const downloadProgress = isModelLoading ? runtimeActivity?.progress : undefined;
   const downloadPercent = downloadProgress ? Math.floor(downloadProgress.loaded / downloadProgress.total * 100) : undefined;
-  const downloadStatus = getDownloadStageLabel(downloadProgress?.stage, true);
-  const isNetworkDownload = downloadProgress?.stage === "download" || downloadProgress?.stage === "resume";
+  const downloadStatus = offlinePack?.status === "validating" ? "Validating" : getDownloadStageLabel(downloadProgress?.stage, true);
+  const isNetworkDownload = !isPackBusy && (downloadProgress?.stage === "download" || downloadProgress?.stage === "resume");
   const selectedModel = MODEL_REGISTRY.find((model) => model.id === modelId) ?? null;
-  const modelLoadCancelLabel = isNetworkDownload ? "Pause model download" : "Cancel model loading";
+  const loadingModel = MODEL_REGISTRY.find((model) => model.id === offlinePack?.modelId) ?? selectedModel;
+  const modelLoadCancelLabel = offlinePack?.status === "importing" ? "Cancel offline model import" : isNetworkDownload ? "Pause model download" : "Cancel model loading";
   const modelLoadCancelText = isNetworkDownload ? "Pause" : "Cancel";
   const recommendedModel = MODEL_REGISTRY.find((model) => model.id === RECOMMENDED_MODEL_ID)!;
   const recommendedCache = cacheSummaries.find((model) => model.modelId === RECOMMENDED_MODEL_ID);
@@ -239,6 +254,7 @@ export function SophonWorkbench() {
     setMessages(STARTER_MESSAGES);
     setPrompt("");
     setError(null);
+    offlineImportCancelledRef.current = false;
     setNotice(null);
     setFailedTurn(null);
     setGeneration({ status: "idle" });
@@ -262,7 +278,99 @@ export function SophonWorkbench() {
     setGeneration({ status: "idle" });
   }
 
+  async function requestOfflinePackImport(targetModelId: string) {
+    if (isBusy || offlinePack || !MODEL_REGISTRY.some((model) => model.id === targetModelId)) return;
+    setModelSidebarOpen(false);
+    setError(null);
+    setNotice(null);
+    let file: File | null;
+    try {
+      file = await pickOfflineModelPack();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "The offline model pack picker could not be opened.");
+      return;
+    }
+    if (!file) return;
+    setOfflineLicenseAccepted(false);
+    setOfflinePack({
+      status: "validating",
+      modelId: targetModelId,
+      file,
+      activity: {
+        label: "Validating offline pack",
+        detail: file.name,
+        phase: "import",
+        progress: { loaded: 0, total: Math.max(1, file.size), stage: "validate" }
+      }
+    });
+    try {
+      const inspection = await inspectModelPack(file, targetModelId);
+      setOfflinePack((current) => current?.status === "validating" && current.file === file
+        ? { status: "review", modelId: targetModelId, file, inspection }
+        : current);
+    } catch (caught) {
+      setOfflinePack(null);
+      setError(caught instanceof Error ? caught.message : "The offline model pack could not be validated.");
+    }
+  }
+
+  async function confirmOfflinePackImport() {
+    if (offlinePack?.status !== "review" || !offlineLicenseAccepted) return;
+    const { file, inspection, modelId: targetModelId } = offlinePack;
+    setError(null);
+    offlineImportCancelledRef.current = false;
+    setOfflinePack({
+      status: "importing",
+      modelId: targetModelId,
+      file,
+      inspection,
+      activity: {
+        label: "Validating offline pack",
+        detail: file.name,
+        phase: "import",
+        progress: { loaded: 0, total: inspection.modelBytes, stage: "validate" }
+      }
+    });
+    try {
+      const result = await importModelPack(file, targetModelId, (event) => {
+        setOfflinePack((current) => current?.status === "importing" && current.file === file
+          ? { ...current, activity: activityFromLog(event) }
+          : current);
+      });
+      const next = await getCachedModels();
+      setCacheSummaries(next);
+      setOfflinePack(null);
+      setOfflineLicenseAccepted(false);
+      selectModel(result.modelId);
+      setNotice(`${MODEL_REGISTRY.find((model) => model.id === result.modelId)?.label ?? result.modelId} was imported, verified, and saved for offline use.`);
+    } catch (caught) {
+      setOfflinePack(null);
+      setOfflineLicenseAccepted(false);
+      if (!offlineImportCancelledRef.current && !(caught instanceof DOMException && caught.name === "AbortError")) {
+        setError(caught instanceof Error ? caught.message : "The offline model pack could not be imported.");
+      }
+    } finally {
+      setStorageRevision((value) => value + 1);
+    }
+  }
+
+  function closeOfflinePackReview() {
+    if (offlinePack?.status !== "review") return;
+    setOfflinePack(null);
+    setOfflineLicenseAccepted(false);
+  }
+
   function cancelModelLoad() {
+    if (offlinePack?.status === "importing") {
+      const target = MODEL_REGISTRY.find((model) => model.id === offlinePack.modelId);
+      offlineImportCancelledRef.current = true;
+      setOfflinePack(null);
+      setOfflineLicenseAccepted(false);
+      void cancelModelImport().catch(() => terminateRuntimeWorker());
+      setNotice(`${target?.label ?? "Offline model"} import cancelled. Fully verified segments were kept and can resume from the same pack.`);
+      setStorageRevision((value) => value + 1);
+      return;
+    }
     const cancelledModel = selectedModel;
     const pausedNetworkDownload = isNetworkDownload;
     generationIdRef.current += 1;
@@ -543,7 +651,7 @@ export function SophonWorkbench() {
               <span aria-hidden="true" className={cn("size-1.5 rounded-full", runtimeStatus.dotClassName)} />
               {runtimeStatus.label}{downloadPercent === undefined ? null : ` · ${downloadPercent}%`}
             </div>
-            {generation.status === "loading" ? <Button aria-label={modelLoadCancelLabel} className="h-11 rounded-xl sm:h-9" onClick={cancelModelLoad} size="sm" title={modelLoadCancelLabel} type="button" variant="sophon"><Square aria-hidden="true" className="size-3 fill-current" /><span className="hidden sm:inline">{modelLoadCancelText}</span></Button> : null}
+            {generation.status === "loading" || offlinePack?.status === "importing" ? <Button aria-label={modelLoadCancelLabel} className="h-11 rounded-xl sm:h-9" onClick={cancelModelLoad} size="sm" title={modelLoadCancelLabel} type="button" variant="sophon"><Square aria-hidden="true" className="size-3 fill-current" /><span className="hidden sm:inline">{modelLoadCancelText}</span></Button> : null}
             {canResetConversation ? (
               <Button aria-label="Reset conversation" className="size-11 rounded-xl text-white/70 hover:text-sophon-signal-bright sm:size-9" disabled={isBusy} onClick={requestResetConversation} ref={resetTriggerRef} size="icon" title="Reset conversation" type="button" variant="sophon">
                 <Trash2 aria-hidden="true" />
@@ -551,13 +659,13 @@ export function SophonWorkbench() {
             ) : null}
             <Button aria-controls="model-library-mobile" aria-expanded={modelSidebarOpen} aria-label="Open model library" className="h-11 rounded-xl lg:hidden" onClick={() => setModelSidebarOpen(true)} size="sm" type="button" variant="sophon"><PanelLeft aria-hidden="true" /> Models</Button>
           </div>
-          {isModelLoading && selectedModel ? <span aria-label={`Loading ${selectedModel.label}`} aria-valuemax={100} aria-valuemin={0} aria-valuenow={downloadPercent} aria-valuetext={downloadProgress ? formatDownloadAriaText(downloadProgress) : "Preparing model download"} className="absolute inset-x-0 bottom-0 h-1 overflow-hidden bg-white/10" role="progressbar"><span className={cn("block h-full bg-gradient-to-r from-sophon-signal to-sophon-signal-bright shadow-[0_0_12px_var(--sophon-signal-bright)] transition-[width] duration-200 motion-reduce:transition-none", downloadPercent === undefined && "w-1/3 animate-pulse motion-reduce:animate-none")} style={downloadPercent === undefined ? undefined : { width: `${downloadPercent}%` }} /></span> : null}
+          {isModelLoading && loadingModel ? <span aria-label={`Loading ${loadingModel.label}`} aria-valuemax={100} aria-valuemin={0} aria-valuenow={downloadPercent} aria-valuetext={downloadProgress ? formatDownloadAriaText(downloadProgress) : "Preparing model delivery"} className="absolute inset-x-0 bottom-0 h-1 overflow-hidden bg-white/10" role="progressbar"><span className={cn("block h-full bg-gradient-to-r from-sophon-signal to-sophon-signal-bright shadow-[0_0_12px_var(--sophon-signal-bright)] transition-[width] duration-200 motion-reduce:transition-none", downloadPercent === undefined && "w-1/3 animate-pulse motion-reduce:animate-none")} style={downloadPercent === undefined ? undefined : { width: `${downloadPercent}%` }} /></span> : null}
         </header>
 
         <div aria-atomic="true" aria-live="polite" className="sr-only" role="status">{runtimeActivity?.label ?? ""}</div>
 
         <div className="flex min-h-0 flex-1">
-          <SophonModelSidebar cacheSummaries={cacheSummaries} capabilities={capabilities} deletingModelId={deletingModelId} disabled={isRunning} downloadPercent={downloadPercent} loadedModelId={loadedModelId} loading={isModelLoading} loadingLabel={downloadStatus} mobileOpen={modelSidebarOpen} modelId={modelId} onDelete={requestDeleteModelDownload} onMobileOpenChange={setModelSidebarOpen} onSelect={selectModel} recommendedModelId={RECOMMENDED_MODEL_ID} />
+          <SophonModelSidebar cacheSummaries={cacheSummaries} capabilities={capabilities} deletingModelId={deletingModelId} disabled={isRunning || isPackBusy} downloadPercent={downloadPercent} importingModelId={offlinePack?.status === "validating" || offlinePack?.status === "importing" ? offlinePack.modelId : null} loadedModelId={loadedModelId} loading={isModelLoading} loadingLabel={downloadStatus} mobileOpen={modelSidebarOpen} modelId={modelId} onDelete={requestDeleteModelDownload} onImport={(targetModelId) => void requestOfflinePackImport(targetModelId)} onMobileOpenChange={setModelSidebarOpen} onSelect={selectModel} recommendedModelId={RECOMMENDED_MODEL_ID} />
           <section aria-busy={isBusy} aria-label="Conversation" className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
               <div className="mx-auto flex min-w-0 w-full max-w-6xl flex-col px-4 py-6 sm:px-12 sm:py-9">
@@ -712,6 +820,16 @@ export function SophonWorkbench() {
           title="Reset this conversation?"
         />
       ) : null}
+      {offlinePack?.status === "review" ? (
+        <OfflinePackDialog
+          accepted={offlineLicenseAccepted}
+          inspection={offlinePack.inspection}
+          model={MODEL_REGISTRY.find((model) => model.id === offlinePack.modelId) ?? null}
+          onAcceptedChange={setOfflineLicenseAccepted}
+          onCancel={closeOfflinePackReview}
+          onConfirm={() => void confirmOfflinePackImport()}
+        />
+      ) : null}
       {pendingDeleteModel ? (
         <ConfirmationDialog
           busy={deletingModelId === pendingDeleteModel.id}
@@ -831,6 +949,71 @@ function FirstRunWelcome({ cacheState, compatibility, mobileProfile, model, noti
         </div>
       </div>
     </section>
+  );
+}
+
+function OfflinePackDialog({ accepted, inspection, model, onAcceptedChange, onCancel, onConfirm }: {
+  accepted: boolean;
+  inspection: ModelPackInspection;
+  model: ModelManifest | null;
+  onAcceptedChange: (accepted: boolean) => void;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  const titleId = useId();
+  const descriptionId = useId();
+  const insufficientStorage = inspection.availableBytes !== null && inspection.requiredBytes > inspection.availableBytes;
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => cancelRef.current?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/75 px-4 py-6 backdrop-blur-sm" onClick={(event) => { if (event.target === event.currentTarget) onCancel(); }}>
+      <div aria-describedby={descriptionId} aria-labelledby={titleId} aria-modal="true" className="sophon-glass-strong w-full max-w-xl rounded-2xl p-5 shadow-[0_24px_80px_rgb(0_0_0/.55)] sm:p-6" onKeyDown={(event) => { if (event.key === "Escape") onCancel(); }} role="dialog">
+        <div className="flex items-start gap-3">
+          <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-xl border border-sophon-signal-bright/35 bg-sophon-signal/15 text-[#ffb4a4]"><Download className="size-5" /></span>
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold text-white" id={titleId}>Review offline model pack</h2>
+            <p className="mt-1 truncate text-xs text-white/50">{inspection.fileName}</p>
+          </div>
+        </div>
+        <p className="mt-4 text-sm leading-6 text-white/65" id={descriptionId}>
+          Sophon matched this pack exactly to its compiled artifact allowlist. Review the source and non-commercial terms before writing model data to browser storage.
+        </p>
+        <dl className="mt-4 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 rounded-xl border border-white/10 bg-black/20 p-4 text-xs">
+          <dt className="text-white/45">Model</dt><dd className="truncate text-right text-white/80">{model?.label ?? inspection.modelId}</dd>
+          <dt className="text-white/45">Model size</dt><dd className="text-right tabular-nums text-white/80">{formatStorageBytes(inspection.modelBytes)}</dd>
+          <dt className="text-white/45">Space needed</dt><dd className="text-right tabular-nums text-white/80">{inspection.alreadyReady ? "Already installed" : formatStorageBytes(inspection.requiredBytes)}</dd>
+          <dt className="text-white/45">Available</dt><dd className="text-right tabular-nums text-white/80">{inspection.availableBytes === null ? "Browser did not report" : formatStorageBytes(inspection.availableBytes)}</dd>
+          <dt className="text-white/45">Source</dt><dd className="truncate text-right text-white/80">{inspection.repo}</dd>
+          <dt className="text-white/45">Revision</dt><dd className="truncate text-right font-mono text-[10px] text-white/70" title={inspection.revision}>{inspection.revision.slice(0, 12)}</dd>
+        </dl>
+        {insufficientStorage ? (
+          <p className="mt-3 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm leading-5 text-[#ffb4b7]" role="alert">
+            This browser does not report enough free storage for the verified model. Delete another model or free device storage, then try again.
+          </p>
+        ) : null}
+        <div className="mt-4 rounded-xl border border-sophon-warning/25 bg-sophon-warning/5 p-4 text-xs leading-5 text-white/65">
+          <p className="font-medium text-white/85">CC BY-NC 4.0 · non-commercial use only</p>
+          <p className="mt-1">{inspection.license.attribution}</p>
+          <p className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+            <a className="text-sophon-signal-soft underline underline-offset-2" href={inspection.license.modelCardUrl} rel="noreferrer" target="_blank">Model card</a>
+            <a className="text-sophon-signal-soft underline underline-offset-2" href={inspection.license.acceptableUsePolicyUrl} rel="noreferrer" target="_blank">Cohere Labs AUP</a>
+          </p>
+        </div>
+        <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-white/10 bg-white/[.035] p-3 text-sm leading-5 text-white/75">
+          <input checked={accepted} className="mt-1 size-4 accent-[var(--sophon-signal-bright)]" onChange={(event) => onAcceptedChange(event.target.checked)} type="checkbox" />
+          <span>I understand that Tiny Aya is licensed for non-commercial use and remains subject to the Cohere Labs Acceptable Use Policy.</span>
+        </label>
+        <div className="mt-5 flex justify-end gap-2">
+          <Button onClick={onCancel} ref={cancelRef} type="button" variant="sophon">Cancel</Button>
+          <Button disabled={!accepted || insufficientStorage} onClick={onConfirm} type="button">Import and verify</Button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -1027,14 +1210,16 @@ function getRuntimeStatus(
 }
 
 function activityFromLog(event: OnnxLogEvent): RuntimeActivity {
-  const phase = event.phase === "download"
+  const phase = event.phase === "import"
+    ? "import"
+    : event.phase === "download"
     ? "download"
     : event.phase === "tokenize"
       ? "tokenize"
       : event.phase === "inference" || event.phase === "generate"
         ? "decode"
         : "runtime";
-  const label = phase === "download"
+  const label = phase === "download" || phase === "import"
     ? getDownloadStageLabel(event.progress?.stage)
     : phase === "tokenize"
       ? "Preparing input"
@@ -1045,8 +1230,11 @@ function activityFromLog(event: OnnxLogEvent): RuntimeActivity {
 }
 
 function getDownloadStageLabel(stage?: NonNullable<OnnxLogEvent["progress"]>["stage"], compact = false) {
+  if (stage === "validate") return compact ? "Validating" : "Validating offline pack";
+  if (stage === "import") return compact ? "Importing" : "Importing offline pack";
   if (stage === "resume") return compact ? "Resuming" : "Resuming model";
   if (stage === "verify") return compact ? "Verifying" : "Verifying model";
+  if (stage === "ready") return "Offline model ready";
   if (stage === "cache") return "Loading downloaded model";
   return compact ? "Downloading" : "Downloading model";
 }
@@ -1057,11 +1245,20 @@ function formatDownloadDetail(progress: NonNullable<OnnxLogEvent["progress"]>) {
   if (progress.networkBytes !== undefined) parts.push(`${formatStorageBytes(progress.networkBytes)} transferred`);
   if (progress.bytesPerSecond !== undefined) parts.push(`${formatStorageBytes(progress.bytesPerSecond)}/s`);
   if (progress.etaMs !== undefined) parts.push(`${formatEta(progress.etaMs)} left`);
+  if (progress.elapsedMs !== undefined) parts.push(`${formatElapsed(progress.elapsedMs)} elapsed`);
   return parts.join(" · ");
 }
 
 function formatDownloadAriaText(progress: NonNullable<OnnxLogEvent["progress"]>) {
-  const stage = progress.stage === "verify" ? "verified" : progress.stage === "cache" ? "loaded from browser storage" : "loaded";
+  const stage = progress.stage === "validate"
+    ? "validated"
+    : progress.stage === "import"
+      ? "imported"
+      : progress.stage === "verify"
+        ? "verified"
+        : progress.stage === "cache" || progress.stage === "ready"
+          ? "loaded from browser storage"
+          : "loaded";
   const resumed = progress.resumedBytes ? `, including ${formatStorageBytes(progress.resumedBytes)} resumed` : "";
   return `${formatStorageBytes(progress.loaded)} of ${formatStorageBytes(progress.total)} ${stage}${resumed}`;
 }
@@ -1071,6 +1268,13 @@ function formatEta(milliseconds: number) {
   if (seconds < 60) return `${seconds}s`;
   const minutes = Math.ceil(seconds / 60);
   return minutes < 60 ? `${minutes}m` : `${Math.ceil(minutes / 60)}h`;
+}
+
+function formatElapsed(milliseconds: number) {
+  const seconds = Math.max(0, Math.floor(milliseconds / 1000));
+  const minutes = Math.floor(seconds / 60);
+  const remainder = seconds % 60;
+  return minutes > 0 ? `${minutes}m ${remainder}s` : `${seconds}s`;
 }
 
 function activityFromTelemetry(telemetry: GenerationTelemetryEvent): RuntimeActivity {
@@ -1118,4 +1322,35 @@ function formatStorageBytes(bytes?: number) {
   const rank = Math.min(Math.floor(Math.log(Math.max(bytes, 1)) / Math.log(1024)), units.length - 1);
   const value = bytes / 1024 ** rank;
   return `${value.toFixed(rank > 0 && value < 10 ? 1 : 0)} ${units[rank] ?? "TB"}`;
+}
+
+async function pickOfflineModelPack(): Promise<File | null> {
+  const picker = (window as Window & {
+    showOpenFilePicker?: (options: { multiple: boolean }) => Promise<{ getFile: () => Promise<File> }[]>;
+  }).showOpenFilePicker;
+  if (typeof picker === "function") {
+    try {
+      const handles = await picker({ multiple: false });
+      return handles[0] ? handles[0].getFile() : null;
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return null;
+      throw error;
+    }
+  }
+  return new Promise((resolve) => {
+    const input = document.createElement("input");
+    let settled = false;
+    const finish = (file: File | null) => {
+      if (settled) return;
+      settled = true;
+      resolve(file);
+    };
+    input.type = "file";
+    input.accept = ".sophon-model,application/octet-stream";
+    input.addEventListener("change", () => finish(input.files?.[0] ?? null), { once: true });
+    window.addEventListener("focus", () => {
+      window.setTimeout(() => finish(input.files?.[0] ?? null), 0);
+    }, { once: true });
+    input.click();
+  });
 }

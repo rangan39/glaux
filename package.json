@@ -12,6 +12,7 @@
     "benchmark:download": "node scripts/benchmark_model_download.mjs",
     "budget:bundle": "node scripts/check_bundle_budget.mjs",
     "build:extension": "node scripts/build_chrome_extension.mjs",
+    "model-pack": "node --experimental-strip-types scripts/sophon_model_pack.mjs",
     "test": "node --experimental-strip-types --test tests/*.test.mjs",
     "test:metrics": "node --experimental-strip-types --test tests/generation-metrics.test.mjs",
     "smoke:ui": "node scripts/smoke_ui.mjs",

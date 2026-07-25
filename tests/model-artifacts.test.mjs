@@ -59,6 +59,12 @@ test("pins the five-shard Tiny Aya artifact plan and immutable provenance", () =
       model.source.files.reduce((total, file) => total + file.sizeBytes, 0),
       expectedModels.get(model.id)
     );
+    assert.deepEqual(model.license, {
+      acceptableUsePolicyUrl: "https://docs.cohere.com/docs/cohere-labs-acceptable-use-policy",
+      attribution: `Tiny Aya ${model.id.slice("tiny-aya-".length).replace(/^./, (letter) => letter.toUpperCase())} by Cohere Labs, licensed under CC BY-NC 4.0 for non-commercial use.`,
+      modelCardUrl: `https://huggingface.co/CohereLabs/${model.id}`,
+      spdx: "CC-BY-NC-4.0"
+    });
     for (const file of model.source.files) {
       assert.ok(Number.isSafeInteger(file.sizeBytes) && file.sizeBytes >= 0);
       assert.match(file.sha256, /^[0-9a-f]{64}$/);

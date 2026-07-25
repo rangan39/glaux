@@ -289,6 +289,39 @@ test("rehashes a ready file before reuse and repairs same-length corruption", as
   assert.equal(stateStore.value?.status, "ready");
 });
 
+test("re-probes online delivery before repairing a corrupt imported cache", async () => {
+  const expected = Uint8Array.from([2, 7, 1, 8, 2, 8]);
+  const corrupt = expected.map((value) => value ^ 0xff);
+  const cachedArtifact = artifact(expected, "imported-corrupt");
+  const packEtag = '"sophon-pack-v1:0123456789012345678901234567890123456789"';
+  const file = new MemoryPositionedFile([], corrupt);
+  const stateStore = new MemoryStateStore([], {
+    key: cachedArtifact.key,
+    version: 1,
+    size: expected.length,
+    sha256: cachedArtifact.sha256,
+    segmentSize: 3,
+    etag: packEtag,
+    completed: [0, 1],
+    status: "ready"
+  });
+  const server = createRangeServer(expected);
+
+  await downloadRangeArtifact({
+    artifact: cachedArtifact,
+    file,
+    stateStore,
+    fetch: server.fetch,
+    segmentSize: 3,
+    retries: 0,
+    etag: packEtag
+  });
+
+  assert.deepEqual(file.bytes, expected);
+  assert.ok(server.ranges.includes("bytes=0-0"), "repair should obtain the model host's current strong ETag");
+  assert.equal(stateStore.value?.etag, '"fixture-etag"');
+});
+
 test("verifies cached segments concurrently and repairs same-length corruption", async () => {
   const expected = Uint8Array.from({ length: 24 }, (_, index) => index * 9 % 251);
   const corrupt = expected.slice();

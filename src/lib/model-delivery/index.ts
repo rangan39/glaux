@@ -2,7 +2,6 @@ import {
   getArtifactKey,
   getArtifactUrl,
   getModelDeliveryManifest,
-  MODEL_DELIVERY_MANIFESTS,
   MODEL_SEGMENT_SIZE,
   type ModelDeliveryArtifact,
   type ModelDeliveryManifest
@@ -16,19 +15,23 @@ import {
   supportsPersistentModelDelivery
 } from "@/lib/model-delivery/opfs-store";
 import {
+  getManifestBytes,
+  inspectModelCache,
+  isReadyArtifactState
+} from "@/lib/model-delivery/cache-status";
+import {
   downloadRangeArtifact,
   probeRangeArtifact,
   RangeDeliveryUnavailableError,
   type ArtifactDownloadState,
   type DeliveryProgress
 } from "@/lib/model-delivery/range-downloader";
-import { deleteAuxiliaryArtifacts, ensureAuxiliaryArtifact, hasAuxiliaryArtifact } from "@/lib/model-delivery/auxiliary-cache";
+import { deleteAuxiliaryArtifacts, ensureAuxiliaryArtifact } from "@/lib/model-delivery/auxiliary-cache";
 import {
   InsufficientModelStorageError,
   ModelDeliveryUnavailableError,
   toModelStorageError
 } from "@/lib/model-delivery/errors";
-import type { ModelCacheSummary } from "@/lib/onnx-types";
 
 type DeliveryModel = {
   id: string;
@@ -129,20 +132,6 @@ export async function prepareModelDelivery(
   }, signal);
 }
 
-export async function getModelCacheStatus(): Promise<ModelCacheSummary[]> {
-  if (!supportsPersistentModelDelivery()) {
-    return MODEL_DELIVERY_MANIFESTS.map((model) => ({
-      modelId: model.modelId,
-      state: "missing",
-      resumableBytes: 0,
-      verifiedBytes: 0,
-      totalBytes: getManifestBytes(model)
-    }));
-  }
-  const states = await getAllArtifactStates();
-  return Promise.all(MODEL_DELIVERY_MANIFESTS.map((model) => inspectModelCache(model, states)));
-}
-
 export async function deleteModelCache(modelId: string, signal?: AbortSignal) {
   const model = getModelDeliveryManifest(modelId);
   if (!model) throw new Error(`Unknown model identifier: ${modelId}`);
@@ -188,44 +177,6 @@ async function ensureArtifact(
   }, signal).finally(() => inFlightArtifacts.delete(key));
   inFlightArtifacts.set(key, loading);
   return loading;
-}
-
-async function inspectModelCache(model: ModelDeliveryManifest, states: ArtifactDownloadState[]) {
-  const stateByKey = new Map(states.map((state) => [state.key, state]));
-  let resumableBytes = 0;
-  let verifiedBytes = 0;
-  let externalReady = true;
-  await Promise.all(model.externalData.map(async (artifact) => {
-    const state = stateByKey.get(getArtifactKey(model, artifact));
-    const fileSize = await getArtifactFileSize(model, artifact);
-    if (!stateMatches(state, artifact) || !completedSegmentsFit(state.completed, fileSize, artifact.size)) {
-      externalReady = false;
-      return;
-    }
-    const durable = state.completed.reduce((total, index) => total + getSegmentLength(index, artifact.size), 0);
-    resumableBytes += durable;
-    if (isReadyArtifactState(state, artifact, fileSize)) verifiedBytes += artifact.size;
-    else externalReady = false;
-  }));
-  const auxiliary = await Promise.all(model.auxiliary.map(async (artifact) => ({
-    artifact,
-    cached: await hasAuxiliaryArtifact(model, artifact)
-  })));
-  for (const entry of auxiliary) {
-    if (entry.cached) {
-      resumableBytes += entry.artifact.size;
-      verifiedBytes += entry.artifact.size;
-    }
-  }
-  const totalBytes = getManifestBytes(model);
-  const allReady = externalReady && auxiliary.every((entry) => entry.cached);
-  return {
-    modelId: model.modelId,
-    state: allReady ? "cached" as const : resumableBytes > 0 ? "partial" as const : "missing" as const,
-    resumableBytes,
-    verifiedBytes,
-    totalBytes
-  };
 }
 
 async function ensureStorageHeadroom(model: ModelDeliveryManifest, totalBytes: number, states: ArtifactDownloadState[]) {
@@ -304,45 +255,6 @@ async function withArtifactLock<T>(key: string, task: () => Promise<T>, signal?:
   return navigator.locks.request(`sophon-model-delivery:${key}`, { mode: "exclusive", signal }, task);
 }
 
-function stateMatches(state: ArtifactDownloadState | undefined, artifact: ModelDeliveryArtifact): state is ArtifactDownloadState {
-  return Boolean(state
-    && state.version === 1
-    && state.size === artifact.size
-    && state.sha256 === artifact.sha256
-    && state.segmentSize === MODEL_SEGMENT_SIZE
-    && Array.isArray(state.completed));
-}
-
-function isReadyArtifactState(state: ArtifactDownloadState | undefined, artifact: ModelDeliveryArtifact, fileSize: number): state is ArtifactDownloadState {
-  const segmentCount = Math.ceil(artifact.size / MODEL_SEGMENT_SIZE);
-  return stateMatches(state, artifact)
-    && state.status === "ready"
-    && fileSize === artifact.size
-    && state.completed.length === segmentCount
-    && completedSegmentsFit(state.completed, fileSize, artifact.size)
-    && Boolean(state.etag)
-    && !state.etag.startsWith("W/");
-}
-
-function completedSegmentsFit(completed: readonly number[], fileSize: number, artifactSize: number) {
-  const segmentCount = Math.ceil(artifactSize / MODEL_SEGMENT_SIZE);
-  const unique = new Set(completed);
-  return fileSize <= artifactSize
-    && unique.size === completed.length
-    && completed.every((index) => Number.isSafeInteger(index)
-      && index >= 0
-      && index < segmentCount
-      && index * MODEL_SEGMENT_SIZE + getSegmentLength(index, artifactSize) <= fileSize);
-}
-
-function getSegmentLength(index: number, size: number) {
-  return Math.max(0, Math.min(MODEL_SEGMENT_SIZE, size - index * MODEL_SEGMENT_SIZE));
-}
-
-function getManifestBytes(model: ModelDeliveryManifest) {
-  return [...model.externalData, ...model.auxiliary].reduce((total, artifact) => total + artifact.size, 0);
-}
-
 function throwIfAborted(signal?: AbortSignal) {
   if (signal?.aborted) throw signal.reason instanceof Error ? signal.reason : new DOMException("The model download was cancelled.", "AbortError");
 }
@@ -352,5 +264,6 @@ function now() {
 }
 
 export { MODEL_DELIVERY_MANIFESTS } from "@/lib/model-delivery/manifest";
+export { getModelCacheStatus } from "@/lib/model-delivery/cache-status";
 export type { DeliveryProgress } from "@/lib/model-delivery/range-downloader";
 export type { ModelCacheSummary } from "@/lib/onnx-types";

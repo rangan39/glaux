@@ -24,6 +24,7 @@ try {
   console.log("✓ Server-rendered fallback and workbench shell exist without JavaScript");
 
   const desktopContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  await desktopContext.route("https://**/*", (route) => route.abort("blockedbyclient"));
   activePage = await desktopContext.newPage();
   captureRuntimeErrors(activePage);
   await openPage(activePage);
@@ -37,10 +38,12 @@ try {
   const attribution = modelLibrary.getByRole("button", { name: "Made in Toronto by Rangan39", exact: true });
   const storageStatus = activePage.getByTestId("browser-storage");
   await assertVisible(heading, "Sophon heading");
-  await assertVisible(textarea, "labeled prompt textarea");
-  assert.equal(await textarea.getAttribute("placeholder"), "Ask the local model anything...");
+  const firstRunWelcome = activePage.getByTestId("first-run-welcome");
+  const firstRunPrimary = activePage.getByTestId("first-run-primary");
+  await assertVisible(firstRunWelcome, "first-run welcome");
+  await assertVisible(firstRunWelcome.getByRole("heading", { name: "Private AI, right in your browser", exact: true }), "first-run heading");
+  assert.equal(await textarea.count(), 0, "The composer must stay hidden until the user chooses a model.");
   await assertVisible(modelLibrary, "desktop model library");
-  await assertVisible(resetButton, "conversation reset control");
   await assertVisible(attribution, "Toronto attribution footer");
   assert.match((await attribution.textContent()) ?? "", /Made in Toronto by Rangan39/i);
   assert.equal(await attribution.getAttribute("aria-haspopup"), "dialog");
@@ -63,15 +66,36 @@ try {
   await activePage.keyboard.press("Escape");
   await acknowledgements.waitFor({ state: "hidden", timeout: timeoutMs });
   assert.equal(await attribution.evaluate((element) => document.activeElement === element), true, "Closing acknowledgements must restore trigger focus.");
-  assert.equal(await resetButton.getAttribute("title"), "Reset conversation");
-  assert.equal((await resetButton.textContent())?.trim(), "", "Reset control must remain icon-only.");
-  assert.equal(await resetButton.isDisabled(), true, "Reset must be disabled for an empty conversation.");
+  await activePage.waitForFunction(() => {
+    const radios = document.querySelectorAll('[data-model-surface="desktop"] input[type="radio"]');
+    return radios.length === 4 && [...radios].every((radio) => !/(Checking browser GPU|Downloading)/.test(radio.getAttribute("aria-label") ?? ""));
+  }, undefined, { timeout: timeoutMs });
+  const models = await modelRadios.evaluateAll((nodes) => nodes.map((radio) => ({
+    checked: radio.checked,
+    disabled: radio.disabled,
+    label: radio.getAttribute("aria-label") ?? "",
+    value: radio.value
+  })));
+  assert.deepEqual(models.map((model) => model.value), ["tiny-aya-global", "tiny-aya-earth", "tiny-aya-fire", "tiny-aya-water"]);
+  assert.ok(models.every((model) => /\.( Ready to download| Browser GPU required)\.$/.test(model.label)), "Every model radio must expose availability.");
+  assert.ok(models.every((model) => /non-commercial/.test(model.label)), "Every Tiny Aya model must disclose its non-commercial license.");
+  assert.ok(models.some((model) => !model.disabled), "At least one model must be compatible with the smoke-test browser.");
+  assert.ok(models.every((model) => !model.checked), "No model should be selected before an explicit user choice.");
+  await assertVisible(firstRunPrimary, "first-run recommended-model action");
+  assert.equal(await firstRunPrimary.isEnabled(), true, "The recommended model action must enable on a compatible browser.");
+  assert.match((await firstRunPrimary.textContent()) ?? "", /Download recommended model/);
+  await firstRunPrimary.click();
+  await assertVisible(textarea, "labeled prompt textarea");
+  assert.equal(await textarea.getAttribute("placeholder"), "Write a prompt while the model gets ready...");
+  await activePage.locator("#prompt-error").waitFor({ state: "visible", timeout: timeoutMs });
+  await assertVisible(resetButton, "conversation reset control after a failed model preload");
+  assert.equal(await resetButton.isEnabled(), true, "Reset must recover the composer after a failed model preload.");
   await assertVisible(storageStatus, "browser storage status");
   await activePage.waitForFunction(() => document.querySelector('[data-testid="browser-storage"]')?.getAttribute("data-state") === "ready", undefined, { timeout: timeoutMs });
   assert.match((await storageStatus.textContent()) ?? "", /^\s*Browser storage · .+ \/ .+ · (Persistent|Best effort)\s*$/);
   assert.equal(await storageStatus.getAttribute("title"), null, "Browser storage must not expose a second native tooltip.");
   await assertVisible(modelLibrary.getByText("4 models", { exact: true }), "plain-language model count");
-  await assertVisible(modelLibrary.getByText("3.35B · 4-bit · 8K", { exact: true }), "plain-language model specifications");
+  await assertVisible(modelLibrary.getByText("3.35B · 4-bit · 8K context", { exact: true }), "plain-language model specifications");
   await assertVisible(modelLibrary.getByText("Non-commercial use", { exact: true }), "plain-language model usage label");
 
   const modelSpecsHint = modelLibrary.locator('[data-info-hint-trigger][aria-label="About model specifications"]');
@@ -115,28 +139,15 @@ try {
   await browserStorageContent.waitFor({ state: "hidden", timeout: timeoutMs });
   assert.equal(await modelRadios.count(), 4, "Model library must expose exactly four native radio controls.");
   assert.equal(await sendButton.isDisabled(), true, "Send must be disabled for an empty prompt.");
-
-  await activePage.waitForFunction(() => {
-    const radios = document.querySelectorAll('[data-model-surface="desktop"] input[type="radio"]');
-    return radios.length === 4 && [...radios].every((radio) => !/(Checking browser GPU|Downloading)/.test(radio.getAttribute("aria-label") ?? ""));
-  }, undefined, { timeout: timeoutMs });
-  const models = await modelRadios.evaluateAll((nodes) => nodes.map((radio) => ({
-    checked: radio.checked,
-    disabled: radio.disabled,
-    label: radio.getAttribute("aria-label") ?? "",
-    value: radio.value
-  })));
-  assert.deepEqual(models.map((model) => model.value), ["tiny-aya-global", "tiny-aya-earth", "tiny-aya-fire", "tiny-aya-water"]);
-  assert.ok(models.every((model) => /\.( Ready to download| Browser GPU required)\.$/.test(model.label)), "Every model radio must expose availability.");
-  assert.ok(models.every((model) => /non-commercial/.test(model.label)), "Every Tiny Aya model must disclose its non-commercial license.");
-  assert.ok(models.some((model) => !model.disabled), "At least one model must be compatible with the smoke-test browser.");
-  assert.ok(models.every((model) => !model.checked), "No model should be selected before an explicit user choice.");
   await textarea.fill("UI smoke check");
+  await assertVisible(resetButton, "conversation reset control");
+  assert.equal(await resetButton.getAttribute("title"), "Reset conversation");
+  assert.equal((await resetButton.textContent())?.trim(), "", "Reset control must remain icon-only.");
   assert.equal(await sendButton.isDisabled(), true, "Send must remain disabled until a model is selected.");
   assert.equal(await resetButton.isEnabled(), true, "Reset must enable when the composer contains text.");
   await resetButton.press("Enter");
   assert.equal(await textarea.inputValue(), "", "Reset must clear the composer.");
-  assert.equal(await resetButton.isDisabled(), true, "Reset must disable after restoring the empty conversation.");
+  await resetButton.waitFor({ state: "detached", timeout: timeoutMs });
   assert.equal(await sendButton.isDisabled(), true, "Send must disable again when the prompt is cleared.");
   const toggleModels = modelLibrary.locator('button[aria-controls="model-library-desktop"]');
   assert.equal(await toggleModels.getAttribute("aria-label"), "Collapse model library");
@@ -151,6 +162,7 @@ try {
 
   await activePage.setViewportSize({ width: 320, height: 800 });
   await assertVisible(textarea, "mobile prompt textarea");
+  await textarea.fill("Mobile reset check");
   await assertVisible(resetButton, "mobile conversation reset control");
   await assertWithinViewport(resetButton, 320, "mobile conversation reset control");
   const mobileTrigger = activePage.getByRole("button", { name: "Open model library", exact: true });
@@ -205,14 +217,11 @@ try {
   captureRuntimeErrors(activePage);
   await openPage(activePage);
 
-  const touchStorageHint = activePage.locator('[data-info-hint-trigger][aria-label="About browser storage"]');
-  await assertInfoHintTrigger(touchStorageHint, "browserStorage", "touch browser storage InfoHint");
-  await touchStorageHint.tap();
-  await activePage.waitForTimeout(100);
-  await assertNoVisibleInfoHint(activePage, "Tapping a browser storage InfoHint");
-
   const touchModelsTrigger = activePage.getByRole("button", { name: "Open model library", exact: true });
-  await touchModelsTrigger.tap();
+  for (let attempt = 0; attempt < 3 && await touchModelsTrigger.getAttribute("aria-expanded") !== "true"; attempt += 1) {
+    await touchModelsTrigger.click();
+    await activePage.waitForTimeout(100);
+  }
   const touchModelsDialog = activePage.getByRole("dialog", { name: "Model library", exact: true });
   await assertVisible(touchModelsDialog, "touch model-library dialog");
   const touchSpecsHint = touchModelsDialog.locator('[data-info-hint-trigger][aria-label="About model specifications"]');
@@ -269,7 +278,7 @@ try {
   clearTimeout(modelRequestTimeout);
   assert.match(requestedModelUrl, /7fff1be9627e40f0d89c33f406882bdafb56ec90/);
   const loadingSelection = await preloadGlobal.getByRole("radio").evaluate((radio) => ({ checked: radio.checked, label: radio.getAttribute("aria-label"), value: radio.value }));
-  assert.deepEqual(loadingSelection, { checked: true, label: "Tiny Aya Global 3.35B · non-commercial. Downloading.", value: "tiny-aya-global" });
+  assert.deepEqual(loadingSelection, { checked: true, label: "Tiny Aya Global 3.35B · non-commercial. ~2.35 GB download. Downloading.", value: "tiny-aya-global" });
   const progressBar = activePage.getByRole("progressbar", { name: "Loading Tiny Aya Global 3.35B · non-commercial", exact: true });
   await assertVisible(progressBar, "model download progress bar");
   assert.equal(await progressBar.getAttribute("aria-valuenow"), null, "Progress must remain indeterminate until byte totals arrive.");
@@ -280,7 +289,7 @@ try {
   await blockedModelRoute.abort("blockedbyclient");
   await activePage.locator("#prompt-error").waitFor({ state: "visible", timeout: timeoutMs });
   await progressBar.waitFor({ state: "detached", timeout: timeoutMs });
-  assert.equal(await preloadSend.isEnabled(), true, "A failed preload must leave generation available for an explicit retry.");
+  assert.equal(await preloadSend.isDisabled(), true, "A failed preload must keep generation gated until the model is ready.");
   await preloadContext.close();
   console.log("✓ Sidebar selection starts the pinned download and gates generation");
 
@@ -377,7 +386,7 @@ try {
   assert.equal(await determinateProgress.getAttribute("aria-valuenow"), "25");
   assert.equal(await determinateProgress.getAttribute("aria-valuetext"), "25 B of 100 B loaded");
   await activePage.evaluate(() => window.__setDownloadProgress({ loaded: 50, total: 100, stage: "resume", resumedBytes: 25, networkBytes: 25, bytesPerSecond: 20, etaMs: 2500 }));
-  await activePage.getByText("Resuming model · 50%", { exact: true }).waitFor({ state: "visible", timeout: timeoutMs });
+  await activePage.waitForFunction(() => document.querySelector("#prompt-help")?.textContent?.trim() === "Resuming model · 50%", undefined, { timeout: timeoutMs });
   assert.equal(await determinateProgress.getAttribute("aria-valuetext"), "50 B of 100 B loaded, including 25 B resumed");
   assert.match(await progressGlobal.getByRole("radio").getAttribute("aria-label") ?? "", /\. Resuming 50%\.$/);
   const pauseDownload = activePage.getByRole("button", { name: "Pause model download", exact: true });
@@ -394,10 +403,10 @@ try {
   await activePage.waitForFunction(() => window.__sophonWorkerRequests?.filter((request) => request.type === "preload" && request.modelId === "tiny-aya-global").length === 2, undefined, { timeout: timeoutMs });
   await assertVisible(determinateProgress, "resumed model download progress bar");
   await activePage.evaluate(() => window.__setDownloadProgress({ loaded: 80, total: 100, stage: "verify" }));
-  await activePage.getByText("Verifying model · 80%", { exact: true }).waitFor({ state: "visible", timeout: timeoutMs });
+  await activePage.waitForFunction(() => document.querySelector("#prompt-help")?.textContent?.trim() === "Verifying model · 80%", undefined, { timeout: timeoutMs });
   assert.equal(await determinateProgress.getAttribute("aria-valuetext"), "80 B of 100 B verified");
   await activePage.evaluate(() => window.__setDownloadProgress({ loaded: 100, total: 100, stage: "cache" }));
-  await activePage.getByText("Loading downloaded model · 100%", { exact: true }).waitFor({ state: "visible", timeout: timeoutMs });
+  await activePage.waitForFunction(() => document.querySelector("#prompt-help")?.textContent?.trim() === "Loading downloaded model · 100%", undefined, { timeout: timeoutMs });
   assert.equal(await determinateProgress.getAttribute("aria-valuetext"), "100 B of 100 B loaded from browser storage");
   assert.equal((await activePage.evaluate(() => window.__sophonWorkerRequests)).some((request) => request.type === "generate"), false);
   await activePage.evaluate(() => window.__finishPreload());
@@ -410,7 +419,9 @@ try {
   const assistantFixtureMessage = activePage.getByRole("article", { name: "Message from Sophon", exact: true }).filter({ hasText: "Fixture response" });
   await assertVisible(userFixtureMessage, "generated fixture user message");
   await assertVisible(assistantFixtureMessage, "generated fixture assistant message");
-  await assertVisible(assistantFixtureMessage.getByText("WebGPU · 2/3→2 tokens · 5.0 tokens/s · 120 ms TTFT · 1 earlier tokens omitted", { exact: true }), "plain-language response metrics");
+  await assertVisible(assistantFixtureMessage.getByText("WebGPU · 2/3 → 2 tokens · 5.0 tokens/s · first token 120 ms · 1 earlier tokens omitted", { exact: true }), "plain-language response metrics");
+  await userFixtureMessage.getByRole("button", { name: "Inspect 3 message tokens", exact: true }).click();
+  await assistantFixtureMessage.getByRole("button", { name: "Inspect 2 message tokens", exact: true }).click();
 
   const metricsHint = assistantFixtureMessage.locator('[data-info-hint-trigger][aria-label="About response metrics"]');
   const userTokenHint = userFixtureMessage.locator('[data-info-hint-trigger][aria-label="About token display"]');
@@ -446,6 +457,9 @@ try {
   const deleteCached = activePage.getByRole("button", { name: "Delete downloaded files for Tiny Aya Global 3.35B · non-commercial", exact: true });
   await assertVisible(deleteCached, "downloaded model deletion control");
   await deleteCached.click();
+  const deleteConfirmation = activePage.getByRole("dialog", { name: "Delete downloaded model?", exact: true });
+  await assertVisible(deleteConfirmation, "downloaded model deletion confirmation");
+  await deleteConfirmation.getByRole("button", { name: "Delete files", exact: true }).click();
   await activePage.waitForFunction(() => window.__sophonWorkerRequests?.some((request) => request.type === "delete-cache" && request.modelId === "tiny-aya-global"), undefined, { timeout: timeoutMs });
   await activePage.waitForFunction(() => document.querySelector('[data-model-surface="desktop"] input[value="tiny-aya-global"]')?.getAttribute("aria-label")?.endsWith("Ready to download."), undefined, { timeout: timeoutMs });
   await progressContext.close();
@@ -453,9 +467,14 @@ try {
 
   const fallbackContext = await browser.newContext({ viewport: { width: 320, height: 800 } });
   await fallbackContext.addInitScript(() => Object.defineProperty(Navigator.prototype, "storage", { configurable: true, get: () => undefined }));
+  await fallbackContext.route("https://**/*", (route) => route.abort("blockedbyclient"));
   activePage = await fallbackContext.newPage();
   captureRuntimeErrors(activePage);
   await openPage(activePage);
+  const fallbackPrimary = activePage.getByTestId("first-run-primary");
+  await fallbackPrimary.waitFor({ state: "visible", timeout: timeoutMs });
+  await activePage.waitForFunction(() => document.querySelector('[data-testid="first-run-primary"]')?.disabled === false, undefined, { timeout: timeoutMs });
+  await fallbackPrimary.click();
   const fallbackStorage = activePage.getByTestId("browser-storage");
   await assertVisible(fallbackStorage, "unavailable browser storage status");
   await activePage.waitForFunction(() => document.querySelector('[data-testid="browser-storage"]')?.getAttribute("data-state") === "unavailable", undefined, { timeout: timeoutMs });

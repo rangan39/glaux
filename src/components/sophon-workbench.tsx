@@ -18,7 +18,7 @@ import {
   runPrompt,
   terminateRuntimeWorker
 } from "@/lib/interp-client";
-import { MODEL_REGISTRY, resolveModelProvider, type ModelManifest } from "@/lib/onnx-models";
+import { getModelRuntimeProfile, MODEL_REGISTRY, RECOMMENDED_MODEL_ID, resolveModelProvider, type ModelManifest } from "@/lib/onnx-models";
 import type { GenerationTelemetryEvent, ModelCacheSummary, OnnxLogEvent, RuntimeCapabilities } from "@/lib/onnx-types";
 import { cn } from "@/lib/utils";
 
@@ -47,7 +47,6 @@ type GenerationState =
   | { status: "running"; activity: RuntimeActivity; draft: string; turn: Omit<FailedTurn, "reason"> };
 type BrowserStorage = StorageEstimate & { persistent: boolean };
 const LAST_READY_MODEL_KEY = "sophon:last-ready-model";
-const RECOMMENDED_MODEL_ID = "tiny-aya-global";
 const PROMPT_MAX_HEIGHT = 192;
 const PROMPT_SHORTCUT_HELP = "Enter to send · Shift+Enter for a new line";
 const STARTER_MESSAGES: ChatMessage[] = [
@@ -93,9 +92,9 @@ export function SophonWorkbench() {
   const downloadPercent = downloadProgress ? Math.floor(downloadProgress.loaded / downloadProgress.total * 100) : undefined;
   const downloadStatus = getDownloadStageLabel(downloadProgress?.stage, true);
   const isNetworkDownload = downloadProgress?.stage === "download" || downloadProgress?.stage === "resume";
+  const selectedModel = MODEL_REGISTRY.find((model) => model.id === modelId) ?? null;
   const modelLoadCancelLabel = isNetworkDownload ? "Pause model download" : "Cancel model loading";
   const modelLoadCancelText = isNetworkDownload ? "Pause" : "Cancel";
-  const selectedModel = MODEL_REGISTRY.find((model) => model.id === modelId) ?? null;
   const recommendedModel = MODEL_REGISTRY.find((model) => model.id === RECOMMENDED_MODEL_ID)!;
   const recommendedCache = cacheSummaries.find((model) => model.modelId === RECOMMENDED_MODEL_ID);
   const recommendedCompatibility = getModelCompatibility(capabilities, recommendedModel);
@@ -103,6 +102,9 @@ export function SophonWorkbench() {
   const pendingDeleteSummary = cacheSummaries.find((model) => model.modelId === pendingDeleteModelId);
   const pendingDeleteBytes = pendingDeleteSummary?.state === "partial" ? pendingDeleteSummary.resumableBytes : pendingDeleteSummary?.totalBytes;
   const modelCompatibility = getModelCompatibility(capabilities, selectedModel);
+  const selectedRuntimeProfile = selectedModel
+    ? getModelRuntimeProfile(selectedModel, capabilities?.hardwareTier ?? "desktop")
+    : null;
   const modelReady = selectedModel !== null && loadedModelId === selectedModel.id;
   const runtimeStatus = getRuntimeStatus(capabilities, selectedModel, loadedModelId, runtimeActivity);
   const storageLabel = browserStorage === undefined ? "Checking…" : browserStorage === null ? "Unavailable" : `${formatStorageBytes(browserStorage.usage)} / ${formatStorageBytes(browserStorage.quota)} · ${browserStorage.persistent ? "Persistent" : "Best effort"}`;
@@ -131,7 +133,7 @@ export function SophonWorkbench() {
         if (active) setCapabilities(nextCapabilities);
       })
       .catch(() => {
-        if (active) setCapabilities({ webgpu: false, wasm: false, crossOriginIsolated: false });
+        if (active) setCapabilities({ webgpu: false, wasm: false, crossOriginIsolated: false, browserEngine: "unknown", hardwareTier: "desktop", maxStorageBufferBindingSize: null });
       });
     return () => {
       active = false;
@@ -394,7 +396,7 @@ export function SophonWorkbench() {
     try {
       const response = await runPrompt(turns, {
         modelId: activeModelId,
-        maxNewTokens: 48,
+        maxNewTokens: getModelRuntimeProfile(model, capabilities?.hardwareTier ?? "desktop").maxNewTokens,
         onLog: (event) => updateRuntimeFromLog(generationId, event),
         onTelemetry: (telemetry) => updateRuntimeFromTelemetry(generationId, telemetry),
         temperature: 0.8
@@ -555,7 +557,7 @@ export function SophonWorkbench() {
         <div aria-atomic="true" aria-live="polite" className="sr-only" role="status">{runtimeActivity?.label ?? ""}</div>
 
         <div className="flex min-h-0 flex-1">
-          <SophonModelSidebar cacheSummaries={cacheSummaries} capabilities={capabilities} deletingModelId={deletingModelId} disabled={isRunning} downloadPercent={downloadPercent} loadedModelId={loadedModelId} loading={isModelLoading} loadingLabel={downloadStatus} mobileOpen={modelSidebarOpen} modelId={modelId} onDelete={requestDeleteModelDownload} onMobileOpenChange={setModelSidebarOpen} onSelect={selectModel} />
+          <SophonModelSidebar cacheSummaries={cacheSummaries} capabilities={capabilities} deletingModelId={deletingModelId} disabled={isRunning} downloadPercent={downloadPercent} loadedModelId={loadedModelId} loading={isModelLoading} loadingLabel={downloadStatus} mobileOpen={modelSidebarOpen} modelId={modelId} onDelete={requestDeleteModelDownload} onMobileOpenChange={setModelSidebarOpen} onSelect={selectModel} recommendedModelId={RECOMMENDED_MODEL_ID} />
           <section aria-busy={isBusy} aria-label="Conversation" className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
               <div className="mx-auto flex min-w-0 w-full max-w-6xl flex-col px-4 py-6 sm:px-12 sm:py-9">
@@ -565,6 +567,10 @@ export function SophonWorkbench() {
                       <FirstRunWelcome
                         cacheState={recommendedCache?.state}
                         compatibility={recommendedCompatibility}
+                        model={recommendedModel}
+                        mobileProfile={capabilities?.hardwareTier === "mobile"}
+                        notice={notice}
+                        onDismissNotice={() => setNotice(null)}
                         onOpenModels={() => setModelSidebarOpen(true)}
                         onSelectRecommended={() => selectModel(RECOMMENDED_MODEL_ID)}
                       />
@@ -663,7 +669,7 @@ export function SophonWorkbench() {
                   />
                   <div className="flex items-center justify-between border-t border-white/[.1] bg-black/10 px-3 py-2">
                     <span className="truncate pr-3 font-mono text-[10px] uppercase tracking-widest text-white/60">
-                      {selectedModel ? `${selectedModel.family} · ${formatQuantization(selectedModel.format.quantization)} · ${selectedModel.format.sizeLabel}` : "Choose a model above to unlock chat"}
+                      {selectedModel ? `${selectedModel.family} · ${formatQuantization(selectedModel.format.quantization)} · ${selectedModel.format.sizeLabel} · ${formatContextBudget(selectedRuntimeProfile?.contextLength ?? null)}` : "Choose a model above to unlock chat"}
                     </span>
                     {isRunning ? (
                       <Button aria-label="Stop generation" className="h-10 shrink-0 rounded-xl" onClick={stopGeneration} size="sm" type="button" variant="sophon">
@@ -734,21 +740,32 @@ function FirstRunCheck() {
   );
 }
 
-function FirstRunWelcome({ cacheState, compatibility, onOpenModels, onSelectRecommended }: {
+function FirstRunWelcome({ cacheState, compatibility, mobileProfile, model, notice, onDismissNotice, onOpenModels, onSelectRecommended }: {
   cacheState?: ModelCacheSummary["state"];
   compatibility: ReturnType<typeof getModelCompatibility>;
+  mobileProfile: boolean;
+  model: ModelManifest;
+  notice: string | null;
+  onDismissNotice: () => void;
   onOpenModels: () => void;
   onSelectRecommended: () => void;
 }) {
   const canStart = compatibility === "compatible";
+  const modelName = model.label.split(" · ")[0];
   const primaryLabel = cacheState === "cached"
-    ? "Use Tiny Aya Global"
+    ? `Use ${modelName}`
     : cacheState === "partial"
-      ? "Resume model download"
+      ? "Continue model download"
       : "Download recommended model";
 
   return (
     <section aria-labelledby="first-run-title" className="mx-auto w-full max-w-3xl" data-testid="first-run-welcome">
+      {notice ? (
+        <div className="sophon-glass-tile mb-3 flex items-center gap-3 rounded-xl border-white/15 px-4 py-3 text-sm text-white/75" role="status">
+          <span className="min-w-0 flex-1">{notice}</span>
+          <Button className="shrink-0" onClick={onDismissNotice} size="sm" type="button" variant="sophon">Dismiss</Button>
+        </div>
+      ) : null}
       <div className="sophon-glass-strong overflow-hidden rounded-3xl">
         <div className="border-b border-white/10 px-5 py-6 sm:px-8 sm:py-8">
           <div className="mb-4 flex items-center gap-2 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-[#ffb4a4]">
@@ -757,7 +774,7 @@ function FirstRunWelcome({ cacheState, compatibility, onOpenModels, onSelectReco
           </div>
           <h2 className="max-w-2xl text-2xl font-semibold tracking-tight text-white sm:text-3xl" id="first-run-title">Private AI, right in your browser</h2>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-white/65 sm:text-base">
-            Choose one open model to run locally. No account is needed, and your prompts and responses are not sent to an inference server.
+            Choose one Cohere Tiny Aya model to run locally. No account is needed, and your prompts and responses are not sent to an inference server.
           </p>
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             <div className="flex gap-3 rounded-2xl border border-white/10 bg-white/[.035] p-4">
@@ -771,7 +788,7 @@ function FirstRunWelcome({ cacheState, compatibility, onOpenModels, onSelectReco
               <Download aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-sophon-signal-soft" />
               <span>
                 <span className="block text-sm font-medium text-white">Download once</span>
-                <span className="mt-1 block text-xs leading-5 text-white/55">About 2.35 GB, then reused on future visits.</span>
+                <span className="mt-1 block text-xs leading-5 text-white/55">About {model.format.sizeLabel.replace("~", "")}, then reused on future visits.</span>
               </span>
             </div>
           </div>
@@ -784,10 +801,10 @@ function FirstRunWelcome({ cacheState, compatibility, onOpenModels, onSelectReco
             </span>
             <div className="mt-3 min-w-0 flex-1 sm:mt-0">
               <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-base font-semibold text-white">Tiny Aya Global</h3>
-                <span className="rounded-full border border-sophon-verified/30 bg-sophon-verified/10 px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-wider text-sophon-verified">Recommended</span>
+                <h3 className="text-base font-semibold text-white">{modelName}</h3>
+                <span className="rounded-full border border-sophon-verified/30 bg-sophon-verified/10 px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-wider text-sophon-verified">{mobileProfile ? "Mobile mode" : "Recommended"}</span>
               </div>
-              <p className="mt-1 text-sm text-white/60">The best starting point for most people, with support for 70+ languages.</p>
+              <p className="mt-1 text-sm text-white/60">{model.description}{mobileProfile ? " Sophon uses a 2K context and shorter responses on this device." : ""}</p>
             </div>
             <Button
               className="mt-4 h-11 w-full shrink-0 rounded-xl bg-gradient-to-br from-sophon-signal-bright to-sophon-signal px-5 text-[#210b07] shadow-[0_0_24px_rgb(255_77_46/.2)] hover:from-[#ff8068] hover:to-sophon-signal-bright sm:mt-0 sm:w-auto"
@@ -803,13 +820,13 @@ function FirstRunWelcome({ cacheState, compatibility, onOpenModels, onSelectReco
           </div>
           {compatibility === "incompatible" ? (
             <p className="mt-3 rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm leading-5 text-[#ffb4b7]" role="alert">
-              This device does not expose the browser GPU support required to run Tiny Aya locally.
+              This device does not expose the browser GPU support required to run this model locally.
             </p>
           ) : null}
           <div className="mt-4 flex flex-col gap-3 text-xs text-white/45 sm:flex-row sm:items-center sm:justify-between">
-            <span>Open weights · Non-commercial use · Downloads can be paused and resumed</span>
-            <Button className="self-start lg:hidden" onClick={onOpenModels} size="sm" type="button" variant="sophon">Compare all 4 models</Button>
-            <span className="hidden lg:inline">Regional models are available in the library.</span>
+            <span>Open weights · {model.licenseLabel} · Downloads can be paused and resumed</span>
+            <Button className="self-start lg:hidden" onClick={onOpenModels} size="sm" type="button" variant="sophon">Compare all {MODEL_REGISTRY.length} models</Button>
+            <span className="hidden lg:inline">More multilingual models are available in the library.</span>
           </div>
         </div>
       </div>
@@ -1084,6 +1101,10 @@ function formatProvider(value: string) {
 
 function formatQuantization(value: string) {
   return value === "q4f16" ? "4-bit" : value;
+}
+
+function formatContextBudget(tokens: number | null) {
+  return tokens === null ? "context varies" : `${Math.round(tokens / 1024)}K context`;
 }
 
 function formatDuration(value: number | null) {

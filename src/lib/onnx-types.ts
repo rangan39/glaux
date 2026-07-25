@@ -1,3 +1,4 @@
+import type { BrowserEngine, HardwareTier } from "@/lib/browser-runtime";
 import type { ModelProvider } from "@/lib/onnx-models";
 import type { GenerationTimingSnapshot } from "@/lib/generation-metrics";
 
@@ -53,6 +54,9 @@ export type RuntimeCapabilities = {
   webgpu: boolean;
   wasm: boolean;
   crossOriginIsolated: boolean;
+  browserEngine: BrowserEngine;
+  hardwareTier: HardwareTier;
+  maxStorageBufferBindingSize: number | null;
 };
 
 export type GenerationMetrics = {

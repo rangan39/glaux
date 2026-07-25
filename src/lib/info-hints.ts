@@ -2,7 +2,7 @@ export const INFO_HINTS = {
   modelSpecs: {
     label: "About model specifications",
     title: "Model specifications",
-    description: "3.35B is the parameter count. 4-bit (q4f16) compresses the weights while using 16-bit activations. 8K is an 8,192-token context window."
+    description: "3.35B is the parameter count. 4-bit (q4f16) compresses weights with 16-bit activations. Tiny Aya uses an 8,192-token context window on desktop and 2,048 tokens on mobile."
   },
   browserStorage: {
     label: "About browser storage",
@@ -17,7 +17,7 @@ export const INFO_HINTS = {
   webgpu: {
     label: "About WebGPU",
     title: "WebGPU",
-    description: "WebGPU runs the model on this device’s GPU inside the browser. Prompts and responses are not sent to an inference server."
+    description: "WebGPU runs the model on this device’s GPU inside the browser. Chromium uses a high-performance GPU profile and optimized ONNX graph. Prompts and responses are not sent to an inference server."
   },
   tokenLens: {
     label: "About token display",

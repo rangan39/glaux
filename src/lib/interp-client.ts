@@ -9,6 +9,7 @@ import type {
   OnnxRunResponse,
   RuntimeCapabilities
 } from "@/lib/onnx-types";
+import { getRuntimeCapabilities } from "@/lib/browser-runtime";
 import {
   isWorkerResponse,
   isWorkerResult,
@@ -47,7 +48,7 @@ let requestCounter = 0;
 const pendingRequests = new Map<string, PendingRequest>();
 
 export function getCapabilities(): Promise<RuntimeCapabilities> {
-  return dispatchWorkerRequest({ type: "capabilities" }).promise;
+  return getRuntimeCapabilities();
 }
 
 export async function runPrompt(messages: readonly ChatTurn[], options: OnnxRunOptions): Promise<OnnxRunResponse> {

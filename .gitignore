@@ -1,4 +1,6 @@
 .next/
+.next-extension/
+out/
 node_modules/
 .npm-cache/
 

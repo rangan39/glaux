@@ -1,4 +1,9 @@
-export const env = { allowLocalModels: false, allowRemoteModels: true, remotePathTemplate: "{model}/resolve/{revision}/" };
+export const env = {
+  allowLocalModels: false,
+  allowRemoteModels: true,
+  remotePathTemplate: "{model}/resolve/{revision}/",
+  backends: { onnx: { webgpu: { powerPreference: "low-power" } } }
+};
 export const pipelineCalls = [];
 export const pipelineRemotePathTemplates = [];
 

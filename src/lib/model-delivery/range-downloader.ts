@@ -1,5 +1,6 @@
 import { createSHA256 } from "hash-wasm";
 import pRetry from "p-retry";
+import { classifyBrowserEnvironment } from "@/lib/browser-runtime";
 import {
   createAdaptiveRangeQueue,
   type AdaptiveRangeQueue,
@@ -71,9 +72,27 @@ type DownloadOptions = {
   onDiagnostic?: (diagnostic: DeliveryDiagnostic) => void;
 };
 
-const globalRangeQueue = createAdaptiveRangeQueue({ adaptive: adaptiveDownloadsEnabled() });
+type RangeDownloadEnvironment = {
+  brands?: readonly string[];
+  deviceMemoryGb?: number | null;
+  hardwareConcurrency?: number;
+};
+
+const browserDownloadEnvironment = readBrowserDownloadEnvironment();
+const globalRangeQueue = createAdaptiveRangeQueue({
+  adaptive: adaptiveDownloadsEnabled(),
+  ...getRangeDownloadProfile(
+    browserDownloadEnvironment.userAgent,
+    browserDownloadEnvironment.maxTouchPoints,
+    browserDownloadEnvironment
+  )
+});
 const verifiedThisSession = new Set<string>();
-const CACHED_VERIFICATION_CONCURRENCY = 2;
+const CACHED_VERIFICATION_CONCURRENCY = getCachedVerificationConcurrency(
+  browserDownloadEnvironment.userAgent,
+  browserDownloadEnvironment.maxTouchPoints,
+  browserDownloadEnvironment
+);
 
 export class RangeDeliveryUnavailableError extends Error {
   constructor(message: string) {
@@ -99,6 +118,44 @@ export class RetryableRangeError extends Error {
     this.status = status;
     this.retryAfterMs = retryAfterMs;
   }
+}
+
+export function getRangeDownloadProfile(
+  userAgent: string,
+  maxTouchPoints = 0,
+  environment: RangeDownloadEnvironment = {}
+) {
+  const { browserEngine, hardwareTier } = classifyBrowserEnvironment({
+    userAgent,
+    maxTouchPoints,
+    brands: environment.brands
+  });
+  if (hardwareTier === "mobile") {
+    return { minimum: 1, initial: 2, maximum: 4, step: 1, epochBytes: 128 * 1024 * 1024 };
+  }
+  if (browserEngine === "chromium") {
+    return chromiumResourcesAreConstrained(environment)
+      ? { minimum: 2, initial: 4, maximum: 8, step: 2, epochBytes: 192 * 1024 * 1024 }
+      : { minimum: 2, initial: 6, maximum: 12, step: 2, epochBytes: 256 * 1024 * 1024 };
+  }
+  return { minimum: 2, initial: 4, maximum: 12, step: 2, epochBytes: 256 * 1024 * 1024 };
+}
+
+export function getCachedVerificationConcurrency(
+  userAgent: string,
+  maxTouchPoints = 0,
+  environment: RangeDownloadEnvironment = {}
+) {
+  const profile = classifyBrowserEnvironment({
+    userAgent,
+    maxTouchPoints,
+    brands: environment.brands
+  });
+  return profile.browserEngine === "chromium"
+    && profile.hardwareTier === "desktop"
+    && !chromiumResourcesAreConstrained(environment)
+    ? 4
+    : 2;
 }
 
 export async function downloadRangeArtifact(options: DownloadOptions): Promise<File> {
@@ -724,6 +781,31 @@ function now() {
 
 function adaptiveDownloadsEnabled() {
   return typeof process === "undefined" || process.env.NEXT_PUBLIC_SOPHON_ADAPTIVE_DOWNLOADS !== "0";
+}
+
+function chromiumResourcesAreConstrained({
+  deviceMemoryGb = null,
+  hardwareConcurrency = 0
+}: RangeDownloadEnvironment) {
+  return deviceMemoryGb !== null && deviceMemoryGb > 0 && deviceMemoryGb <= 4
+    || hardwareConcurrency > 0 && hardwareConcurrency <= 4;
+}
+
+function readBrowserDownloadEnvironment() {
+  if (typeof navigator === "undefined") {
+    return { userAgent: "", maxTouchPoints: 0, brands: [], deviceMemoryGb: null, hardwareConcurrency: 0 };
+  }
+  const runtimeNavigator = navigator as Navigator & {
+    deviceMemory?: number;
+    userAgentData?: { brands?: readonly { brand: string }[] };
+  };
+  return {
+    userAgent: runtimeNavigator.userAgent,
+    maxTouchPoints: runtimeNavigator.maxTouchPoints,
+    brands: runtimeNavigator.userAgentData?.brands?.map(({ brand }) => brand) ?? [],
+    deviceMemoryGb: typeof runtimeNavigator.deviceMemory === "number" ? runtimeNavigator.deviceMemory : null,
+    hardwareConcurrency: runtimeNavigator.hardwareConcurrency
+  };
 }
 
 class ArtifactIntegrityError extends Error {}

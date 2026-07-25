@@ -1,8 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { MODEL_REGISTRY, requireModelDefinition, resolveModelProvider } from "../src/lib/onnx-models.ts";
+import {
+  getModelRuntimeProfile,
+  MODEL_REGISTRY,
+  RECOMMENDED_MODEL_ID,
+  requireModelDefinition,
+  resolveModelProvider
+} from "../src/lib/onnx-models.ts";
 
-const EXPECTED_MODELS = [
+const EXPECTED_TINY_AYA_MODELS = [
   {
     id: "tiny-aya-global",
     repo: "onnx-community/tiny-aya-global-ONNX",
@@ -30,10 +36,11 @@ const EXPECTED_MODELS = [
 ];
 
 test("catalogs only the four pinned Tiny Aya regional models", () => {
-  assert.equal(MODEL_REGISTRY[0].id, "tiny-aya-global");
-  assert.deepEqual(MODEL_REGISTRY.map(({ id }) => id), EXPECTED_MODELS.map(({ id }) => id));
+  assert.equal(RECOMMENDED_MODEL_ID, "tiny-aya-global");
+  assert.equal(MODEL_REGISTRY[0].id, RECOMMENDED_MODEL_ID);
+  assert.deepEqual(MODEL_REGISTRY.map(({ id }) => id), EXPECTED_TINY_AYA_MODELS.map(({ id }) => id));
 
-  for (const expected of EXPECTED_MODELS) {
+  for (const expected of EXPECTED_TINY_AYA_MODELS) {
     const model = requireModelDefinition(expected.id);
     assert.equal(model.family, "cohere");
     assert.equal(model.verification, "experimental");
@@ -46,6 +53,9 @@ test("catalogs only the four pinned Tiny Aya regional models", () => {
     assert.equal(model.format.sizeLabel, "~2.35 GB");
     assert.equal(model.format.sizeBytes, expected.sizeBytes);
     assert.equal(model.format.contextLength, 8192);
+    assert.equal(model.runtime.maxNewTokens, 48);
+    assert.deepEqual(getModelRuntimeProfile(model, "mobile"), { contextLength: 2048, maxNewTokens: 24 });
+    assert.deepEqual(getModelRuntimeProfile(model, "desktop"), { contextLength: 8192, maxNewTokens: 48 });
     assert.match(model.label, /non-commercial/i);
     assert.match(model.description, /CC BY-NC 4\.0/i);
     assert.match(model.description, /Cohere Labs AUP/i);
@@ -56,7 +66,7 @@ test("rejects unknown model identifiers at runtime boundaries", () => {
   assert.throws(() => requireModelDefinition("not-a-model"), /Unknown model identifier/);
 });
 
-test("requires WebGPU for every Tiny Aya model", () => {
+test("requires WebGPU for every local model", () => {
   for (const model of MODEL_REGISTRY) {
     assert.equal(resolveModelProvider(model, { webgpu: true, wasm: true }), "webgpu");
     assert.equal(resolveModelProvider(model, { webgpu: false, wasm: true }), null);

@@ -78,7 +78,13 @@ export function isWorkerResult(type: WorkerRequestType, value: unknown): value i
   if (type === "capabilities") {
     return typeof value.webgpu === "boolean"
       && typeof value.wasm === "boolean"
-      && typeof value.crossOriginIsolated === "boolean";
+      && typeof value.crossOriginIsolated === "boolean"
+      && (value.browserEngine === "chromium"
+        || value.browserEngine === "webkit"
+        || value.browserEngine === "gecko"
+        || value.browserEngine === "unknown")
+      && (value.hardwareTier === "mobile" || value.hardwareTier === "desktop")
+      && (value.maxStorageBufferBindingSize === null || isFinitePositive(value.maxStorageBufferBindingSize));
   }
   if (type === "generate") {
     return value.ok === false

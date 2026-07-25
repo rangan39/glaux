@@ -1,10 +1,3 @@
-import {
-  deleteOnnxModelCache,
-  getOnnxModelCacheStatus,
-  getRuntimeCapabilities,
-  preloadOnnxModel,
-  runOnnxTextModel
-} from "@/lib/onnx-runner";
 import type { GenerationTelemetryEvent, OnnxLogEvent } from "@/lib/onnx-types";
 import { isWorkerRequest, type WorkerRequest } from "@/lib/onnx-worker-protocol";
 
@@ -40,7 +33,8 @@ self.onmessage = (message: MessageEvent<unknown>) => {
   }
 
   if (request.type === "capabilities") {
-    void getRuntimeCapabilities()
+    void import("@/lib/browser-runtime")
+      .then(({ getRuntimeCapabilities }) => getRuntimeCapabilities())
       .then((capabilities) => complete(request.requestId, capabilities))
       .catch((error) => fail(request.requestId, error));
     return;
@@ -63,6 +57,16 @@ self.onmessage = (message: MessageEvent<unknown>) => {
 
 async function runQueuedRequest(request: Exclude<WorkerRequest, { type: "capabilities" | "cancel" }>) {
   try {
+    if (request.type === "cache-status") {
+      const { getModelCacheStatus } = await import("@/lib/model-delivery/cache-status");
+      complete(request.requestId, { models: await getModelCacheStatus() });
+      return;
+    }
+    const {
+      deleteOnnxModelCache,
+      preloadOnnxModel,
+      runOnnxTextModel
+    } = await import("@/lib/onnx-runner");
     if (request.type === "generate") {
       const controller = requestControllers.get(request.requestId);
       complete(request.requestId, await runOnnxTextModel(request.messages, {
@@ -81,10 +85,6 @@ async function runQueuedRequest(request: Exclude<WorkerRequest, { type: "capabil
         requestControllers.get(request.requestId)?.signal
       );
       complete(request.requestId, { ok: true });
-      return;
-    }
-    if (request.type === "cache-status") {
-      complete(request.requestId, await getOnnxModelCacheStatus());
       return;
     }
     complete(request.requestId, await deleteOnnxModelCache(

@@ -24,10 +24,10 @@ export async function ensureAuxiliaryArtifact(
       onProgress({ loaded: artifact.size, total: artifact.size, stage: "cache", resumedBytes: artifact.size, networkBytes: 0 });
       return;
     }
-    const cachedBytes = await readAndHash(cached, artifact.size, (loaded) => {
+    const cachedSha256 = await readAndHash(cached, artifact.size, (loaded) => {
       onProgress({ loaded, total: artifact.size, stage: "verify", resumedBytes: artifact.size, networkBytes: 0 });
     }, signal);
-    if (cachedBytes.sha256 === artifact.sha256) {
+    if (cachedSha256 === artifact.sha256) {
       verifiedThisSession.add(sessionKey);
       onProgress({ loaded: artifact.size, total: artifact.size, stage: "cache", resumedBytes: artifact.size, networkBytes: 0 });
       return;
@@ -38,28 +38,34 @@ export async function ensureAuxiliaryArtifact(
 
   const response = await fetch(key, { cache: "no-store", redirect: "follow", signal });
   if (!response.ok) throw new Error(`Model metadata request failed with HTTP ${response.status} for ${artifact.path}.`);
-  const downloaded = await readAndHash(response, artifact.size, (loaded) => {
-    onProgress({ loaded, total: artifact.size, stage: "download", resumedBytes: 0, networkBytes: loaded });
-  }, signal);
-  if (downloaded.sha256 !== artifact.sha256) throw new Error(`SHA-256 mismatch for ${sessionKey}.`);
+  if (!response.body) throw new Error("The model artifact response had no body.");
+  const [verificationBody, cacheBody] = response.body.tee();
+  const guardedCacheBody = signal
+    ? cacheBody.pipeThrough(new TransformStream<Uint8Array, Uint8Array>(), { signal })
+    : cacheBody;
+  const headers = {
+    "content-length": String(artifact.size),
+    "content-type": response.headers.get("content-type") ?? "application/octet-stream"
+  };
+  const caching = cache.put(key, new Response(guardedCacheBody, { headers })).catch((error) => {
+    throw toModelStorageError(error, "The browser ran out of storage while caching verified model files.");
+  });
   try {
-    await cache.put(key, new Response(downloaded.bytes, {
-      headers: {
-        "content-length": String(artifact.size),
-        "content-type": response.headers.get("content-type") ?? "application/octet-stream"
-      }
-    }));
+    const downloadedSha256 = await readAndHash(new Response(verificationBody), artifact.size, (loaded) => {
+      onProgress({ loaded, total: artifact.size, stage: "download", resumedBytes: 0, networkBytes: loaded });
+    }, signal);
+    await caching;
+    if (downloadedSha256 !== artifact.sha256) {
+      await cache.delete(key);
+      throw new Error(`SHA-256 mismatch for ${sessionKey}.`);
+    }
   } catch (error) {
-    throw toModelStorageError(error, "The browser ran out of storage while caching verified model metadata.");
+    await caching.catch(() => undefined);
+    await cache.delete(key).catch(() => undefined);
+    throw error;
   }
   verifiedThisSession.add(sessionKey);
   onProgress({ loaded: artifact.size, total: artifact.size, stage: "cache", resumedBytes: 0, networkBytes: artifact.size });
-}
-
-export async function hasAuxiliaryArtifact(model: ModelDeliveryManifest, artifact: ModelAuxiliaryArtifact) {
-  if (typeof caches === "undefined") return false;
-  const cached = await (await caches.open(TRANSFORMERS_CACHE_NAME)).match(getArtifactUrl(model, artifact));
-  return Boolean(cached && Number(cached.headers.get("content-length")) === artifact.size);
 }
 
 export async function deleteAuxiliaryArtifacts(model: ModelDeliveryManifest) {
@@ -81,7 +87,6 @@ async function readAndHash(
   const hasher = await createSHA256();
   hasher.init();
   const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
   let loaded = 0;
   try {
     while (true) {
@@ -91,7 +96,6 @@ async function readAndHash(
       loaded += value.byteLength;
       if (loaded > expectedSize) throw new Error(`Model metadata exceeded its declared size of ${expectedSize} bytes.`);
       hasher.update(value);
-      chunks.push(value);
       onChunk(loaded);
     }
   } catch (error) {
@@ -101,13 +105,7 @@ async function readAndHash(
     reader.releaseLock();
   }
   if (loaded !== expectedSize) throw new Error(`Model metadata ended at ${loaded} of ${expectedSize} bytes.`);
-  const bytes = new Uint8Array(loaded);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return { bytes, sha256: hasher.digest("hex") };
+  return hasher.digest("hex");
 }
 
 function throwIfAborted(signal?: AbortSignal) {

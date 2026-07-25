@@ -9,6 +9,7 @@ const scheduled = [];
 let nextTimerId = 0;
 let lastRequest;
 let respond;
+let workerConstructionCount = 0;
 
 Object.defineProperty(globalThis, "window", {
   configurable: true,
@@ -27,6 +28,7 @@ Object.defineProperty(globalThis, "Worker", {
   configurable: true,
   value: class FakeWorker {
     constructor() {
+      workerConstructionCount += 1;
       this.onmessage = null;
       respond = (response) => this.onmessage?.({ data: response });
     }
@@ -35,7 +37,13 @@ Object.defineProperty(globalThis, "Worker", {
   }
 });
 
-const { preloadModel, terminateRuntimeWorker } = await import("../src/lib/interp-client.ts");
+const { getCapabilities, preloadModel, terminateRuntimeWorker } = await import("../src/lib/interp-client.ts");
+
+test("browser capability probing does not start the inference worker", async () => {
+  const capabilities = await getCapabilities();
+  assert.equal(capabilities.wasm, true);
+  assert.equal(workerConstructionCount, 0);
+});
 
 test("preload uses an idle watchdog refreshed only by meaningful progress plus an overall ceiling", async () => {
   const loading = preloadModel("tiny-aya-global");

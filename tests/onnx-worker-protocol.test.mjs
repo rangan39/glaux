@@ -148,7 +148,35 @@ test("validates worker events before dispatching them", () => {
 });
 
 test("checks operation-specific completion envelopes", () => {
-  assert.equal(isWorkerResult("capabilities", { webgpu: true, wasm: true, crossOriginIsolated: false }), true);
+  assert.equal(isWorkerResult("capabilities", {
+    webgpu: true,
+    wasm: true,
+    crossOriginIsolated: false,
+    browserEngine: "chromium",
+    hardwareTier: "mobile",
+    maxStorageBufferBindingSize: 134_217_728
+  }), true);
+  assert.equal(isWorkerResult("capabilities", {
+    webgpu: true,
+    wasm: true,
+    crossOriginIsolated: false,
+    browserEngine: "webkit",
+    hardwareTier: "desktop",
+    maxStorageBufferBindingSize: null
+  }), true);
+  assert.equal(isWorkerResult("capabilities", {
+    webgpu: true,
+    wasm: true,
+    crossOriginIsolated: false
+  }), false);
+  assert.equal(isWorkerResult("capabilities", {
+    webgpu: true,
+    wasm: true,
+    crossOriginIsolated: false,
+    browserEngine: "blink",
+    hardwareTier: "desktop",
+    maxStorageBufferBindingSize: null
+  }), false);
   assert.equal(isWorkerResult("generate", { ok: false, code: "REQUEST_FAILED", message: "failed" }), true);
   assert.equal(isWorkerResult("generate", { ok: false, code: "CANCELLED", message: "Generation cancelled." }), true);
   assert.equal(isWorkerResult("generate", { ok: false, code: "UNKNOWN", message: "failed" }), false);

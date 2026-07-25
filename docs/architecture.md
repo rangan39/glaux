@@ -13,7 +13,7 @@ Model manifest
   → token telemetry / generation result
 ```
 
-The browser owns one long-lived worker. Requests are queued inside that worker so model loading and inference cannot race. Loaded sessions remain available across prompts until the user changes models, explicitly unloads a model, or closes the page. Generation cancellation is request-scoped so stopping a response preserves the loaded model cache. A shared discriminated protocol validates requests, events, and completed results at the worker boundary. Operations have recovery timeouts; a timed-out or malformed worker is terminated so the UI cannot remain pending forever.
+The browser owns one long-lived worker. Its initial cache-inventory path loads only storage metadata; the Transformers.js and ONNX runtime chunk is imported on demand when a model is selected. Requests are queued inside that worker so model loading and inference cannot race. Loaded sessions remain available across prompts until the user changes models, explicitly unloads a model, or closes the page. Generation cancellation is request-scoped so stopping a response preserves the loaded model cache. A shared discriminated protocol validates requests, events, and completed results at the worker boundary. Operations have recovery timeouts; a timed-out or malformed worker is terminated so the UI cannot remain pending forever.
 
 ## Repository boundary
 
@@ -30,7 +30,7 @@ The current four-model catalog is experimental. Each entry may fail on a particu
 
 The Tiny Aya models use the Transformers.js text-generation pipeline. The pipeline owns architecture-specific ONNX sessions, KV-cache tensors, sampling, browser caching, and provider integration. A `TextStreamer` timestamps generated token IDs before the completed result returns, while request-scoped stopping criteria cancel generation without destroying the loaded pipeline.
 
-Each Tiny Aya variant is a 3.35B-parameter q4f16 graph with an 8K context window and requires WebGPU. Sophon reserves output-token capacity, removes the oldest complete conversation turns when necessary, and left-truncates only when one remaining turn still exceeds the budget.
+Each Tiny Aya variant is a 3.35B q4f16 graph with an adaptive profile: 8K context and 48 output tokens on desktop, 2K context and 24 output tokens on mobile. Every model requires WebGPU. Chromium uses a high-performance adapter preference and full ONNX graph optimization; Transformers.js pins supported KV-cache outputs to GPU buffers. Graph capture remains disabled because autoregressive generation uses dynamic shapes. Sophon reserves output-token capacity, removes the oldest complete conversation turns when necessary, and left-truncates only when one remaining turn still exceeds the budget.
 
 The q4f16 graph, tokenizer, and configuration files total about 2.35 GB per variant. Verified weights are retained in browser-private origin storage; selecting another variant releases the active worker but retains completed files and flushed download segments on disk.
 
@@ -40,7 +40,7 @@ Conversations remain structured until they reach the pipeline, allowing the Cohe
 
 The registry is paired with an allowlisted artifact manifest containing immutable repository revisions, exact paths, byte sizes, and SHA-256 digests. The existing model worker is also the delivery worker, which keeps main-thread work and cross-worker copies out of the hot path.
 
-Supported browsers use one global adaptive queue for HTTP range requests. It starts with four streams, measures completed-range goodput in bounded epochs, probes upward only when throughput improves, caps concurrency at twelve, and backs off multiplicatively after transient failures. A build-time environment flag retains the fixed-four fallback.
+Supported browsers use one global adaptive queue for Tiny Aya HTTP range requests. Capable desktop Chromium devices start with six streams and can probe up to twelve; Chromium devices with no more than 4 GB reported memory or four logical processors start with four and cap at eight. Other desktop browsers start with four and can probe up to twelve. Mobile starts with two and caps at four. Capable desktop Chromium devices also use four cached-segment verification workers; all other profiles use two. Every profile measures completed-range goodput in bounded epochs and backs off multiplicatively after transient failures. A build-time environment flag disables upward probing while retaining each device tier's conservative starting point.
 
 Each 64 MiB segment is streamed into an OPFS synchronous access handle at its final byte offset and hashed as its response arrives. Fixed-size segment digests are generated from immutable revisions, checked against the existing whole-file hashes, and pinned with the runtime manifest. A segment becomes eligible for a durable checkpoint only after its exact size and digest match; transient corruption retries only that range. This removes the complete 2.33 GB verification reread from fresh downloads.
 
@@ -48,7 +48,7 @@ Strong ETags and `If-Range` protect resumed files from remote revision drift. Do
 
 Completed segments are checkpointed after four completions or one second, whichever comes first. A checkpoint flushes OPFS before committing its completed-segment set through a strict IndexedDB transaction. This order permits bounded redundant work after a crash but never records an unflushed segment as resumable. Graceful completion and cancellation drain the outstanding batch.
 
-The allowlist covers the ONNX graph, both external-data files, configuration, generation settings, and tokenizer resources at immutable repository commits. Large weights use OPFS only, avoiding a duplicate CacheStorage copy. Sophon streams and hashes the smaller resources before placing them under the CacheStorage keys Transformers.js expects, then initializes the pipeline in local-files-only mode. Missing platform APIs, unavailable quota, absent range support, contract violations, and integrity failures all fail closed.
+The allowlist covers ONNX graphs, Tiny Aya external-data files, configuration, generation settings, and tokenizer resources at immutable repository commits. Tiny Aya weights use OPFS only, avoiding a duplicate CacheStorage copy. Sophon then initializes each pipeline in local-files-only mode. Missing platform APIs, unavailable quota, absent required range support, contract violations, and integrity failures all fail closed.
 
 Preload and generation requests share the worker's targeted cancellation protocol. Cancelling a preload aborts probes and response readers but retains every flushed checkpoint; selection can resume it later. Cache inspection combines IndexedDB checkpoints, OPFS file sizes, and auxiliary CacheStorage entries. Where Web Locks are available, deletion takes an exclusive per-model lock; the worker also serializes the operation, disposes the live pipeline, and removes all three storage layers.
 
@@ -86,7 +86,7 @@ COOP/COEP headers are intentionally deferred. The experimental model path can fo
 
 ## Frontend delivery budget
 
-The initial layout/page entry set is capped at 80 KiB gzip. The Base UI tooltip used for immediate hover and keyboard-focus help moved the measured production entry set from 40,914 to 73,113 bytes gzip; the cap leaves about 12% headroom. This gate measures the existing Next.js entry-manifest boundary, not every deferred chunk requested by the route.
+The initial layout/page entry set is capped at 56 KiB gzip. Info hints use a focused portal-based implementation instead of a general-purpose component package; the measured production entry set is 47,044 bytes gzip. This gate measures the existing Next.js entry-manifest boundary, not every deferred chunk requested by the route or the on-demand inference runtime.
 
 ## Token display
 

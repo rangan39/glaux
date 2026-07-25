@@ -7,9 +7,68 @@ register("./alias-loader.mjs", import.meta.url);
 
 const {
   downloadRangeArtifact,
+  getCachedVerificationConcurrency,
+  getRangeDownloadProfile,
   RangeContractError,
   RangeDeliveryUnavailableError
 } = await import("../src/lib/model-delivery/range-downloader.ts");
+
+test("uses gentler range concurrency on phones and touch-based iPads", () => {
+  assert.deepEqual(getRangeDownloadProfile("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)"), {
+    minimum: 1,
+    initial: 2,
+    maximum: 4,
+    step: 1,
+    epochBytes: 128 * 1024 * 1024
+  });
+  assert.deepEqual(getRangeDownloadProfile("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15)", 5), {
+    minimum: 1,
+    initial: 2,
+    maximum: 4,
+    step: 1,
+    epochBytes: 128 * 1024 * 1024
+  });
+  assert.deepEqual(getRangeDownloadProfile("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15)", 0), {
+    minimum: 2,
+    initial: 4,
+    maximum: 12,
+    step: 2,
+    epochBytes: 256 * 1024 * 1024
+  });
+});
+
+test("warms Chromium downloads faster while respecting constrained devices", () => {
+  const chromium = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36";
+  assert.deepEqual(getRangeDownloadProfile(chromium, 0, {
+    deviceMemoryGb: 8,
+    hardwareConcurrency: 8
+  }), {
+    minimum: 2,
+    initial: 6,
+    maximum: 12,
+    step: 2,
+    epochBytes: 256 * 1024 * 1024
+  });
+  assert.equal(getCachedVerificationConcurrency(chromium, 0, {
+    deviceMemoryGb: 8,
+    hardwareConcurrency: 8
+  }), 4);
+
+  assert.deepEqual(getRangeDownloadProfile(chromium, 0, {
+    deviceMemoryGb: 4,
+    hardwareConcurrency: 4
+  }), {
+    minimum: 2,
+    initial: 4,
+    maximum: 8,
+    step: 2,
+    epochBytes: 192 * 1024 * 1024
+  });
+  assert.equal(getCachedVerificationConcurrency(chromium, 0, {
+    deviceMemoryGb: 4,
+    hardwareConcurrency: 4
+  }), 2);
+});
 
 test("streams four ranges at a time while overlapping verification and batching checkpoints", async () => {
   const bytes = Uint8Array.from({ length: 53 }, (_, index) => index * 7 % 251);

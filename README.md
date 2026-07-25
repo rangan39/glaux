@@ -9,6 +9,7 @@ Production app: [sophon-coral.vercel.app](https://sophon-coral.vercel.app)
 - Chats with a local ONNX model directly in the browser
 - Uses WebGPU through Transformers.js and ONNX Runtime Web
 - Keeps model loading and inference off the main UI thread
+- Loads the large Transformers.js/ONNX runtime only after a model is selected
 - Downloads a model only after the user selects it from a strict registry
 - Resumes interrupted weight downloads from verified browser-private storage
 - Shows model, runtime, and generation status in a compact HUD-style interface
@@ -44,9 +45,17 @@ Build and validate the production bundle:
 npm run build
 npm run budget:bundle
 npm run check
+npm run build:extension
+npm run smoke:extension
 ```
 
-WebGPU works best in a recent Chromium-based browser. Opening Sophon does not download model weights; the first explicit model selection downloads and caches about 2.35 GB.
+WebGPU works best in a recent browser with WebGPU enabled. Opening Sophon does not download model weights; each explicit Tiny Aya selection downloads and caches about 2.35 GB.
+
+### Chrome extension
+
+`npm run build:extension` creates a self-contained Manifest V3 extension in `dist/chrome-extension`. Its toolbar action opens Sophon in a full extension tab, where `unlimitedStorage` protects the multi-gigabyte OPFS, IndexedDB, and Cache Storage model cache. The build externalizes Next.js hydration scripts so the result complies with Chrome's extension-page CSP while retaining local WebAssembly support. Load the output folder from `chrome://extensions` with Developer mode enabled.
+
+The extension has its own `chrome-extension://` storage origin. Models downloaded on `localhost` or the hosted web app must be downloaded once again inside the extension.
 
 Probe the pinned model CDN across repeated concurrency trials (defaults: three trials, 64 MiB per trial, concurrency 1/2/4):
 
@@ -89,15 +98,15 @@ The current registry includes:
 - Tiny Aya Fire — optimized for South Asian languages
 - Tiny Aya Water — optimized for European and Asia-Pacific languages
 
-All four entries are 3.35B-parameter, q4f16 ONNX conversions with an 8K context window. They are WebGPU-only, pinned to immutable repository revisions, and marked `experimental` until Sophon certifies each tokenizer, graph, and browser combination.
+The four Tiny Aya entries are 3.35B-parameter q4f16 ONNX conversions. They use an 8K context and 48-token default on desktop, then switch to a 2K context and 24-token default on mobile hardware. Every model is WebGPU-only, pinned to an immutable repository revision, and marked `experimental` until Sophon certifies each tokenizer, graph, and browser combination. Chromium browsers request the high-performance GPU adapter and load the model with full ONNX graph optimization; Transformers.js keeps Tiny Aya's KV-cache outputs on the GPU.
 
-Tiny Aya is an open-weights research release governed by CC BY-NC 4.0 and the Cohere Labs Acceptable Use Policy. Commercial use is not permitted under that license. Each variant has a separate browser cache key, so caching all four can consume roughly 9.4 GB.
+Tiny Aya is an open-weights research release governed by CC BY-NC 4.0 and the Cohere Labs Acceptable Use Policy; commercial use is not permitted under that license. Each variant has a separate browser cache key, so caching all four models can consume roughly 9.4 GB.
 
 ## Model delivery and caching
 
-Selecting a model starts a pinned Hugging Face download inside the browser worker. When supported, Sophon downloads 64 MiB ranges through a bounded adaptive queue that starts at four requests, probes up to twelve only when measured goodput improves, and backs off on transient failures. Every range is streamed directly into the Origin Private File System and simultaneously checked against a pinned segment SHA-256 digest. A corrupt response retries only its range, and a fresh download does not need a final OPFS reread. Resumed downloads retain the complete ordered SHA-256 path as a compatibility fallback and overlap it with remaining network work.
+Selecting a model starts a pinned Hugging Face download inside the browser worker. Tiny Aya weights download in 64 MiB ranges through a bounded adaptive queue. Capable desktop Chromium devices warm up with six requests and can probe up to twelve; constrained Chromium devices start at four and cap at eight. Other desktop browsers start at four and can probe up to twelve, while phones start at two and cap at four to reduce memory and radio pressure. Chromium also verifies cached model segments with up to four workers on capable desktops. Every range is streamed directly into the Origin Private File System and simultaneously checked against a pinned segment SHA-256 digest. A corrupt response retries only its range, and a fresh download does not need a final OPFS reread. Resumed downloads retain the complete ordered SHA-256 path as a compatibility fallback and overlap it with remaining network work.
 
-Completed ranges become resumable in batches of four or after one second, whichever comes first. Every checkpoint flushes OPFS before its strict IndexedDB commit, so a crash can cause bounded redundant downloading but cannot authorize bytes that were not durably written. A reload or model switch can therefore reuse durable ranges instead of restarting a multi-gigabyte file. Set `NEXT_PUBLIC_SOPHON_ADAPTIVE_DOWNLOADS=0` before building to retain the fixed four-request fallback.
+Completed ranges become resumable in batches of four or after one second, whichever comes first. Every checkpoint flushes OPFS before its strict IndexedDB commit, so a crash can cause bounded redundant downloading but cannot authorize bytes that were not durably written. A reload or model switch can therefore reuse durable ranges instead of restarting a multi-gigabyte file. Set `NEXT_PUBLIC_SOPHON_ADAPTIVE_DOWNLOADS=0` before building to disable upward probing while retaining the device tier's conservative starting point.
 
 Verified OPFS `File` objects are handed to Transformers.js as ONNX external data, so weights are not duplicated in CacheStorage. The graph, configuration, generation settings, and tokenizer files are also pinned by exact size and SHA-256, verified by Sophon, and then stored under Transformers.js-compatible CacheStorage keys. A cached artifact is rehashed once per browser-worker session before runtime use.
 
@@ -144,4 +153,4 @@ OPFS removes repeated network work and bounds download buffers, but ONNX Runtime
 
 All models use architecture-specific KV caching through Transformers.js. See [`docs/architecture.md`](docs/architecture.md) for support semantics and metric definitions.
 
-Long prompts are accepted, but each model can only receive its 8K context window. Sophon reserves space for the response, removes the oldest complete turns first, then left-truncates an oversized remaining turn and reports how many earlier tokens were omitted.
+Long prompts are accepted, but each runtime profile has a bounded active context. Sophon uses 2K on phones and 8K on desktop. It reserves space for the response, removes the oldest complete turns first, then left-truncates an oversized remaining turn and reports how many earlier tokens were omitted.

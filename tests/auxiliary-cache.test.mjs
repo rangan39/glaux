@@ -50,6 +50,52 @@ test("rejects a corrupt cached auxiliary file and replaces it with pinned bytes"
   assert.equal(progress.at(-1)?.stage, "cache");
 });
 
+test("cancels both verification and the streamed cache write", async () => {
+  const expected = Uint8Array.from({ length: 256 }, (_, index) => index);
+  const artifact = { path: "onnx/model_q4f16.onnx", size: expected.length, sha256: digest(expected) };
+  const model = {
+    modelId: "cancel-model",
+    repo: "fixture/repo",
+    revision: "abcdefabcdefabcdefabcdefabcdefabcdefabcd",
+    externalData: [],
+    auxiliary: [artifact]
+  };
+  const key = `https://huggingface.co/${model.repo}/resolve/${model.revision}/${artifact.path}`;
+  const cache = new MemoryCache();
+  Object.defineProperty(globalThis, "caches", {
+    configurable: true,
+    value: { open: async () => cache }
+  });
+  const controller = new AbortController();
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(new ReadableStream({
+    start(streamController) {
+      streamController.enqueue(expected.slice(0, 128));
+      setTimeout(() => {
+        try {
+          streamController.enqueue(expected.slice(128));
+          streamController.close();
+        } catch {
+          // Cancellation closes the stream before the delayed source completes.
+        }
+      }, 50);
+    }
+  }), { headers: { "content-length": String(expected.length) } });
+
+  try {
+    await assert.rejects(
+      ensureAuxiliaryArtifact(model, artifact, ({ loaded }) => {
+        if (loaded > 0) controller.abort(new DOMException("Test cancellation", "AbortError"));
+      }, controller.signal),
+      /cancell/i
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  assert.equal(await cache.match(key), undefined);
+});
+
 function digest(bytes) {
   return createHash("sha256").update(bytes).digest("hex");
 }
@@ -62,7 +108,8 @@ class MemoryCache {
   }
 
   async put(key, response) {
-    this.#entries.set(String(key), response.clone());
+    const bytes = await response.arrayBuffer();
+    this.#entries.set(String(key), new Response(bytes, { headers: response.headers }));
   }
 
   async delete(key) {

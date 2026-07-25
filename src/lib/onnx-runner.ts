@@ -1,11 +1,13 @@
 import type { PreTrainedTokenizer, ProgressInfo, TextGenerationPipeline } from "@huggingface/transformers";
-import { requireModelDefinition, resolveModelProvider, type ModelManifest, type ModelProvider } from "@/lib/onnx-models";
+import { getRuntimeCapabilities, type BrowserEngine } from "@/lib/browser-runtime";
+import { getModelRuntimeProfile, requireModelDefinition, resolveModelProvider, type ModelManifest, type ModelProvider } from "@/lib/onnx-models";
 import { calculateGenerationTiming, createGenerationTelemetryGate } from "@/lib/generation-metrics";
 import {
   deleteModelCache,
   getModelCacheStatus,
   prepareModelDelivery,
-  type DeliveryProgress
+  type DeliveryProgress,
+  type PreparedModelDelivery
 } from "@/lib/model-delivery/index";
 import { decodeTokenPieces, markActiveContext, sliceTokenPiecesByTextRange } from "@/lib/token-display";
 import type {
@@ -16,22 +18,17 @@ import type {
   OnnxRunOptions,
   OnnxRunResponse,
   OnnxRunResult,
-  OnnxToken,
-  RuntimeCapabilities
+  OnnxToken
 } from "@/lib/onnx-types";
 
 type PipelineLike = TextGenerationPipeline;
 type PreparedGenerationInput = ChatTurn[];
 
 const pipelineCache = new Map<string, Promise<PipelineLike>>();
-let runtimeCapabilitiesPromise: Promise<RuntimeCapabilities> | null = null;
 const TINY_AYA_LANGUAGE_PREAMBLE = "You have been trained on data in English, Dutch, French, Italian, Portuguese, Romanian, Spanish, Czech, Polish, Ukrainian, Russian, Greek, German, Danish, Swedish, Norwegian, Catalan, Galician, Welsh, Irish, Basque, Croatian, Latvian, Lithuanian, Slovak, Slovenian, Estonian, Finnish, Hungarian, Serbian, Bulgarian, Arabic, Persian, Urdu, Turkish, Maltese, Hebrew, Hindi, Marathi, Bengali, Gujarati, Punjabi, Tamil, Telugu, Nepali, Tagalog, Malay, Indonesian, Vietnamese, Javanese, Khmer, Thai, Lao, Chinese, Burmese, Japanese, Korean, Amharic, Hausa, Igbo, Malagasy, Shona, Swahili, Wolof, Xhosa, Yoruba and Zulu but have the ability to speak many more languages.";
 const COMPACT_TINY_AYA_LANGUAGE_PREAMBLE = "You have multilingual training and can respond in many languages.";
 
-export function getRuntimeCapabilities() {
-  runtimeCapabilitiesPromise ??= detectRuntimeCapabilities();
-  return runtimeCapabilitiesPromise;
-}
+export { getRuntimeCapabilities } from "@/lib/browser-runtime";
 
 export function prepareGenerationInput(messages: readonly ChatTurn[]): PreparedGenerationInput {
   return messages.flatMap((message) => {
@@ -101,7 +98,8 @@ async function runTransformersJsModel(
   options: OnnxRunOptions
 ): Promise<OnnxRunResponse> {
   const log = options.onLog ?? (() => undefined);
-  const maxNewTokens = clamp(options.maxNewTokens ?? 24, 1, 64);
+  const runtimeProfile = getModelRuntimeProfile(model, (await getRuntimeCapabilities()).hardwareTier);
+  const maxNewTokens = clamp(options.maxNewTokens ?? runtimeProfile.maxNewTokens, 1, 64);
   const temperature = clamp(options.temperature ?? 0.8, 0.05, 2);
   const topK = clamp(options.topK ?? 40, 1, 100);
   const loadStartedAt = performance.now();
@@ -115,7 +113,7 @@ async function runTransformersJsModel(
     const originalInput = prepareGenerationInput(messages);
     const originalRenderedInput = renderGenerationInput(generator.tokenizer, originalInput);
     const promptTokenCount = generator.tokenizer.encode(originalRenderedInput, { add_special_tokens: false }).length;
-    const contextLimit = readContextLimit(generator.tokenizer, model);
+    const contextLimit = readContextLimit(generator.tokenizer, runtimeProfile.contextLength);
     const maxInputTokens = contextLimit === null ? null : Math.max(1, contextLimit - maxNewTokens);
     const fittedMessages = fitMessagesToContext(generator.tokenizer, messages, maxInputTokens);
     const input = prepareGenerationInput(fittedMessages);
@@ -212,6 +210,7 @@ async function getPipeline(model: ModelManifest, provider: ModelProvider, log: (
     log({ level: "info", message: "Reusing loaded model", detail: `${model.label} · ${formatProvider(provider)}`, phase: "runtime" });
     return cached;
   }
+  const capabilities = await getRuntimeCapabilities();
   const source = model.source.kind === "local" ? model.source.baseUrl : model.source.repo;
   let lastProgress = -1;
   const progressCallback = (event: ProgressInfo) => {
@@ -225,6 +224,7 @@ async function getPipeline(model: ModelManifest, provider: ModelProvider, log: (
   log({ level: "info", message: "Loading model", detail: `${model.label} · ${model.format.sizeLabel}`, phase: "download" });
   const loading = import("@huggingface/transformers").then(async ({ env, pipeline }) => {
     throwIfCancelled(signal);
+    optimizeChromiumWebGpuEnvironment(env, capabilities.browserEngine);
     const allowLocalModels = env.allowLocalModels;
     const allowRemoteModels = env.allowRemoteModels;
     env.allowLocalModels = model.source.kind === "local";
@@ -249,15 +249,24 @@ async function getPipeline(model: ModelManifest, provider: ModelProvider, log: (
         env.allowLocalModels = true;
         env.allowRemoteModels = false;
       }
+      const sessionOptions = getOptimizedSessionOptions(capabilities.browserEngine, delivery?.externalData);
+      if (capabilities.browserEngine === "chromium") {
+        log({
+          level: "info",
+          message: "Optimizing Chromium WebGPU",
+          detail: "High-performance GPU · optimized ONNX graph",
+          phase: "runtime"
+        });
+      }
       const generator = await pipeline("text-generation", source, {
         device: provider,
         dtype: model.format.quantization,
         progress_callback: delivery ? undefined : progressCallback,
         ...(delivery ? {
           local_files_only: true,
-          use_external_data_format: false,
-          session_options: { externalData: delivery.externalData }
+          use_external_data_format: false
         } : {}),
+        ...(sessionOptions ? { session_options: sessionOptions } : {}),
         ...(model.source.kind === "huggingface" ? { revision: model.source.revision } : {})
       });
       if (model.family === "cohere" && typeof generator.tokenizer?.chat_template === "string") {
@@ -307,8 +316,8 @@ function fitMessagesToContext(
   return fitted;
 }
 
-function readContextLimit(tokenizer: PreTrainedTokenizer, model: ModelManifest) {
-  if (model.format.contextLength !== null) return model.format.contextLength;
+function readContextLimit(tokenizer: PreTrainedTokenizer, configuredContextLength: number | null) {
+  if (configuredContextLength !== null) return configuredContextLength;
   const configured = (tokenizer as PreTrainedTokenizer & { model_max_length?: unknown }).model_max_length;
   return typeof configured === "number" && Number.isSafeInteger(configured) && configured > 0 && configured < 1_000_000
     ? configured
@@ -339,22 +348,32 @@ async function resolveProvider(model: ModelManifest): Promise<ModelProvider> {
   throw new Error(`${model.label} needs browser GPU support, which is unavailable in this browser.`);
 }
 
-async function detectRuntimeCapabilities(): Promise<RuntimeCapabilities> {
-  const scope = globalThis as typeof globalThis & {
-    navigator?: Navigator & { gpu?: { requestAdapter?: () => Promise<unknown> } };
-    crossOriginIsolated?: boolean;
-  };
-  let webgpu = false;
-  try {
-    webgpu = Boolean(await scope.navigator?.gpu?.requestAdapter?.());
-  } catch {
-    // A denied or unavailable adapter is equivalent to no WebGPU capability.
-  }
+function getOptimizedSessionOptions(
+  browserEngine: BrowserEngine,
+  externalData?: PreparedModelDelivery["externalData"]
+) {
+  if (browserEngine !== "chromium" && !externalData) return null;
   return {
-    webgpu,
-    wasm: typeof WebAssembly !== "undefined",
-    crossOriginIsolated: Boolean(scope.crossOriginIsolated)
+    ...(browserEngine === "chromium" ? {
+      graphOptimizationLevel: "all" as const,
+      executionMode: "sequential" as const
+    } : {}),
+    ...(externalData ? { externalData } : {})
   };
+}
+
+function optimizeChromiumWebGpuEnvironment(
+  environment: {
+    backends?: {
+      onnx?: {
+        webgpu?: { powerPreference?: "low-power" | "high-performance" };
+      };
+    };
+  },
+  browserEngine: BrowserEngine
+) {
+  if (browserEngine !== "chromium" || !environment.backends?.onnx?.webgpu) return;
+  environment.backends.onnx.webgpu.powerPreference = "high-performance";
 }
 
 function failure(error: unknown, log: (event: OnnxLogEvent) => void, label: string): OnnxRunResponse {

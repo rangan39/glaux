@@ -6,6 +6,7 @@ register("./alias-loader.mjs", import.meta.url);
 const { env, pipelineCalls, pipelineRemotePathTemplates } = await import("@huggingface/transformers");
 const {
   compactTinyAyaChatTemplate,
+  getRuntimeCapabilities,
   preloadOnnxModel,
   prepareGenerationInput,
   readGeneratedText,
@@ -62,9 +63,33 @@ test("returns typed cancellation before loading a model for an aborted request",
 });
 
 test("preloads and reuses the pinned Tiny Aya WebGPU pipeline without generating", async () => {
-  Object.defineProperty(globalThis, "navigator", { configurable: true, value: { gpu: { requestAdapter: async () => ({}) } } });
+  let adapterOptions;
+  Object.defineProperty(globalThis, "navigator", {
+    configurable: true,
+    value: {
+      gpu: {
+        requestAdapter: async (options) => {
+          adapterOptions = options;
+          return { limits: { maxStorageBufferBindingSize: 268_435_456 } };
+        }
+      },
+      hardwareConcurrency: 8,
+      maxTouchPoints: 0,
+      userAgent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36",
+      userAgentData: { brands: [{ brand: "Chromium" }, { brand: "Google Chrome" }] }
+    }
+  });
   pipelineCalls.length = 0;
   pipelineRemotePathTemplates.length = 0;
+  assert.deepEqual(await getRuntimeCapabilities(), {
+    webgpu: true,
+    wasm: true,
+    crossOriginIsolated: false,
+    browserEngine: "chromium",
+    hardwareTier: "desktop",
+    maxStorageBufferBindingSize: 268_435_456
+  });
+  assert.deepEqual(adapterOptions, { powerPreference: "high-performance" });
   const logs = [];
   await preloadOnnxModel("tiny-aya-global", (event) => logs.push(event));
   await preloadOnnxModel("tiny-aya-global", (event) => logs.push(event));
@@ -76,13 +101,20 @@ test("preloads and reuses the pinned Tiny Aya WebGPU pipeline without generating
   assert.deepEqual([task, source, pipelineOptions], [
     "text-generation",
     "onnx-community/tiny-aya-global-ONNX",
-    { device: "webgpu", dtype: "q4f16", revision: "7fff1be9627e40f0d89c33f406882bdafb56ec90" }
+    {
+      device: "webgpu",
+      dtype: "q4f16",
+      session_options: { executionMode: "sequential", graphOptimizationLevel: "all" },
+      revision: "7fff1be9627e40f0d89c33f406882bdafb56ec90"
+    }
   ]);
+  assert.equal(env.backends.onnx.webgpu.powerPreference, "high-performance");
   assert.equal(pipelineRemotePathTemplates[0], "{model}/resolve/7fff1be9627e40f0d89c33f406882bdafb56ec90/");
   assert.equal(env.remotePathTemplate, "{model}/resolve/{revision}/");
   assert.equal(env.allowLocalModels, false);
   assert.equal(env.allowRemoteModels, true);
   assert.equal(logs[0]?.phase, "download");
+  assert.ok(logs.some((event) => event.message === "Optimizing Chromium WebGPU"));
   assert.deepEqual(logs.filter((event) => event.progress).map((event) => event.progress), [{ loaded: 25, total: 100 }, { loaded: 100, total: 100 }]);
   assert.match(logs.at(-1)?.message ?? "", /reusing loaded model/i);
 });

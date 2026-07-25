@@ -2,6 +2,7 @@
 
 import { type FormEvent, type KeyboardEvent, useEffect, useId, useRef, useState } from "react";
 import { Check, CircleUserRound, Copy, Download, Languages, LoaderCircle, LockKeyhole, PanelLeft, Pencil, RotateCcw, SendHorizontal, Sparkles, Square, Trash2 } from "lucide-react";
+import { SophonAcknowledgements } from "@/components/sophon-acknowledgements";
 import { SophonModelSidebar } from "@/components/sophon-model-sidebar";
 import { InspectableMessage, type InspectableToken } from "@/components/token-lens";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
@@ -76,6 +77,8 @@ export function SophonWorkbench() {
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [modelId, setModelId] = useState("");
   const [modelSidebarOpen, setModelSidebarOpen] = useState(false);
+  const [modelLoadPaused, setModelLoadPaused] = useState(false);
+  const [pendingModelDownloadId, setPendingModelDownloadId] = useState<string | null>(null);
   const [pendingDeleteModelId, setPendingDeleteModelId] = useState<string | null>(null);
   const [resetConfirmationOpen, setResetConfirmationOpen] = useState(false);
   const [capabilities, setCapabilities] = useState<RuntimeCapabilities | null>(null);
@@ -88,6 +91,8 @@ export function SophonWorkbench() {
   const [offlinePack, setOfflinePack] = useState<OfflinePackOperation | null>(null);
   const [offlineLicenseAccepted, setOfflineLicenseAccepted] = useState(false);
   const generationIdRef = useRef(0);
+  const modelDownloadFromMobileRef = useRef(false);
+  const modelDownloadTriggerRef = useRef<HTMLElement | null>(null);
   const modelDeleteFromMobileRef = useRef(false);
   const modelDeleteTriggerRef = useRef<HTMLElement | null>(null);
   const messageEndRef = useRef<HTMLDivElement>(null);
@@ -104,6 +109,7 @@ export function SophonWorkbench() {
   const isModelLoading = generation.status === "loading" || runtimeActivity?.phase === "download" || runtimeActivity?.phase === "import";
   const downloadProgress = isModelLoading ? runtimeActivity?.progress : undefined;
   const downloadPercent = downloadProgress ? Math.floor(downloadProgress.loaded / downloadProgress.total * 100) : undefined;
+  const downloadPercentLabel = formatDownloadPercent(downloadProgress);
   const downloadStatus = offlinePack?.status === "validating" ? "Validating" : getDownloadStageLabel(downloadProgress?.stage, true);
   const isNetworkDownload = !isPackBusy && (downloadProgress?.stage === "download" || downloadProgress?.stage === "resume");
   const selectedModel = MODEL_REGISTRY.find((model) => model.id === modelId) ?? null;
@@ -113,6 +119,8 @@ export function SophonWorkbench() {
   const recommendedModel = MODEL_REGISTRY.find((model) => model.id === RECOMMENDED_MODEL_ID)!;
   const recommendedCache = cacheSummaries.find((model) => model.modelId === RECOMMENDED_MODEL_ID);
   const recommendedCompatibility = getModelCompatibility(capabilities, recommendedModel);
+  const pendingModelDownload = MODEL_REGISTRY.find((model) => model.id === pendingModelDownloadId) ?? null;
+  const pendingModelDownloadCache = cacheSummaries.find((model) => model.modelId === pendingModelDownloadId);
   const pendingDeleteModel = MODEL_REGISTRY.find((model) => model.id === pendingDeleteModelId) ?? null;
   const pendingDeleteSummary = cacheSummaries.find((model) => model.modelId === pendingDeleteModelId);
   const pendingDeleteBytes = pendingDeleteSummary?.state === "partial" ? pendingDeleteSummary.resumableBytes : pendingDeleteSummary?.totalBytes;
@@ -121,12 +129,12 @@ export function SophonWorkbench() {
     ? getModelRuntimeProfile(selectedModel, capabilities?.hardwareTier ?? "desktop")
     : null;
   const modelReady = selectedModel !== null && loadedModelId === selectedModel.id;
-  const runtimeStatus = getRuntimeStatus(capabilities, selectedModel, loadedModelId, runtimeActivity);
+  const runtimeStatus = getRuntimeStatus(capabilities, selectedModel, loadedModelId, runtimeActivity, modelLoadPaused);
   const storageLabel = browserStorage === undefined ? "Checking…" : browserStorage === null ? "Unavailable" : `${formatStorageBytes(browserStorage.usage)} / ${formatStorageBytes(browserStorage.quota)} · ${browserStorage.persistent ? "Persistent" : "Best effort"}`;
   const canSend = modelReady && prompt.trim().length > 0 && !isBusy && modelCompatibility === "compatible";
   const canResetConversation = messages.length > STARTER_MESSAGES.length || prompt.length > 0 || error !== null || failedTurn !== null;
   const displayedMessages = messages.map((message) => message.id === "assistant-welcome"
-    ? getWelcomeMessage(message, selectedModel, modelReady, isModelLoading)
+    ? getWelcomeMessage(message, selectedModel, modelReady, isModelLoading, modelLoadPaused)
     : message);
   const promptPlaceholder = !selectedModel
     ? "Choose a model above to unlock chat..."
@@ -137,6 +145,7 @@ export function SophonWorkbench() {
     downloadPercent,
     isBusy,
     modelCompatibility,
+    modelLoadPaused,
     modelReady,
     runtimeActivity
   });
@@ -190,7 +199,7 @@ export function SophonWorkbench() {
   }, [autoRestoreEnabled, storageRevision]);
 
   useEffect(() => {
-    if (!selectedModel || !capabilities || !resolveModelProvider(selectedModel, capabilities)) return;
+    if (!selectedModel || modelLoadPaused || !capabilities || !resolveModelProvider(selectedModel, capabilities)) return;
     const loadId = generationIdRef.current += 1;
     queueMicrotask(() => {
       if (generationIdRef.current === loadId) setGeneration({ status: "loading", activity: { detail: `${selectedModel.label} · ${selectedModel.format.sizeLabel}`, label: "Preparing local model", phase: "runtime" } });
@@ -214,7 +223,7 @@ export function SophonWorkbench() {
       if (generationIdRef.current === loadId) generationIdRef.current += 1;
       void cancelModelPreload().catch(() => terminateRuntimeWorker());
     };
-  }, [capabilities, selectedModel]);
+  }, [capabilities, modelLoadPaused, selectedModel]);
 
   useEffect(() => {
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -263,19 +272,57 @@ export function SophonWorkbench() {
   }
 
   function selectModel(nextModelId: string) {
-    if (nextModelId === modelId) return;
+    if (nextModelId === modelId && !modelLoadPaused) return;
     void navigator.storage?.persist?.()
       .then((persistent) => setBrowserStorage((current) => current ? { ...current, persistent } : current))
       .catch(() => undefined);
     generationIdRef.current += 1;
     void cancelModelPreload().catch(() => terminateRuntimeWorker());
     setAutoRestoreEnabled(true);
+    setModelLoadPaused(false);
     setModelId(nextModelId);
     setLoadedModelId(null);
     setError(null);
     setNotice(null);
     setFailedTurn(null);
     setGeneration({ status: "idle" });
+  }
+
+  function requestModelSelection(nextModelId: string) {
+    const target = MODEL_REGISTRY.find((model) => model.id === nextModelId);
+    if (!target || nextModelId === modelId) return;
+    const cache = cacheSummaries.find((model) => model.modelId === nextModelId);
+    if (cache?.state === "cached") {
+      selectModel(nextModelId);
+      return;
+    }
+    modelDownloadTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    modelDownloadFromMobileRef.current = modelSidebarOpen;
+    setPendingModelDownloadId(nextModelId);
+    if (modelSidebarOpen) setModelSidebarOpen(false);
+  }
+
+  function closeModelDownloadConfirmation() {
+    setPendingModelDownloadId(null);
+    if (modelDownloadFromMobileRef.current) {
+      setModelSidebarOpen(true);
+    } else {
+      window.requestAnimationFrame(() => modelDownloadTriggerRef.current?.focus());
+    }
+  }
+
+  function confirmModelDownload() {
+    if (!pendingModelDownloadId) return;
+    const targetModelId = pendingModelDownloadId;
+    setPendingModelDownloadId(null);
+    selectModel(targetModelId);
+  }
+
+  function resumeModelLoad() {
+    if (!selectedModel || !modelLoadPaused) return;
+    setError(null);
+    setNotice(null);
+    setModelLoadPaused(false);
   }
 
   async function requestOfflinePackImport(targetModelId: string) {
@@ -376,15 +423,15 @@ export function SophonWorkbench() {
     generationIdRef.current += 1;
     void cancelModelPreload().catch(() => terminateRuntimeWorker());
     setAutoRestoreEnabled(false);
-    setModelId("");
+    setModelLoadPaused(Boolean(cancelledModel));
     setLoadedModelId(null);
     setGeneration({ status: "idle" });
     setFailedTurn(null);
     setError(null);
     setNotice(cancelledModel
       ? pausedNetworkDownload
-        ? `${cancelledModel.label} download paused. Verified chunks were kept and will resume when you select it again.`
-        : `${cancelledModel.label} loading cancelled. Downloaded files remain available in this browser.`
+        ? `${cancelledModel.label} download paused. Sophon will check saved progress when you resume.`
+        : `${cancelledModel.label} loading paused. Downloaded files remain available in this browser.`
       : pausedNetworkDownload ? "Model download paused." : "Model loading cancelled.");
     setStorageRevision((value) => value + 1);
   }
@@ -427,6 +474,7 @@ export function SophonWorkbench() {
       generationIdRef.current += 1;
       await cancelModelPreload().catch(() => terminateRuntimeWorker());
       setModelId("");
+      setModelLoadPaused(false);
       setLoadedModelId(null);
       setGeneration({ status: "idle" });
     }
@@ -640,24 +688,26 @@ export function SophonWorkbench() {
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h1 className="font-mono text-sm font-semibold tracking-[0.12em] text-white">SOPHON</h1>
-                <span className="hidden items-center rounded-md border border-sophon-signal-bright/35 bg-sophon-signal/15 px-2 py-0.5 font-mono text-[9px] font-medium uppercase tracking-widest text-[#ffb4a4] min-[360px]:inline-flex">Local AI</span>
+                <span className="hidden items-center rounded-md border border-sophon-signal-bright/35 bg-sophon-signal/15 px-2 py-0.5 font-mono text-[9px] font-medium uppercase tracking-widest text-[#ffb4a4] sm:inline-flex">Local AI</span>
               </div>
               <p className="hidden font-mono text-[10px] uppercase tracking-[0.18em] text-white/60 sm:block">Private AI in your browser</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
             <div className={cn("sophon-glass-tile hidden items-center gap-2 rounded-full px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest sm:flex", runtimeStatus.className)}>
               <span aria-hidden="true" className={cn("size-1.5 rounded-full", runtimeStatus.dotClassName)} />
-              {runtimeStatus.label}{downloadPercent === undefined ? null : ` · ${downloadPercent}%`}
+              {runtimeStatus.label}{downloadPercentLabel ? ` · ${downloadPercentLabel}` : null}
             </div>
             {generation.status === "loading" || offlinePack?.status === "importing" ? <Button aria-label={modelLoadCancelLabel} className="h-11 rounded-xl sm:h-9" onClick={cancelModelLoad} size="sm" title={modelLoadCancelLabel} type="button" variant="sophon"><Square aria-hidden="true" className="size-3 fill-current" /><span className="hidden sm:inline">{modelLoadCancelText}</span></Button> : null}
-            {canResetConversation ? (
+            {modelLoadPaused && selectedModel ? <Button aria-label="Resume model download" className="hidden h-11 rounded-xl sm:inline-flex sm:h-9" onClick={resumeModelLoad} size="sm" title="Resume model download" type="button" variant="sophon"><Download aria-hidden="true" /><span>Resume</span></Button> : null}
+            {canResetConversation && !isBusy ? (
               <Button aria-label="Reset conversation" className="size-11 rounded-xl text-white/70 hover:text-sophon-signal-bright sm:size-9" disabled={isBusy} onClick={requestResetConversation} ref={resetTriggerRef} size="icon" title="Reset conversation" type="button" variant="sophon">
                 <Trash2 aria-hidden="true" />
               </Button>
             ) : null}
-            <Button aria-controls="model-library-mobile" aria-expanded={modelSidebarOpen} aria-label="Open model library" className="h-11 rounded-xl lg:hidden" onClick={() => setModelSidebarOpen(true)} size="sm" type="button" variant="sophon"><PanelLeft aria-hidden="true" /> Models</Button>
+            <SophonAcknowledgements compact />
+            <Button aria-controls="model-library-mobile" aria-expanded={modelSidebarOpen} aria-label="Open model library" className="size-11 rounded-xl px-0 sm:w-auto sm:px-3 lg:hidden" onClick={() => setModelSidebarOpen(true)} size="sm" type="button" variant="sophon"><PanelLeft aria-hidden="true" /><span className="hidden sm:inline">Models</span></Button>
           </div>
           {isModelLoading && loadingModel ? <span aria-label={`Loading ${loadingModel.label}`} aria-valuemax={100} aria-valuemin={0} aria-valuenow={downloadPercent} aria-valuetext={downloadProgress ? formatDownloadAriaText(downloadProgress) : "Preparing model delivery"} className="absolute inset-x-0 bottom-0 h-1 overflow-hidden bg-white/10" role="progressbar"><span className={cn("block h-full bg-gradient-to-r from-sophon-signal to-sophon-signal-bright shadow-[0_0_12px_var(--sophon-signal-bright)] transition-[width] duration-200 motion-reduce:transition-none", downloadPercent === undefined && "w-1/3 animate-pulse motion-reduce:animate-none")} style={downloadPercent === undefined ? undefined : { width: `${downloadPercent}%` }} /></span> : null}
         </header>
@@ -665,7 +715,7 @@ export function SophonWorkbench() {
         <div aria-atomic="true" aria-live="polite" className="sr-only" role="status">{runtimeActivity?.label ?? ""}</div>
 
         <div className="flex min-h-0 flex-1">
-          <SophonModelSidebar cacheSummaries={cacheSummaries} capabilities={capabilities} deletingModelId={deletingModelId} disabled={isRunning || isPackBusy} downloadPercent={downloadPercent} importingModelId={offlinePack?.status === "validating" || offlinePack?.status === "importing" ? offlinePack.modelId : null} loadedModelId={loadedModelId} loading={isModelLoading} loadingLabel={downloadStatus} mobileOpen={modelSidebarOpen} modelId={modelId} onDelete={requestDeleteModelDownload} onImport={(targetModelId) => void requestOfflinePackImport(targetModelId)} onMobileOpenChange={setModelSidebarOpen} onSelect={selectModel} recommendedModelId={RECOMMENDED_MODEL_ID} />
+          <SophonModelSidebar cacheSummaries={cacheSummaries} capabilities={capabilities} deletingModelId={deletingModelId} disabled={isRunning || isPackBusy} downloadPercent={downloadPercent} downloadPercentLabel={downloadPercentLabel} importingModelId={offlinePack?.status === "validating" || offlinePack?.status === "importing" ? offlinePack.modelId : null} loadedModelId={loadedModelId} loading={isModelLoading} loadingLabel={downloadStatus} mobileOpen={modelSidebarOpen} modelId={modelId} onDelete={requestDeleteModelDownload} onImport={(targetModelId) => void requestOfflinePackImport(targetModelId)} onMobileOpenChange={setModelSidebarOpen} onSelect={requestModelSelection} recommendedModelId={RECOMMENDED_MODEL_ID} />
           <section aria-busy={isBusy} aria-label="Conversation" className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
               <div className="mx-auto flex min-w-0 w-full max-w-6xl flex-col px-4 py-6 sm:px-12 sm:py-9">
@@ -746,7 +796,15 @@ export function SophonWorkbench() {
             {selectedModel ? (
               <div className="sophon-glass-strong z-10 shrink-0 border-x-0 border-b-0 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6 sm:pb-[max(1.5rem,env(safe-area-inset-bottom))]">
               <form className="mx-auto max-w-6xl" onSubmit={submitPrompt}>
-                {failedTurn ? (
+                {modelLoadPaused && selectedModel ? (
+                  <div className="sophon-glass-tile mb-3 flex flex-col gap-3 rounded-xl border-sophon-warning/30 px-4 py-3 text-sm text-white/75 sm:flex-row sm:items-center" role="status">
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-medium text-white">Model download paused</span>
+                      <span className="mt-0.5 block text-xs leading-5 text-white/55">Your draft stays here. Resume when you are ready to finish downloading {selectedModel.format.sizeLabel} and send it.</span>
+                    </span>
+                    <Button className="h-11 shrink-0 self-start rounded-xl sm:h-9 sm:self-auto" onClick={resumeModelLoad} type="button" variant="sophon"><Download aria-hidden="true" /> Resume download</Button>
+                  </div>
+                ) : failedTurn ? (
                   <div className="sophon-glass-tile mb-3 flex flex-col gap-3 rounded-xl border-destructive/35 px-4 py-3 text-sm text-[#ffb4b7] sm:flex-row sm:items-center" id="prompt-error" role="alert">
                     <span className="min-w-0 flex-1">{failedTurn.reason}</span>
                     <span className="flex shrink-0 gap-2">
@@ -759,7 +817,7 @@ export function SophonWorkbench() {
                 ) : notice ? (
                   <div className="sophon-glass-tile mb-3 flex flex-col gap-3 rounded-xl border-white/15 px-4 py-3 text-sm text-white/75 sm:flex-row sm:items-center" role="status">
                     <span className="min-w-0 flex-1">{notice}</span>
-                    <Button className="self-start sm:self-auto" onClick={() => setNotice(null)} size="sm" type="button" variant="sophon">Dismiss</Button>
+                    <Button className="h-11 self-start rounded-xl sm:h-8 sm:self-auto" onClick={() => setNotice(null)} size="sm" type="button" variant="sophon">Dismiss</Button>
                   </div>
                 ) : null}
                 <label className="sr-only" htmlFor="sophon-prompt">Message Sophon</label>
@@ -818,6 +876,17 @@ export function SophonWorkbench() {
           onCancel={closeResetConfirmation}
           onConfirm={resetConversation}
           title="Reset this conversation?"
+        />
+      ) : null}
+      {pendingModelDownload ? (
+        <ConfirmationDialog
+          cancelLabel="Not now"
+          confirmLabel={pendingModelDownloadCache?.state === "partial" ? "Resume download" : "Download model"}
+          confirmTone="default"
+          description={getModelDownloadDescription(pendingModelDownload, pendingModelDownloadCache, browserStorage)}
+          onCancel={closeModelDownloadConfirmation}
+          onConfirm={confirmModelDownload}
+          title={`${pendingModelDownloadCache?.state === "partial" ? "Resume" : "Download"} ${pendingModelDownload.label.split(" · ")[0]}?`}
         />
       ) : null}
       {offlinePack?.status === "review" ? (
@@ -881,12 +950,12 @@ function FirstRunWelcome({ cacheState, compatibility, mobileProfile, model, noti
       {notice ? (
         <div className="sophon-glass-tile mb-3 flex items-center gap-3 rounded-xl border-white/15 px-4 py-3 text-sm text-white/75" role="status">
           <span className="min-w-0 flex-1">{notice}</span>
-          <Button className="shrink-0" onClick={onDismissNotice} size="sm" type="button" variant="sophon">Dismiss</Button>
+          <Button className="h-11 shrink-0 rounded-xl sm:h-8" onClick={onDismissNotice} size="sm" type="button" variant="sophon">Dismiss</Button>
         </div>
       ) : null}
       <div className="sophon-glass-strong overflow-hidden rounded-3xl">
-        <div className="border-b border-white/10 px-5 py-6 sm:px-8 sm:py-8">
-          <div className="mb-4 flex items-center gap-2 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-[#ffb4a4]">
+        <div className="px-5 py-5 sm:px-8 sm:py-8">
+          <div className="mb-3 flex items-center gap-2 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-[#ffb4a4] sm:mb-4">
             <Sparkles aria-hidden="true" className="size-4" />
             Start here
           </div>
@@ -894,26 +963,8 @@ function FirstRunWelcome({ cacheState, compatibility, mobileProfile, model, noti
           <p className="mt-3 max-w-2xl text-sm leading-6 text-white/65 sm:text-base">
             Choose one Cohere Tiny Aya model to run locally. No account is needed, and your prompts and responses are not sent to an inference server.
           </p>
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            <div className="flex gap-3 rounded-2xl border border-white/10 bg-white/[.035] p-4">
-              <LockKeyhole aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-sophon-verified" />
-              <span>
-                <span className="block text-sm font-medium text-white">Stays private</span>
-                <span className="mt-1 block text-xs leading-5 text-white/55">Chats remain in this browser.</span>
-              </span>
-            </div>
-            <div className="flex gap-3 rounded-2xl border border-white/10 bg-white/[.035] p-4">
-              <Download aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-sophon-signal-soft" />
-              <span>
-                <span className="block text-sm font-medium text-white">Download once</span>
-                <span className="mt-1 block text-xs leading-5 text-white/55">About {model.format.sizeLabel.replace("~", "")}, then reused on future visits.</span>
-              </span>
-            </div>
-          </div>
-        </div>
 
-        <div className="px-5 py-5 sm:px-8 sm:py-6">
-          <div className="rounded-2xl border border-sophon-signal-bright/35 bg-sophon-signal/10 p-4 sm:flex sm:items-center sm:gap-5 sm:p-5">
+          <div className="mt-5 rounded-2xl border border-sophon-signal-bright/35 bg-sophon-signal/10 p-4 sm:flex sm:items-center sm:gap-5 sm:p-5">
             <span aria-hidden="true" className="grid size-11 shrink-0 place-items-center rounded-xl border border-sophon-signal-bright/40 bg-sophon-signal/15 text-[#ffb4a4]">
               <Languages className="size-5" />
             </span>
@@ -922,7 +973,7 @@ function FirstRunWelcome({ cacheState, compatibility, mobileProfile, model, noti
                 <h3 className="text-base font-semibold text-white">{modelName}</h3>
                 <span className="rounded-full border border-sophon-verified/30 bg-sophon-verified/10 px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-wider text-sophon-verified">{mobileProfile ? "Mobile mode" : "Recommended"}</span>
               </div>
-              <p className="mt-1 text-sm text-white/60">{model.description}{mobileProfile ? " Sophon uses a 2K context and shorter responses on this device." : ""}</p>
+              <p className="mt-1 text-sm text-white/60">Best all-around choice for broad multilingual use.{mobileProfile ? " Sophon uses a 2K context and shorter responses on this device." : ""}</p>
             </div>
             <Button
               className="mt-4 h-11 w-full shrink-0 rounded-xl bg-gradient-to-br from-sophon-signal-bright to-sophon-signal px-5 text-[#210b07] shadow-[0_0_24px_rgb(255_77_46/.2)] hover:from-[#ff8068] hover:to-sophon-signal-bright sm:mt-0 sm:w-auto"
@@ -941,9 +992,26 @@ function FirstRunWelcome({ cacheState, compatibility, mobileProfile, model, noti
               This device does not expose the browser GPU support required to run this model locally.
             </p>
           ) : null}
-          <div className="mt-4 flex flex-col gap-3 text-xs text-white/45 sm:flex-row sm:items-center sm:justify-between">
+
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 sm:gap-3">
+            <div className="flex gap-3 rounded-2xl border border-white/10 bg-white/[.035] p-3 sm:p-4">
+              <LockKeyhole aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-sophon-verified" />
+              <span>
+                <span className="block text-sm font-medium text-white">Stays private</span>
+                <span className="mt-1 block text-xs leading-5 text-white/55">Chats remain in this browser.</span>
+              </span>
+            </div>
+            <div className="flex gap-3 rounded-2xl border border-white/10 bg-white/[.035] p-3 sm:p-4">
+              <Download aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-sophon-signal-soft" />
+              <span>
+                <span className="block text-sm font-medium text-white">Download once</span>
+                <span className="mt-1 block text-xs leading-5 text-white/55">About {model.format.sizeLabel.replace("~", "")}, then reused on future visits.</span>
+              </span>
+            </div>
+          </div>
+          <div className="mt-4 flex flex-col gap-3 border-t border-white/10 pt-4 text-xs text-white/50 sm:flex-row sm:items-center sm:justify-between">
             <span>Open weights · {model.licenseLabel} · Downloads can be paused and resumed</span>
-            <Button className="self-start lg:hidden" onClick={onOpenModels} size="sm" type="button" variant="sophon">Compare all {MODEL_REGISTRY.length} models</Button>
+            <Button className="h-11 self-start rounded-xl sm:h-8 lg:hidden" onClick={onOpenModels} size="sm" type="button" variant="sophon">Compare all {MODEL_REGISTRY.length} models</Button>
             <span className="hidden lg:inline">More multilingual models are available in the library.</span>
           </div>
         </div>
@@ -1017,11 +1085,12 @@ function OfflinePackDialog({ accepted, inspection, model, onAcceptedChange, onCa
   );
 }
 
-function ConfirmationDialog({ busy = false, busyLabel, cancelLabel, confirmLabel, description, onCancel, onConfirm, title }: {
+function ConfirmationDialog({ busy = false, busyLabel, cancelLabel, confirmLabel, confirmTone = "destructive", description, onCancel, onConfirm, title }: {
   busy?: boolean;
   busyLabel?: string;
   cancelLabel: string;
   confirmLabel: string;
+  confirmTone?: "default" | "destructive";
   description: string;
   onCancel: () => void;
   onConfirm: () => void;
@@ -1065,8 +1134,8 @@ function ConfirmationDialog({ busy = false, busyLabel, cancelLabel, confirmLabel
         <h2 className="text-base font-semibold text-white" id={titleId}>{title}</h2>
         <p className="mt-2 text-sm leading-6 text-white/65" id={descriptionId}>{description}</p>
         <div className="mt-5 flex justify-end gap-2">
-          <Button disabled={busy} onClick={onCancel} ref={cancelRef} type="button" variant="sophon">{cancelLabel}</Button>
-          <Button className="bg-destructive text-white shadow-none hover:bg-destructive/85" disabled={busy} onClick={onConfirm} ref={confirmRef} type="button">
+          <Button className="h-11 rounded-xl sm:h-9" disabled={busy} onClick={onCancel} ref={cancelRef} type="button" variant="sophon">{cancelLabel}</Button>
+          <Button className={cn("h-11 rounded-xl sm:h-9", confirmTone === "destructive" && "bg-destructive text-white shadow-none hover:bg-destructive/85")} disabled={busy} onClick={onConfirm} ref={confirmRef} type="button">
             {busy ? busyLabel ?? confirmLabel : confirmLabel}
           </Button>
         </div>
@@ -1079,7 +1148,7 @@ function GreekGlyph({ children, className }: { children: string; className?: str
   return <span aria-hidden="true" className={cn("font-serif text-base leading-none", className)}>{children}</span>;
 }
 
-function getWelcomeMessage(message: ChatMessage, model: ModelManifest | null, modelReady: boolean, isModelLoading: boolean): ChatMessage {
+function getWelcomeMessage(message: ChatMessage, model: ModelManifest | null, modelReady: boolean, isModelLoading: boolean, modelLoadPaused: boolean): ChatMessage {
   if (!model) return message;
   const modelName = model.label.split(" · ")[0];
   if (modelReady) {
@@ -1091,9 +1160,11 @@ function getWelcomeMessage(message: ChatMessage, model: ModelManifest | null, mo
   }
   return {
     ...message,
-    content: isModelLoading
-      ? `${modelName} is getting ready. You can write your prompt while Sophon downloads and verifies it locally.`
-      : `${modelName} is selected. Sophon will run it privately as soon as it is ready.`,
+    content: modelLoadPaused
+      ? `${modelName} is selected and its download is paused. Your draft stays here until you resume.`
+      : isModelLoading
+        ? `${modelName} is getting ready. You can write your prompt while Sophon downloads and verifies it locally.`
+        : `${modelName} is selected. Sophon will run it privately as soon as it is ready.`,
     meta: "Browser storage · resumable download · no server inference"
   };
 }
@@ -1102,21 +1173,25 @@ function getPromptHelp({
   downloadPercent,
   isBusy,
   modelCompatibility,
+  modelLoadPaused,
   modelReady,
   runtimeActivity
 }: {
   downloadPercent?: number;
   isBusy: boolean;
   modelCompatibility: ReturnType<typeof getModelCompatibility>;
+  modelLoadPaused: boolean;
   modelReady: boolean;
   runtimeActivity: RuntimeActivity | null;
 }) {
   if (modelCompatibility === "unselected") return "Choose a model above to begin";
   if (modelCompatibility === "probing") return "Checking browser GPU…";
   if (modelCompatibility === "incompatible") return "Selected model needs browser GPU support";
+  if (modelLoadPaused) return "Download paused · resume to send";
   if (!modelReady) {
-    const progress = downloadPercent === undefined ? "" : ` · ${downloadPercent}%`;
-    return `${runtimeActivity?.label ?? "Preparing local model"}${progress}`;
+    const detail = runtimeActivity?.detail;
+    const progress = detail ?? (downloadPercent === undefined ? "" : `${downloadPercent}%`);
+    return `${runtimeActivity?.label ?? "Preparing local model"}${progress ? ` · ${progress}` : ""}`;
   }
   if (isBusy) return runtimeActivity?.label ?? "Running locally…";
   return PROMPT_SHORTCUT_HELP;
@@ -1189,7 +1264,8 @@ function getRuntimeStatus(
   capabilities: RuntimeCapabilities | null,
   model: ModelManifest | null,
   loadedModelId: string | null,
-  activity: RuntimeActivity | null
+  activity: RuntimeActivity | null,
+  modelLoadPaused: boolean
 ) {
   if (activity) {
     return { label: activity.label, className: "text-[#dbe7ff]", dotClassName: "bg-sophon-signal-soft shadow-[0_0_10px_var(--sophon-signal-soft)]" };
@@ -1205,6 +1281,9 @@ function getRuntimeStatus(
   }
   if (loadedModelId === model.id) {
     return { label: "Model ready", className: "text-sophon-verified", dotClassName: "bg-sophon-verified shadow-[0_0_10px_var(--sophon-verified)]" };
+  }
+  if (modelLoadPaused) {
+    return { label: "Download paused", className: "text-sophon-warning", dotClassName: "bg-sophon-warning shadow-[0_0_10px_var(--sophon-warning)]" };
   }
   return { label: "Ready to load", className: "text-white/70", dotClassName: "bg-sophon-warning shadow-[0_0_10px_var(--sophon-warning)]" };
 }
@@ -1261,6 +1340,32 @@ function formatDownloadAriaText(progress: NonNullable<OnnxLogEvent["progress"]>)
           : "loaded";
   const resumed = progress.resumedBytes ? `, including ${formatStorageBytes(progress.resumedBytes)} resumed` : "";
   return `${formatStorageBytes(progress.loaded)} of ${formatStorageBytes(progress.total)} ${stage}${resumed}`;
+}
+
+function formatDownloadPercent(progress?: NonNullable<OnnxLogEvent["progress"]>) {
+  if (!progress || progress.total <= 0) return undefined;
+  const percent = Math.floor(progress.loaded / progress.total * 100);
+  return progress.loaded > 0 && percent === 0 ? "<1%" : `${percent}%`;
+}
+
+function getModelDownloadDescription(
+  model: ModelManifest,
+  cache: ModelCacheSummary | undefined,
+  storage: BrowserStorage | null | undefined
+) {
+  const resumableBytes = cache?.state === "partial" ? cache.resumableBytes : 0;
+  const totalBytes = model.format.sizeBytes ?? cache?.totalBytes ?? 0;
+  const remainingBytes = Math.max(0, totalBytes - resumableBytes);
+  const action = resumableBytes > 0
+    ? `Sophon found ${formatStorageBytes(resumableBytes)} of resumable data and will download about ${formatStorageBytes(remainingBytes)} more.`
+    : `Sophon will download ${model.format.sizeLabel} to this browser before it can answer locally.`;
+  const availableBytes = storage?.quota !== undefined && storage.usage !== undefined
+    ? Math.max(0, storage.quota - storage.usage)
+    : null;
+  const storageMessage = availableBytes === null
+    ? "Your browser will verify available storage before downloading."
+    : `This browser currently reports ${formatStorageBytes(availableBytes)} available.`;
+  return `${action} ${storageMessage} Tiny Aya is licensed for non-commercial use under CC BY-NC 4.0 and the Cohere Labs AUP.`;
 }
 
 function formatEta(milliseconds: number) {

@@ -230,6 +230,41 @@ test("rehashes a ready file before reuse and repairs same-length corruption", as
   assert.equal(stateStore.value?.status, "ready");
 });
 
+test("verifies cached segments concurrently and repairs same-length corruption", async () => {
+  const expected = Uint8Array.from({ length: 24 }, (_, index) => index * 9 % 251);
+  const corrupt = expected.slice();
+  corrupt[14] ^= 0xff;
+  const cachedArtifact = artifactWithSegments(expected, 4, "cached-segment-corrupt");
+  const file = new MemoryPositionedFile([], corrupt);
+  const stateStore = new MemoryStateStore([], {
+    key: cachedArtifact.key,
+    version: 1,
+    size: expected.length,
+    sha256: cachedArtifact.sha256,
+    segmentSize: 4,
+    etag: '"fixture-etag"',
+    completed: [0, 1, 2, 3, 4, 5],
+    status: "ready"
+  });
+  const server = createRangeServer(expected);
+  const progress = [];
+
+  await downloadRangeArtifact({
+    artifact: cachedArtifact,
+    file,
+    stateStore,
+    fetch: server.fetch,
+    segmentSize: 4,
+    retries: 0,
+    onProgress: (event) => progress.push(event)
+  });
+
+  assert.deepEqual(file.bytes, expected);
+  assert.ok(server.ranges.includes("bytes=12-15"));
+  assert.equal(stateStore.value?.status, "ready");
+  assert.ok(progress.some((event) => event.stage === "verify" && event.loaded > 0));
+});
+
 test("cancellation keeps previously checkpointed segments resumable", async () => {
   const bytes = Uint8Array.from({ length: 12 }, (_, index) => index + 1);
   const file = new MemoryPositionedFile([], bytes.slice(0, 4));

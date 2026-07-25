@@ -87,6 +87,7 @@ test("validates worker events before dispatching them", () => {
       phase: "decode",
       promptTokenCount: 3,
       contextTokenCount: 3,
+      generatedText: "Partial response",
       outputTokenCount: 2,
       endToEndMs: 12,
       ttftMs: 8,
@@ -97,6 +98,24 @@ test("validates worker events before dispatching them", () => {
       p95InterTokenLatencyMs: null
     }
   }), true);
+  assert.equal(isWorkerResponse({
+    type: "telemetry",
+    requestId: "request-1",
+    telemetry: {
+      phase: "decode",
+      promptTokenCount: 3,
+      contextTokenCount: 3,
+      generatedText: 42,
+      outputTokenCount: 2,
+      endToEndMs: 12,
+      ttftMs: 8,
+      decodeMs: 4,
+      decodeTokensPerSecond: 250,
+      timePerOutputTokenMs: 4,
+      latestInterTokenLatencyMs: 4,
+      p95InterTokenLatencyMs: null
+    }
+  }), false);
   assert.equal(isWorkerResponse({
     type: "log",
     requestId: "request-1",

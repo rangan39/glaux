@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
+import { type FormEvent, type KeyboardEvent, useEffect, useId, useRef, useState } from "react";
 import { Check, CircleUserRound, Copy, LoaderCircle, PanelLeft, Pencil, RotateCcw, SendHorizontal, Square, Trash2 } from "lucide-react";
 import { SophonModelSidebar } from "@/components/sophon-model-sidebar";
 import { InspectableMessage, type InspectableToken } from "@/components/token-lens";
@@ -44,8 +44,11 @@ type FailedTurn = {
 type GenerationState =
   | { status: "idle" }
   | { status: "loading"; activity: RuntimeActivity }
-  | { status: "running"; activity: RuntimeActivity; turn: Omit<FailedTurn, "reason"> };
+  | { status: "running"; activity: RuntimeActivity; draft: string; turn: Omit<FailedTurn, "reason"> };
 type BrowserStorage = StorageEstimate & { persistent: boolean };
+const LAST_READY_MODEL_KEY = "sophon:last-ready-model";
+const PROMPT_MAX_HEIGHT = 192;
+const PROMPT_SHORTCUT_HELP = "Enter to send · Shift+Enter for a new line";
 const STARTER_MESSAGES: ChatMessage[] = [
   {
     id: "assistant-welcome",
@@ -60,19 +63,26 @@ export function SophonWorkbench() {
   const [prompt, setPrompt] = useState("");
   const [generation, setGeneration] = useState<GenerationState>({ status: "idle" });
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [failedTurn, setFailedTurn] = useState<FailedTurn | null>(null);
   const [loadedModelId, setLoadedModelId] = useState<string | null>(null);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [modelId, setModelId] = useState("");
   const [modelSidebarOpen, setModelSidebarOpen] = useState(false);
+  const [pendingDeleteModelId, setPendingDeleteModelId] = useState<string | null>(null);
+  const [resetConfirmationOpen, setResetConfirmationOpen] = useState(false);
   const [capabilities, setCapabilities] = useState<RuntimeCapabilities | null>(null);
   const [browserStorage, setBrowserStorage] = useState<BrowserStorage | null>();
   const [cacheSummaries, setCacheSummaries] = useState<ModelCacheSummary[]>([]);
   const [deletingModelId, setDeletingModelId] = useState<string | null>(null);
   const [storageRevision, setStorageRevision] = useState(0);
+  const [autoRestoreEnabled, setAutoRestoreEnabled] = useState(true);
   const generationIdRef = useRef(0);
+  const modelDeleteFromMobileRef = useRef(false);
+  const modelDeleteTriggerRef = useRef<HTMLElement | null>(null);
   const messageEndRef = useRef<HTMLDivElement>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
+  const resetTriggerRef = useRef<HTMLButtonElement>(null);
   const isRunning = generation.status === "running";
   const isBusy = generation.status !== "idle";
   const runtimeActivity = generation.status === "idle" ? null : generation.activity;
@@ -80,12 +90,33 @@ export function SophonWorkbench() {
   const downloadProgress = isModelLoading ? runtimeActivity?.progress : undefined;
   const downloadPercent = downloadProgress ? Math.floor(downloadProgress.loaded / downloadProgress.total * 100) : undefined;
   const downloadStatus = getDownloadStageLabel(downloadProgress?.stage, true);
+  const isNetworkDownload = downloadProgress?.stage === "download" || downloadProgress?.stage === "resume";
+  const modelLoadCancelLabel = isNetworkDownload ? "Pause model download" : "Cancel model loading";
+  const modelLoadCancelText = isNetworkDownload ? "Pause" : "Cancel";
   const selectedModel = MODEL_REGISTRY.find((model) => model.id === modelId) ?? null;
+  const pendingDeleteModel = MODEL_REGISTRY.find((model) => model.id === pendingDeleteModelId) ?? null;
+  const pendingDeleteSummary = cacheSummaries.find((model) => model.modelId === pendingDeleteModelId);
   const modelCompatibility = getModelCompatibility(capabilities, selectedModel);
+  const modelReady = selectedModel !== null && loadedModelId === selectedModel.id;
   const runtimeStatus = getRuntimeStatus(capabilities, selectedModel, loadedModelId, runtimeActivity);
   const storageLabel = browserStorage === undefined ? "Checking…" : browserStorage === null ? "Unavailable" : `${formatStorageBytes(browserStorage.usage)} / ${formatStorageBytes(browserStorage.quota)} · ${browserStorage.persistent ? "Persistent" : "Best effort"}`;
-  const canSend = selectedModel !== null && prompt.trim().length > 0 && !isBusy && modelCompatibility === "compatible";
+  const canSend = modelReady && prompt.trim().length > 0 && !isBusy && modelCompatibility === "compatible";
   const canResetConversation = messages.length > STARTER_MESSAGES.length || prompt.length > 0 || error !== null || failedTurn !== null;
+  const displayedMessages = messages.map((message) => message.id === "assistant-welcome"
+    ? getWelcomeMessage(message, selectedModel, modelReady, isModelLoading)
+    : message);
+  const promptPlaceholder = !selectedModel
+    ? "Choose a model to start chatting..."
+    : modelReady
+      ? "Ask the local model anything..."
+      : "Write a prompt while the model gets ready...";
+  const promptHelp = getPromptHelp({
+    downloadPercent,
+    isBusy,
+    modelCompatibility,
+    modelReady,
+    runtimeActivity
+  });
 
   useEffect(() => {
     let active = true;
@@ -114,10 +145,20 @@ export function SophonWorkbench() {
   useEffect(() => {
     let active = true;
     void getCachedModels()
-      .then((models) => { if (active) setCacheSummaries(models); })
+      .then((models) => {
+        if (!active) return;
+        setCacheSummaries(models);
+        setModelId((current) => {
+          if (current || !autoRestoreEnabled) return current;
+          const rememberedModelId = readRememberedModelId();
+          return models.some((model) => model.modelId === rememberedModelId && model.state === "cached")
+            ? rememberedModelId ?? current
+            : current;
+        });
+      })
       .catch(() => { if (active) setCacheSummaries([]); });
     return () => { active = false; };
-  }, [storageRevision]);
+  }, [autoRestoreEnabled, storageRevision]);
 
   useEffect(() => {
     if (!selectedModel || !capabilities || !resolveModelProvider(selectedModel, capabilities)) return;
@@ -128,7 +169,10 @@ export function SophonWorkbench() {
     void preloadModel(selectedModel.id, (event) => {
       if (generationIdRef.current === loadId) setGeneration((current) => current.status === "loading" ? { ...current, activity: activityFromLog(event) } : current);
     }).then(() => {
-      if (generationIdRef.current === loadId) setLoadedModelId(selectedModel.id);
+      if (generationIdRef.current === loadId) {
+        setLoadedModelId(selectedModel.id);
+        rememberReadyModelId(selectedModel.id);
+      }
     }).catch((caught) => {
       if (generationIdRef.current === loadId) setError(caught instanceof Error ? caught.message : `${selectedModel.label} could not load.`);
     }).finally(() => {
@@ -148,10 +192,30 @@ export function SophonWorkbench() {
     messageEndRef.current?.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "end" });
   }, [isRunning, messages]);
 
+  useEffect(() => {
+    const textarea = promptRef.current;
+    if (!textarea) return;
+    textarea.style.height = "auto";
+    textarea.style.height = `${Math.min(textarea.scrollHeight, PROMPT_MAX_HEIGHT)}px`;
+  }, [prompt]);
+
   useEffect(() => () => {
     generationIdRef.current += 1;
     terminateRuntimeWorker();
   }, []);
+
+  function requestResetConversation() {
+    if (messages.length > STARTER_MESSAGES.length) {
+      setResetConfirmationOpen(true);
+      return;
+    }
+    resetConversation();
+  }
+
+  function closeResetConfirmation() {
+    setResetConfirmationOpen(false);
+    window.requestAnimationFrame(() => resetTriggerRef.current?.focus());
+  }
 
   function resetConversation() {
     generationIdRef.current += 1;
@@ -161,8 +225,10 @@ export function SophonWorkbench() {
     setMessages(STARTER_MESSAGES);
     setPrompt("");
     setError(null);
+    setNotice(null);
     setFailedTurn(null);
     setGeneration({ status: "idle" });
+    setResetConfirmationOpen(false);
     window.requestAnimationFrame(() => promptRef.current?.focus());
   }
 
@@ -173,30 +239,68 @@ export function SophonWorkbench() {
       .catch(() => undefined);
     generationIdRef.current += 1;
     void cancelModelPreload().catch(() => terminateRuntimeWorker());
+    setAutoRestoreEnabled(true);
     setModelId(nextModelId);
     setLoadedModelId(null);
     setError(null);
+    setNotice(null);
     setFailedTurn(null);
     setGeneration({ status: "idle" });
   }
 
-  function cancelDownload() {
-    const pausedModel = selectedModel;
+  function cancelModelLoad() {
+    const cancelledModel = selectedModel;
+    const pausedNetworkDownload = isNetworkDownload;
     generationIdRef.current += 1;
     void cancelModelPreload().catch(() => terminateRuntimeWorker());
+    setAutoRestoreEnabled(false);
     setModelId("");
     setLoadedModelId(null);
     setGeneration({ status: "idle" });
     setFailedTurn(null);
-    setError(pausedModel ? `${pausedModel.label} download paused. Verified chunks were kept and will resume when you select it again.` : "Model download paused.");
+    setError(null);
+    setNotice(cancelledModel
+      ? pausedNetworkDownload
+        ? `${cancelledModel.label} download paused. Verified chunks were kept and will resume when you select it again.`
+        : `${cancelledModel.label} loading cancelled. Downloaded files remain available in this browser.`
+      : pausedNetworkDownload ? "Model download paused." : "Model loading cancelled.");
     setStorageRevision((value) => value + 1);
+  }
+
+  function requestDeleteModelDownload(targetModelId: string) {
+    if (!MODEL_REGISTRY.some((model) => model.id === targetModelId)) return;
+    modelDeleteTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    modelDeleteFromMobileRef.current = modelSidebarOpen;
+    if (modelSidebarOpen) {
+      setModelSidebarOpen(false);
+      window.requestAnimationFrame(() => setPendingDeleteModelId(targetModelId));
+    } else {
+      setPendingDeleteModelId(targetModelId);
+    }
+  }
+
+  function closeDeleteModelConfirmation() {
+    setPendingDeleteModelId(null);
+    if (modelDeleteFromMobileRef.current) {
+      setModelSidebarOpen(true);
+    } else {
+      window.requestAnimationFrame(() => modelDeleteTriggerRef.current?.focus());
+    }
+  }
+
+  async function confirmDeleteModelDownload() {
+    if (!pendingDeleteModelId) return;
+    await deleteModelDownload(pendingDeleteModelId);
+    setPendingDeleteModelId(null);
+    if (modelDeleteFromMobileRef.current) setModelSidebarOpen(true);
   }
 
   async function deleteModelDownload(targetModelId: string) {
     const target = MODEL_REGISTRY.find((model) => model.id === targetModelId);
-    if (!target || !window.confirm(`Delete Sophon's downloaded ${target.label} files from this browser?`)) return;
+    if (!target) return;
     setDeletingModelId(targetModelId);
     setError(null);
+    setNotice(null);
     if (targetModelId === modelId) {
       generationIdRef.current += 1;
       await cancelModelPreload().catch(() => terminateRuntimeWorker());
@@ -206,6 +310,7 @@ export function SophonWorkbench() {
     }
     try {
       await deleteCachedModel(targetModelId);
+      forgetRememberedModelId(targetModelId);
       const next = await getCachedModels();
       setCacheSummaries(next);
       setStorageRevision((value) => value + 1);
@@ -261,6 +366,7 @@ export function SophonWorkbench() {
     const activeModelId = model.id;
     setGeneration({
       status: "running",
+      draft: "",
       turn: { messageId: userMessageId, text },
       activity: {
         detail: loadedModelId === activeModelId ? "Preparing the conversation context" : `${model.label} · ${model.format.sizeLabel}`,
@@ -307,7 +413,7 @@ export function SophonWorkbench() {
           role: "assistant",
           content: response.result.generatedText,
           tokens: response.result.generatedTokens,
-          meta: `${formatProvider(metrics.provider)} · ${metrics.contextTokenCount}${metrics.truncatedInputTokens ? `/${metrics.promptTokenCount}` : ""}→${response.result.outputTokenCount} tokens · ${formatRate(metrics.decodeTokensPerSecond)} · ${formatDuration(metrics.ttftMs)} TTFT${metrics.truncatedInputTokens ? ` · ${metrics.truncatedInputTokens} earlier tokens omitted` : ""}`
+          meta: `${formatProvider(metrics.provider)} · ${metrics.contextTokenCount}${metrics.truncatedInputTokens ? `/${metrics.promptTokenCount}` : ""} → ${response.result.outputTokenCount} tokens · ${formatRate(metrics.decodeTokensPerSecond)} · first token ${formatDuration(metrics.ttftMs)}${metrics.truncatedInputTokens ? ` · ${metrics.truncatedInputTokens} earlier tokens omitted` : ""}`
         }
       ]);
     } catch (caught) {
@@ -329,7 +435,9 @@ export function SophonWorkbench() {
 
   function updateRuntimeFromTelemetry(generationId: number, telemetry: GenerationTelemetryEvent) {
     if (generationIdRef.current !== generationId) return;
-    setGeneration((current) => current.status === "running" ? { ...current, activity: activityFromTelemetry(telemetry) } : current);
+    setGeneration((current) => current.status === "running"
+      ? { ...current, activity: activityFromTelemetry(telemetry), draft: telemetry.generatedText ?? current.draft }
+      : current);
   }
 
   function stopGeneration() {
@@ -421,11 +529,11 @@ export function SophonWorkbench() {
               <span aria-hidden="true" className={cn("size-1.5 rounded-full", runtimeStatus.dotClassName)} />
               {runtimeStatus.label}{downloadPercent === undefined ? null : ` · ${downloadPercent}%`}
             </div>
-            {generation.status === "loading" ? <Button aria-label="Pause model download" className="h-11 rounded-xl sm:h-9" onClick={cancelDownload} size="sm" title="Pause model download" type="button" variant="sophon"><Square aria-hidden="true" className="size-3 fill-current" /><span className="hidden sm:inline">Pause</span></Button> : null}
-            <Button aria-label="Reset conversation" className="size-11 rounded-xl text-white/70 hover:text-sophon-signal-bright sm:size-9" disabled={isBusy || !canResetConversation} onClick={resetConversation} size="icon" title="Reset conversation" type="button" variant="sophon">
+            {generation.status === "loading" ? <Button aria-label={modelLoadCancelLabel} className="h-11 rounded-xl sm:h-9" onClick={cancelModelLoad} size="sm" title={modelLoadCancelLabel} type="button" variant="sophon"><Square aria-hidden="true" className="size-3 fill-current" /><span className="hidden sm:inline">{modelLoadCancelText}</span></Button> : null}
+            <Button aria-label="Reset conversation" className="size-11 rounded-xl text-white/70 hover:text-sophon-signal-bright sm:size-9" disabled={isBusy || !canResetConversation} onClick={requestResetConversation} ref={resetTriggerRef} size="icon" title="Reset conversation" type="button" variant="sophon">
               <Trash2 aria-hidden="true" />
             </Button>
-            <Button aria-controls="model-library-mobile" aria-expanded={modelSidebarOpen} aria-label="Open model library" className="h-11 rounded-xl md:hidden" onClick={() => setModelSidebarOpen(true)} size="sm" type="button" variant="sophon"><PanelLeft aria-hidden="true" /> Models</Button>
+            <Button aria-controls="model-library-mobile" aria-expanded={modelSidebarOpen} aria-label="Open model library" className="h-11 rounded-xl lg:hidden" onClick={() => setModelSidebarOpen(true)} size="sm" type="button" variant="sophon"><PanelLeft aria-hidden="true" /> Models</Button>
           </div>
           {isModelLoading && selectedModel ? <span aria-label={`Loading ${selectedModel.label}`} aria-valuemax={100} aria-valuemin={0} aria-valuenow={downloadPercent} aria-valuetext={downloadProgress ? formatDownloadAriaText(downloadProgress) : "Preparing model download"} className="absolute inset-x-0 bottom-0 h-1 overflow-hidden bg-white/10" role="progressbar"><span className={cn("block h-full bg-gradient-to-r from-sophon-signal to-sophon-signal-bright shadow-[0_0_12px_var(--sophon-signal-bright)] transition-[width] duration-200 motion-reduce:transition-none", downloadPercent === undefined && "w-1/3 animate-pulse motion-reduce:animate-none")} style={downloadPercent === undefined ? undefined : { width: `${downloadPercent}%` }} /></span> : null}
         </header>
@@ -433,12 +541,12 @@ export function SophonWorkbench() {
         <div aria-atomic="true" aria-live="polite" className="sr-only" role="status">{runtimeActivity?.label ?? ""}</div>
 
         <div className="flex min-h-0 flex-1">
-          <SophonModelSidebar cacheSummaries={cacheSummaries} capabilities={capabilities} deletingModelId={deletingModelId} disabled={isRunning} downloadPercent={downloadPercent} loadedModelId={loadedModelId} loading={isModelLoading} loadingLabel={downloadStatus} mobileOpen={modelSidebarOpen} modelId={modelId} onDelete={(targetModelId) => void deleteModelDownload(targetModelId)} onMobileOpenChange={setModelSidebarOpen} onSelect={selectModel} />
+          <SophonModelSidebar cacheSummaries={cacheSummaries} capabilities={capabilities} deletingModelId={deletingModelId} disabled={isRunning} downloadPercent={downloadPercent} loadedModelId={loadedModelId} loading={isModelLoading} loadingLabel={downloadStatus} mobileOpen={modelSidebarOpen} modelId={modelId} onDelete={requestDeleteModelDownload} onMobileOpenChange={setModelSidebarOpen} onSelect={selectModel} />
           <section aria-busy={isBusy} aria-label="Conversation" className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
               <div className="mx-auto flex min-w-0 w-full max-w-6xl flex-col px-4 py-6 sm:px-12 sm:py-9">
                 <div aria-live={isRunning ? "off" : "polite"} aria-relevant="additions text" className="min-w-0 space-y-6" role="log">
-                  {messages.map((message, index) => (
+                  {displayedMessages.map((message, index) => (
                     <Message align={message.role === "user" ? "end" : "start"} aria-label={message.role === "user" ? "Message from you" : "Message from Sophon"} key={message.id} role="article">
                       <MessageAvatar className={message.role === "user" ? "!self-start mt-1 rounded-xl border border-sophon-signal-bright/50 bg-gradient-to-br from-sophon-signal-bright to-sophon-signal text-[#210b07] shadow-[0_0_20px_rgb(255_77_46/.16)]" : "sophon-glass-tile !self-start mt-1 rounded-xl text-sophon-signal-soft"}>
                         {message.role === "user" ? <CircleUserRound aria-hidden="true" className="size-4" /> : <GreekGlyph className="text-lg font-semibold">Σ</GreekGlyph>}
@@ -458,20 +566,35 @@ export function SophonWorkbench() {
                     </Message>
                   ))}
                   {isRunning ? (
-                    <Message aria-label={`Sophon status: ${runtimeActivity?.label ?? "Generating response"}`} aria-live="off" role="article">
+                    <Message aria-label={generation.draft.trim() ? "Sophon is responding" : `Sophon status: ${runtimeActivity?.label ?? "Generating response"}`} aria-live="off" role="article">
                       <MessageAvatar className="sophon-glass-tile !self-start mt-1 rounded-xl text-sophon-signal-soft"><GreekGlyph className="animate-pulse text-lg font-semibold motion-reduce:animate-none">Σ</GreekGlyph></MessageAvatar>
                       <MessageContent className="w-full max-w-[calc(100%_-_2.75rem)] sm:max-w-xl">
                         <Bubble className="w-full max-w-full" variant="muted">
-                          <BubbleContent className="sophon-glass-tile flex w-full items-center gap-3 rounded-xl px-4 py-3">
-                            <LoaderCircle aria-hidden="true" className="size-4 shrink-0 animate-spin text-sophon-signal-soft motion-reduce:animate-none" />
-                            <span className="min-w-0 flex-1">
-                              <span className="block text-sm font-medium text-white/90">{runtimeActivity?.label ?? "Generating response"}</span>
-                              {runtimeActivity?.detail ? <span className="mt-0.5 block truncate text-xs text-white/60">{runtimeActivity.detail}</span> : null}
-                            </span>
-                            <Button aria-label="Stop generation" className="shrink-0" onClick={stopGeneration} size="sm" type="button" variant="sophon">
-                              <Square aria-hidden="true" className="size-3 fill-current" /> Stop
-                            </Button>
-                          </BubbleContent>
+                          {generation.draft.trim() ? (
+                            <BubbleContent className="sophon-glass-tile block w-full overflow-hidden rounded-xl p-0">
+                              <p className="whitespace-pre-wrap px-4 py-3 text-sm leading-6 text-white/90">
+                                {generation.draft}<span aria-hidden="true" className="ml-1 inline-block h-4 w-0.5 animate-pulse bg-sophon-signal-soft align-text-bottom motion-reduce:animate-none" />
+                              </p>
+                              <span className="flex items-center gap-2 border-t border-white/10 bg-black/10 px-3 py-2">
+                                <LoaderCircle aria-hidden="true" className="size-3.5 shrink-0 animate-spin text-sophon-signal-soft motion-reduce:animate-none" />
+                                <span className="min-w-0 flex-1 truncate font-mono text-[9px] uppercase tracking-widest text-white/55">{runtimeActivity?.label ?? "Generating response"}</span>
+                                <Button aria-label="Stop generation" className="shrink-0" onClick={stopGeneration} size="sm" type="button" variant="sophon">
+                                  <Square aria-hidden="true" className="size-3 fill-current" /> Stop
+                                </Button>
+                              </span>
+                            </BubbleContent>
+                          ) : (
+                            <BubbleContent className="sophon-glass-tile flex w-full items-center gap-3 rounded-xl px-4 py-3">
+                              <LoaderCircle aria-hidden="true" className="size-4 shrink-0 animate-spin text-sophon-signal-soft motion-reduce:animate-none" />
+                              <span className="min-w-0 flex-1">
+                                <span className="block text-sm font-medium text-white/90">{runtimeActivity?.label ?? "Generating response"}</span>
+                                {runtimeActivity?.detail ? <span className="mt-0.5 block truncate text-xs text-white/60">{runtimeActivity.detail}</span> : null}
+                              </span>
+                              <Button aria-label="Stop generation" className="shrink-0" onClick={stopGeneration} size="sm" type="button" variant="sophon">
+                                <Square aria-hidden="true" className="size-3 fill-current" /> Stop
+                              </Button>
+                            </BubbleContent>
+                          )}
                         </Bubble>
                       </MessageContent>
                     </Message>
@@ -491,16 +614,23 @@ export function SophonWorkbench() {
                       <Button onClick={editFailedTurn} size="sm" type="button" variant="sophon"><Pencil aria-hidden="true" /> Edit</Button>
                     </span>
                   </div>
-                ) : error ? <div className="sophon-glass-tile mb-3 rounded-xl border-destructive/35 px-4 py-3 text-sm text-[#ffb4b7]" id="prompt-error" role="alert">{error}</div> : null}
+                ) : error ? (
+                  <div className="sophon-glass-tile mb-3 rounded-xl border-destructive/35 px-4 py-3 text-sm text-[#ffb4b7]" id="prompt-error" role="alert">{error}</div>
+                ) : notice ? (
+                  <div className="sophon-glass-tile mb-3 flex flex-col gap-3 rounded-xl border-white/15 px-4 py-3 text-sm text-white/75 sm:flex-row sm:items-center" role="status">
+                    <span className="min-w-0 flex-1">{notice}</span>
+                    <Button className="self-start sm:self-auto" onClick={() => setNotice(null)} size="sm" type="button" variant="sophon">Dismiss</Button>
+                  </div>
+                ) : null}
                 <label className="sr-only" htmlFor="sophon-prompt">Message Sophon</label>
                 <div className="sophon-glass-tile sophon-glass-interactive relative overflow-hidden rounded-2xl">
                   <textarea
                     aria-describedby="prompt-help"
-                    className="flex min-h-24 w-full resize-none rounded-md border-0 bg-transparent px-3 py-2 pr-14 text-[15px] leading-6 text-white shadow-none placeholder:text-white/50 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                    className="flex min-h-24 max-h-48 w-full resize-none overflow-y-auto rounded-md border-0 bg-transparent px-3 py-2 pr-14 text-[15px] leading-6 text-white shadow-none placeholder:text-white/50 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                     id="sophon-prompt"
                     onChange={(event) => setPrompt(event.target.value)}
                     onKeyDown={handleKeyDown}
-                    placeholder="Ask the local model anything..."
+                    placeholder={promptPlaceholder}
                     ref={promptRef}
                     value={prompt}
                   />
@@ -519,16 +649,16 @@ export function SophonWorkbench() {
                     )}
                   </div>
                 </div>
-                <footer className="mt-2 flex min-w-0 items-center gap-2 px-1 font-mono text-[9px] uppercase tracking-[0.1em] text-white/45">
+                <footer className="mt-2 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-1 font-mono text-[9px] uppercase tracking-[0.1em] text-white/45 min-[900px]:flex min-[900px]:gap-2">
                   <span className={cn("min-w-0 truncate text-white/60", modelCompatibility === "incompatible" && "text-destructive")} id="prompt-help">
-                    {modelCompatibility === "unselected" ? "Choose a model to begin" : modelCompatibility === "probing" ? "Checking browser GPU…" : modelCompatibility === "incompatible" ? "Selected model needs browser GPU support" : <><span className="min-[360px]:hidden">Enter to send</span><span className="hidden min-[360px]:inline">Enter to send · Shift+Enter for a new line</span></>}
+                    {promptHelp === PROMPT_SHORTCUT_HELP ? (
+                      <><span className="sm:hidden">Enter to send</span><span className="hidden sm:inline">{PROMPT_SHORTCUT_HELP}</span></>
+                    ) : promptHelp}
                   </span>
-                  <span aria-hidden="true" className="shrink-0 text-white/20">·</span>
-                  <span className="shrink-0 tabular-nums">{prompt.length} chars</span>
-                  <span aria-hidden="true" className="shrink-0 text-white/20">·</span>
-                  <div className="ml-auto flex min-w-0 items-center gap-0.5">
+                  <span className="shrink-0 tabular-nums">{prompt.length} {prompt.length === 1 ? "char" : "chars"}</span>
+                  <div className="col-span-2 flex min-w-0 items-center gap-0.5 min-[900px]:col-auto min-[900px]:ml-auto">
                     <InfoHint className="-my-1" concept="browserStorage" />
-                    <p className="min-w-0 truncate text-right" data-state={browserStorage === undefined ? "checking" : browserStorage === null ? "unavailable" : "ready"} data-testid="browser-storage">
+                    <p className="min-w-0 truncate min-[900px]:text-right" data-state={browserStorage === undefined ? "checking" : browserStorage === null ? "unavailable" : "ready"} data-testid="browser-storage">
                       Browser storage · <span className="tabular-nums text-white/70">{storageLabel}</span>
                     </p>
                   </div>
@@ -538,12 +668,161 @@ export function SophonWorkbench() {
           </section>
         </div>
       </div>
+      {resetConfirmationOpen ? (
+        <ConfirmationDialog
+          cancelLabel="Keep conversation"
+          confirmLabel="Reset"
+          description="Your messages will be removed. The downloaded model stays available in this browser."
+          onCancel={closeResetConfirmation}
+          onConfirm={resetConversation}
+          title="Reset this conversation?"
+        />
+      ) : null}
+      {pendingDeleteModel ? (
+        <ConfirmationDialog
+          busy={deletingModelId === pendingDeleteModel.id}
+          busyLabel="Deleting…"
+          cancelLabel="Keep model"
+          confirmLabel="Delete files"
+          description={`The ${pendingDeleteSummary?.totalBytes ? `${formatStorageBytes(pendingDeleteSummary.totalBytes)} ` : ""}download for ${pendingDeleteModel.label.split(" · ")[0]} will be removed from this browser. You can download it again later.`}
+          onCancel={closeDeleteModelConfirmation}
+          onConfirm={() => void confirmDeleteModelDownload()}
+          title="Delete downloaded model?"
+        />
+      ) : null}
     </main>
+  );
+}
+
+function ConfirmationDialog({ busy = false, busyLabel, cancelLabel, confirmLabel, description, onCancel, onConfirm, title }: {
+  busy?: boolean;
+  busyLabel?: string;
+  cancelLabel: string;
+  confirmLabel: string;
+  description: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+  title: string;
+}) {
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  const confirmRef = useRef<HTMLButtonElement>(null);
+  const descriptionId = useId();
+  const titleId = useId();
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => cancelRef.current?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 grid place-items-center bg-black/70 px-4 backdrop-blur-sm"
+      onClick={(event) => { if (!busy && event.target === event.currentTarget) onCancel(); }}
+    >
+      <div
+        aria-describedby={descriptionId}
+        aria-labelledby={titleId}
+        aria-modal="true"
+        className="sophon-glass-strong w-full max-w-sm rounded-2xl p-5 shadow-[0_24px_80px_rgb(0_0_0/.55)]"
+        onKeyDown={(event) => {
+          if (!busy && event.key === "Escape") {
+            onCancel();
+          } else if (event.key === "Tab") {
+            if (event.shiftKey && document.activeElement === cancelRef.current) {
+              event.preventDefault();
+              confirmRef.current?.focus();
+            } else if (!event.shiftKey && document.activeElement === confirmRef.current) {
+              event.preventDefault();
+              cancelRef.current?.focus();
+            }
+          }
+        }}
+        role="dialog"
+      >
+        <h2 className="text-base font-semibold text-white" id={titleId}>{title}</h2>
+        <p className="mt-2 text-sm leading-6 text-white/65" id={descriptionId}>{description}</p>
+        <div className="mt-5 flex justify-end gap-2">
+          <Button disabled={busy} onClick={onCancel} ref={cancelRef} type="button" variant="sophon">{cancelLabel}</Button>
+          <Button className="bg-destructive text-white shadow-none hover:bg-destructive/85" disabled={busy} onClick={onConfirm} ref={confirmRef} type="button">
+            {busy ? busyLabel ?? confirmLabel : confirmLabel}
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 
 function GreekGlyph({ children, className }: { children: string; className?: string }) {
   return <span aria-hidden="true" className={cn("font-serif text-base leading-none", className)}>{children}</span>;
+}
+
+function getWelcomeMessage(message: ChatMessage, model: ModelManifest | null, modelReady: boolean, isModelLoading: boolean): ChatMessage {
+  if (!model) return message;
+  const modelName = model.label.split(" · ")[0];
+  if (modelReady) {
+    return {
+      ...message,
+      content: `${modelName} is ready. Ask anything — your prompt and response stay in this browser.`,
+      meta: "WebGPU ready · local by design · no server inference"
+    };
+  }
+  return {
+    ...message,
+    content: isModelLoading
+      ? `${modelName} is getting ready. You can write your prompt while Sophon downloads and verifies it locally.`
+      : `${modelName} is selected. Sophon will run it privately as soon as it is ready.`,
+    meta: "Browser storage · resumable download · no server inference"
+  };
+}
+
+function getPromptHelp({
+  downloadPercent,
+  isBusy,
+  modelCompatibility,
+  modelReady,
+  runtimeActivity
+}: {
+  downloadPercent?: number;
+  isBusy: boolean;
+  modelCompatibility: ReturnType<typeof getModelCompatibility>;
+  modelReady: boolean;
+  runtimeActivity: RuntimeActivity | null;
+}) {
+  if (modelCompatibility === "unselected") return "Choose a model to begin";
+  if (modelCompatibility === "probing") return "Checking browser GPU…";
+  if (modelCompatibility === "incompatible") return "Selected model needs browser GPU support";
+  if (!modelReady) {
+    const progress = downloadPercent === undefined ? "" : ` · ${downloadPercent}%`;
+    return `${runtimeActivity?.label ?? "Preparing local model"}${progress}`;
+  }
+  if (isBusy) return runtimeActivity?.label ?? "Running locally…";
+  return PROMPT_SHORTCUT_HELP;
+}
+
+function readRememberedModelId() {
+  try {
+    return window.localStorage.getItem(LAST_READY_MODEL_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function rememberReadyModelId(modelId: string) {
+  try {
+    window.localStorage.setItem(LAST_READY_MODEL_KEY, modelId);
+  } catch {
+    // Browser storage can be unavailable in private or restricted contexts.
+  }
+}
+
+function forgetRememberedModelId(modelId: string) {
+  try {
+    if (window.localStorage.getItem(LAST_READY_MODEL_KEY) === modelId) {
+      window.localStorage.removeItem(LAST_READY_MODEL_KEY);
+    }
+  } catch {
+    // Browser storage can be unavailable in private or restricted contexts.
+  }
 }
 
 function MessageActions({ canEdit, canRegenerate, copied, onCopy, onEdit, onRegenerate, role }: {
@@ -557,19 +836,19 @@ function MessageActions({ canEdit, canRegenerate, copied, onCopy, onEdit, onRege
 }) {
   return (
     <div className={cn(
-      "flex items-center gap-1 transition-opacity sm:opacity-0 sm:group-focus-within/message:opacity-100 sm:group-hover/message:opacity-100",
+      "flex items-center gap-1 opacity-70 transition-opacity group-focus-within/message:opacity-100 group-hover/message:opacity-100",
       role === "user" ? "self-end" : "self-start"
     )}>
-      <Button aria-label={copied ? "Copied message" : "Copy message"} className="size-11 rounded-xl text-white/70 sm:size-9" onClick={onCopy} size="icon" type="button" variant="sophon">
+      <Button aria-label={copied ? "Copied message" : "Copy message"} className="size-11 rounded-xl text-white/70 sm:size-9" onClick={onCopy} size="icon" title={copied ? "Copied" : "Copy message"} type="button" variant="sophon">
         {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
       </Button>
       {canEdit ? (
-        <Button aria-label="Edit message" className="size-11 rounded-xl text-white/70 sm:size-9" onClick={onEdit} size="icon" type="button" variant="sophon">
+        <Button aria-label="Edit message" className="size-11 rounded-xl text-white/70 sm:size-9" onClick={onEdit} size="icon" title="Edit message" type="button" variant="sophon">
           <Pencil aria-hidden="true" />
         </Button>
       ) : null}
       {canRegenerate ? (
-        <Button aria-label="Regenerate response" className="size-11 rounded-xl text-white/70 sm:size-9" onClick={onRegenerate} size="icon" type="button" variant="sophon">
+        <Button aria-label="Regenerate response" className="size-11 rounded-xl text-white/70 sm:size-9" onClick={onRegenerate} size="icon" title="Regenerate response" type="button" variant="sophon">
           <RotateCcw aria-hidden="true" />
         </Button>
       ) : null}
@@ -685,7 +964,8 @@ function formatQuantization(value: string) {
 }
 
 function formatDuration(value: number | null) {
-  return value === null ? "—" : `${Math.round(value)} ms`;
+  if (value === null) return "—";
+  return value < 1_000 ? `${Math.round(value)} ms` : `${(value / 1_000).toFixed(value < 10_000 ? 1 : 0)}s`;
 }
 
 function formatStorageBytes(bytes?: number) {

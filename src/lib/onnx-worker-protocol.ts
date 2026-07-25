@@ -160,6 +160,7 @@ function isTelemetryEvent(value: unknown): value is GenerationTelemetryEvent {
     && Number(value.contextTokenCount) >= 0
     && Number.isSafeInteger(value.outputTokenCount)
     && Number(value.outputTokenCount) >= 0
+    && (value.generatedText === undefined || (typeof value.generatedText === "string" && value.generatedText.length <= 100_000))
     && isFiniteNonNegative(value.endToEndMs)
     && isNullableFiniteNonNegative(value.ttftMs)
     && isFiniteNonNegative(value.decodeMs)

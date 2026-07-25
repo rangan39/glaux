@@ -43,6 +43,7 @@ export type GenerationTelemetryEvent = GenerationTimingSnapshot & {
   phase: "prefill" | "decode" | "complete";
   promptTokenCount: number;
   contextTokenCount: number;
+  generatedText?: string;
 };
 
 export type OnnxToken = { id: number; text: string };

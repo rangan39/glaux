@@ -73,6 +73,7 @@ type DownloadOptions = {
 
 const globalRangeQueue = createAdaptiveRangeQueue({ adaptive: adaptiveDownloadsEnabled() });
 const verifiedThisSession = new Set<string>();
+const CACHED_VERIFICATION_CONCURRENCY = 2;
 
 export class RangeDeliveryUnavailableError extends Error {
   constructor(message: string) {
@@ -151,10 +152,16 @@ async function downloadAndVerify({
   if (isReadyState(state, artifact, segmentSize) && existingSize === artifact.size) {
     if (!verifiedThisSession.has(artifact.key)) {
       onProgress({ loaded: 0, total: artifact.size, stage: "verify", resumedBytes: artifact.size, networkBytes: 0 });
-      const digest = await sha256File(await file.getFile(), signal, (loaded) => {
+      const cachedFile = await file.getFile();
+      const onVerified = (loaded: number) => {
         onProgress({ loaded, total: artifact.size, stage: "verify", resumedBytes: artifact.size, networkBytes: 0 });
-      });
-      if (digest !== artifact.sha256) throw new ArtifactIntegrityError(`SHA-256 mismatch for ${artifact.key}.`);
+      };
+      if (segmentDigests) {
+        await verifyCachedSegments(cachedFile, artifact, segmentDigests, segmentSize, signal, onVerified);
+      } else {
+        const digest = await sha256File(cachedFile, signal, onVerified);
+        if (digest !== artifact.sha256) throw new ArtifactIntegrityError(`SHA-256 mismatch for ${artifact.key}.`);
+      }
       verifiedThisSession.add(artifact.key);
     }
     onProgress({ loaded: artifact.size, total: artifact.size, stage: "cache", resumedBytes: artifact.size, networkBytes: 0 });
@@ -447,6 +454,56 @@ async function sha256File(file: File, signal?: AbortSignal, onChunk?: (loaded: n
   } finally {
     reader.releaseLock();
   }
+  return hasher.digest("hex");
+}
+
+async function verifyCachedSegments(
+  file: File,
+  artifact: RangeArtifact,
+  segmentDigests: readonly string[],
+  segmentSize: number,
+  signal?: AbortSignal,
+  onChunk?: (loaded: number) => void
+) {
+  const segments = getSegments(artifact.size, segmentSize);
+  let nextIndex = 0;
+  let loaded = 0;
+  let failure: unknown;
+  const workers = Array.from(
+    { length: Math.min(CACHED_VERIFICATION_CONCURRENCY, segments.length) },
+    async () => {
+      try {
+        while (failure === undefined) {
+          throwIfAborted(signal);
+          const segment = segments[nextIndex];
+          nextIndex += 1;
+          if (!segment) return;
+          const buffer = await file.slice(segment.start, segment.end + 1).arrayBuffer();
+          throwIfAborted(signal);
+          const digest = await sha256Buffer(buffer);
+          if (digest !== segmentDigests[segment.index]) {
+            throw new ArtifactIntegrityError(`SHA-256 mismatch for segment ${segment.index} of ${artifact.key}.`);
+          }
+          loaded += segment.length;
+          onChunk?.(loaded);
+        }
+      } catch (error) {
+        if (failure === undefined) failure = error;
+      }
+    }
+  );
+  await Promise.all(workers);
+  if (failure !== undefined) throw failure;
+}
+
+async function sha256Buffer(buffer: ArrayBuffer) {
+  if (globalThis.crypto?.subtle) {
+    const digest = await globalThis.crypto.subtle.digest("SHA-256", buffer);
+    return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  }
+  const hasher = await createSHA256();
+  hasher.init();
+  hasher.update(new Uint8Array(buffer));
   return hasher.digest("hex");
 }
 

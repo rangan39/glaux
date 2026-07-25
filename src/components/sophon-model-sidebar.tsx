@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type RefObject } from "react";
-import { Flame, Languages, Mountain, PanelLeftClose, PanelLeftOpen, Trash2, Waves, X, type LucideIcon } from "lucide-react";
+import { Flame, Languages, Mountain, PanelLeftClose, PanelLeftOpen, Trash2, Upload, Waves, X, type LucideIcon } from "lucide-react";
 import { SophonAcknowledgements } from "@/components/sophon-acknowledgements";
 import { Button } from "@/components/ui/button";
 import { InfoHint } from "@/components/ui/info-hint";
@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 
 type Props = {
   cacheSummaries: ModelCacheSummary[]; capabilities: RuntimeCapabilities | null; deletingModelId?: string | null; disabled?: boolean; downloadPercent?: number; loadedModelId: string | null;
-  loading?: boolean; loadingLabel?: string; mobileOpen: boolean; modelId: string; onDelete: (modelId: string) => void; onMobileOpenChange: (open: boolean) => void; onSelect: (modelId: string) => void; recommendedModelId: string;
+  importingModelId?: string | null; loading?: boolean; loadingLabel?: string; mobileOpen: boolean; modelId: string; onDelete: (modelId: string) => void; onImport: (modelId: string) => void; onMobileOpenChange: (open: boolean) => void; onSelect: (modelId: string) => void; recommendedModelId: string;
 };
 const MODEL_UI: Record<string, { icon: LucideIcon; name: string; region: string }> = {
   "tiny-aya-global": { icon: Languages, name: "Global", region: "70+ languages" },
@@ -20,7 +20,7 @@ const MODEL_UI: Record<string, { icon: LucideIcon; name: string; region: string 
   "tiny-aya-water": { icon: Waves, name: "Water", region: "Europe + Asia Pacific" }
 };
 
-export function SophonModelSidebar({ cacheSummaries = [], capabilities, deletingModelId = null, disabled = false, downloadPercent, loadedModelId, loading = false, loadingLabel = "Downloading", mobileOpen, modelId, onDelete, onMobileOpenChange, onSelect, recommendedModelId }: Props) {
+export function SophonModelSidebar({ cacheSummaries = [], capabilities, deletingModelId = null, disabled = false, downloadPercent, importingModelId = null, loadedModelId, loading = false, loadingLabel = "Downloading", mobileOpen, modelId, onDelete, onImport, onMobileOpenChange, onSelect, recommendedModelId }: Props) {
   const [expanded, setExpanded] = useState(true);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
@@ -36,7 +36,7 @@ export function SophonModelSidebar({ cacheSummaries = [], capabilities, deleting
     }
   }, [mobileOpen]);
 
-  const panelProps = { cacheSummaries, capabilities, deletingModelId, disabled, downloadPercent, loadedModelId, loading, loadingLabel, modelId, onDelete, onSelect, recommendedModelId };
+  const panelProps = { cacheSummaries, capabilities, deletingModelId, disabled, downloadPercent, importingModelId, loadedModelId, loading, loadingLabel, modelId, onDelete, onImport, onSelect, recommendedModelId };
   return <>
     <aside aria-label="Model library" className={cn("sophon-glass-strong hidden h-full shrink-0 flex-col overflow-hidden border-y-0 border-l-0 transition-[width] duration-200 motion-reduce:transition-none lg:flex", expanded ? "w-72" : "w-[4.75rem]")} data-state={expanded ? "expanded" : "collapsed"} id="model-library-desktop">
       <ModelPanel {...panelProps} expanded={expanded} onToggle={() => setExpanded((value) => !value)} />
@@ -50,7 +50,7 @@ export function SophonModelSidebar({ cacheSummaries = [], capabilities, deleting
 }
 
 type PanelProps = Omit<Props, "mobileOpen" | "onMobileOpenChange"> & { expanded: boolean; mobile?: boolean; onClose?: () => void; onToggle?: () => void; portalContainer?: RefObject<HTMLElement | null> };
-function ModelPanel({ cacheSummaries = [], capabilities, deletingModelId = null, disabled = false, downloadPercent, expanded, loadedModelId, loading, loadingLabel, mobile = false, modelId, onClose, onDelete, onSelect, onToggle, portalContainer, recommendedModelId }: PanelProps) {
+function ModelPanel({ cacheSummaries = [], capabilities, deletingModelId = null, disabled = false, downloadPercent, expanded, importingModelId = null, loadedModelId, loading, loadingLabel, mobile = false, modelId, onClose, onDelete, onImport, onSelect, onToggle, portalContainer, recommendedModelId }: PanelProps) {
   const detailModel = MODEL_REGISTRY.find((model) => model.id === modelId)
     ?? MODEL_REGISTRY.find((model) => model.id === recommendedModelId)
     ?? MODEL_REGISTRY[0];
@@ -73,8 +73,9 @@ function ModelPanel({ cacheSummaries = [], capabilities, deletingModelId = null,
           const unavailable = modelAvailability(capabilities, model) === "Browser GPU required";
           const cache = cacheSummaries.find((entry) => entry.modelId === model.id);
           const hasStoredData = cache?.state === "cached" || cache?.state === "partial";
+          const active = importingModelId === model.id || loading && selected;
           const subtitle = `${mobileProfile && model.family === "cohere" ? "2K mobile · " : ""}${model.format.sizeLabel} · ${ui.region}`;
-          const status = loading && selected
+          const status = active
             ? `${loadingLabel}${downloadPercent === undefined ? "" : ` ${downloadPercent}%`}`
             : loadedModelId === model.id
               ? "Ready"
@@ -88,10 +89,11 @@ function ModelPanel({ cacheSummaries = [], capabilities, deletingModelId = null,
             <input aria-label={`${model.label}. ${model.format.sizeLabel} download. ${status}.`} checked={selected} className="sr-only" disabled={unavailable} name={mobile ? "mobile-model" : "desktop-model"} onChange={() => onSelect(model.id)} type="radio" value={model.id} />
             {selected ? <span aria-hidden="true" className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-sophon-signal-bright shadow-[0_0_10px_var(--sophon-signal-bright)]" /> : null}
             <span aria-hidden="true" className={cn("grid size-9 shrink-0 place-items-center rounded-lg border", selected ? "border-sophon-signal-bright/45 bg-sophon-signal/20 text-[#ffb4a4]" : "border-white/10 bg-black/20 text-white/65")}><Icon className="size-[17px]" /></span>
-            {expanded ? <span className={cn("min-w-0 flex-1", hasStoredData && !loading && "pr-8")}><span className="flex items-center gap-2 font-mono text-[11px] font-semibold uppercase tracking-[0.09em] text-white"><span>{ui.name}</span>{model.id === recommendedModelId ? <span className="rounded-full border border-sophon-verified/25 bg-sophon-verified/10 px-1.5 py-0.5 text-[7px] tracking-[0.08em] text-sophon-verified">Recommended</span> : null}</span><span className="mt-1 block truncate text-[11px] text-white/55">{subtitle}</span><span className={cn("mt-2 flex items-center gap-1.5 truncate font-mono text-[9px] uppercase tracking-[0.08em]", loadedModelId === model.id || cache?.state === "cached" ? "text-sophon-verified" : loading && selected || cache?.state === "partial" ? "text-[#ffb4a4]" : "text-white/45")}><span aria-hidden="true" className={cn("size-1.5 shrink-0 rounded-full", loadedModelId === model.id || cache?.state === "cached" ? "bg-sophon-verified" : selected || cache?.state === "partial" ? "bg-sophon-signal-bright" : "bg-white/30")} />{status}</span></span> : null}
-            {loading && selected ? <span aria-hidden="true" className="absolute inset-x-0 bottom-0 h-0.5 bg-white/10"><span className={cn("block h-full bg-sophon-signal-bright", downloadPercent === undefined && "w-1/3 animate-pulse motion-reduce:animate-none")} style={downloadPercent === undefined ? undefined : { width: `${downloadPercent}%` }} /></span> : null}
+            {expanded ? <span className="min-w-0 flex-1 pr-[4.75rem]"><span className="flex items-center gap-2 font-mono text-[11px] font-semibold uppercase tracking-[0.09em] text-white"><span>{ui.name}</span>{model.id === recommendedModelId ? <span className="rounded-full border border-sophon-verified/25 bg-sophon-verified/10 px-1.5 py-0.5 text-[7px] tracking-[0.08em] text-sophon-verified">Recommended</span> : null}</span><span className="mt-1 block truncate text-[11px] text-white/55">{subtitle}</span><span className={cn("mt-2 flex items-center gap-1.5 truncate font-mono text-[9px] uppercase tracking-[0.08em]", loadedModelId === model.id || cache?.state === "cached" ? "text-sophon-verified" : active || cache?.state === "partial" ? "text-[#ffb4a4]" : "text-white/45")}><span aria-hidden="true" className={cn("size-1.5 shrink-0 rounded-full", loadedModelId === model.id || cache?.state === "cached" ? "bg-sophon-verified" : selected || active || cache?.state === "partial" ? "bg-sophon-signal-bright" : "bg-white/30")} />{status}</span></span> : null}
+            {active ? <span aria-hidden="true" className="absolute inset-x-0 bottom-0 h-0.5 bg-white/10"><span className={cn("block h-full bg-sophon-signal-bright", downloadPercent === undefined && "w-1/3 animate-pulse motion-reduce:animate-none")} style={downloadPercent === undefined ? undefined : { width: `${downloadPercent}%` }} /></span> : null}
             </label>
-            {expanded && hasStoredData && !(loading && selected) ? <Button aria-label={`Delete downloaded files for ${model.label}`} className="absolute right-1.5 top-1.5 size-9 border-0 bg-transparent text-white/35 shadow-none hover:border-transparent hover:bg-destructive/10 hover:text-destructive" disabled={deletingModelId !== null} onClick={() => onDelete(model.id)} size="icon" title={`Delete ${status.toLowerCase()}`} type="button" variant="sophon"><Trash2 aria-hidden="true" className="stroke-[1.5]" /></Button> : null}
+            {expanded && !active ? <Button aria-label={`Import offline pack for ${model.label}`} className={cn("absolute right-1.5 h-7 w-[4.25rem] gap-1 border-0 bg-transparent px-1.5 font-mono text-[8px] uppercase tracking-[0.08em] text-white/45 shadow-none hover:border-transparent hover:bg-sophon-signal/20 hover:text-[#ffb4a4]", hasStoredData ? "bottom-1" : "top-1/2 -translate-y-1/2")} onClick={() => onImport(model.id)} title="Import offline pack" type="button" variant="sophon"><Upload aria-hidden="true" className="size-3 stroke-[1.5]" />Import</Button> : null}
+            {expanded && hasStoredData && !active ? <Button aria-label={`Delete downloaded files for ${model.label}`} className="absolute right-1.5 top-1 size-9 border-0 bg-transparent text-white/35 shadow-none hover:border-transparent hover:bg-destructive/10 hover:text-destructive" disabled={deletingModelId !== null} onClick={() => onDelete(model.id)} size="icon" title={`Delete ${status.toLowerCase()}`} type="button" variant="sophon"><Trash2 aria-hidden="true" className="stroke-[1.5]" /></Button> : null}
           </div>;
         })}
       </div>

@@ -48,7 +48,7 @@ self.onmessage = (message: MessageEvent<unknown>) => {
     return;
   }
 
-  if (request.type === "generate" || request.type === "preload" || request.type === "delete-cache") {
+  if (request.type === "generate" || request.type === "preload" || request.type === "delete-cache" || request.type === "import-pack") {
     requestControllers.set(request.requestId, new AbortController());
   }
 
@@ -60,6 +60,26 @@ async function runQueuedRequest(request: Exclude<WorkerRequest, { type: "capabil
     if (request.type === "cache-status") {
       const { getModelCacheStatus } = await import("@/lib/model-delivery/cache-status");
       complete(request.requestId, { models: await getModelCacheStatus() });
+      return;
+    }
+    if (request.type === "inspect-pack") {
+      const { inspectOfflineModelPack } = await import("@/lib/model-delivery/model-pack-importer");
+      complete(request.requestId, await inspectOfflineModelPack(request.file, request.expectedModelId));
+      return;
+    }
+    if (request.type === "import-pack") {
+      const { importOfflineModelPack } = await import("@/lib/model-delivery/model-pack-importer");
+      complete(request.requestId, await importOfflineModelPack(
+        request.file,
+        request.expectedModelId,
+        (progress) => postLog(request.requestId, {
+          level: progress.stage === "ready" ? "success" : "info",
+          message: modelPackProgressMessage(progress.stage),
+          phase: "import",
+          progress
+        }),
+        requestControllers.get(request.requestId)?.signal
+      ));
       return;
     }
     const {
@@ -96,6 +116,14 @@ async function runQueuedRequest(request: Exclude<WorkerRequest, { type: "capabil
   } finally {
     requestControllers.delete(request.requestId);
   }
+}
+
+function modelPackProgressMessage(stage: "validate" | "download" | "resume" | "import" | "verify" | "cache" | "ready") {
+  if (stage === "validate") return "Validating offline model pack";
+  if (stage === "import") return "Importing offline model pack";
+  if (stage === "verify") return "Verifying imported model";
+  if (stage === "ready") return "Offline model ready";
+  return "Preparing imported model";
 }
 
 function readRequestId(value: unknown) {

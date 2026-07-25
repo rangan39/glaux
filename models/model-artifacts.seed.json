@@ -28,6 +28,12 @@
   "models": [
     {
       "id": "tiny-aya-global",
+      "license": {
+        "acceptableUsePolicyUrl": "https://docs.cohere.com/docs/cohere-labs-acceptable-use-policy",
+        "attribution": "Tiny Aya Global by Cohere Labs, licensed under CC BY-NC 4.0 for non-commercial use.",
+        "modelCardUrl": "https://huggingface.co/CohereLabs/tiny-aya-global",
+        "spdx": "CC-BY-NC-4.0"
+      },
       "source": {
         "files": [
           {
@@ -72,6 +78,12 @@
     },
     {
       "id": "tiny-aya-earth",
+      "license": {
+        "acceptableUsePolicyUrl": "https://docs.cohere.com/docs/cohere-labs-acceptable-use-policy",
+        "attribution": "Tiny Aya Earth by Cohere Labs, licensed under CC BY-NC 4.0 for non-commercial use.",
+        "modelCardUrl": "https://huggingface.co/CohereLabs/tiny-aya-earth",
+        "spdx": "CC-BY-NC-4.0"
+      },
       "source": {
         "files": [
           {
@@ -116,6 +128,12 @@
     },
     {
       "id": "tiny-aya-fire",
+      "license": {
+        "acceptableUsePolicyUrl": "https://docs.cohere.com/docs/cohere-labs-acceptable-use-policy",
+        "attribution": "Tiny Aya Fire by Cohere Labs, licensed under CC BY-NC 4.0 for non-commercial use.",
+        "modelCardUrl": "https://huggingface.co/CohereLabs/tiny-aya-fire",
+        "spdx": "CC-BY-NC-4.0"
+      },
       "source": {
         "files": [
           {
@@ -160,6 +178,12 @@
     },
     {
       "id": "tiny-aya-water",
+      "license": {
+        "acceptableUsePolicyUrl": "https://docs.cohere.com/docs/cohere-labs-acceptable-use-policy",
+        "attribution": "Tiny Aya Water by Cohere Labs, licensed under CC BY-NC 4.0 for non-commercial use.",
+        "modelCardUrl": "https://huggingface.co/CohereLabs/tiny-aya-water",
+        "spdx": "CC-BY-NC-4.0"
+      },
       "source": {
         "files": [
           {

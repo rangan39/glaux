@@ -5,9 +5,10 @@ Sophon is a browser-only local chat and compatibility tool for Cohere Labs' Tiny
 ## Runtime flow
 
 ```text
-Model manifest
+Compiled model manifest
   → persistent model worker
-  → resumable OPFS delivery / verified File objects
+  → online ranges OR local .sophon-model pack
+  → shared resumable OPFS delivery / verified File objects
   → Transformers.js pipeline
   → ONNX Runtime provider
   → token telemetry / generation result
@@ -49,6 +50,10 @@ Strong ETags and `If-Range` protect resumed files from remote revision drift. Do
 Completed segments are checkpointed after four completions or one second, whichever comes first. A checkpoint flushes OPFS before committing its completed-segment set through a strict IndexedDB transaction. This order permits bounded redundant work after a crash but never records an unflushed segment as resumable. Graceful completion and cancellation drain the outstanding batch.
 
 The allowlist covers ONNX graphs, Tiny Aya external-data files, configuration, generation settings, and tokenizer resources at immutable repository commits. Tiny Aya weights use OPFS only, avoiding a duplicate CacheStorage copy. Sophon then initializes each pipeline in local-files-only mode. Missing platform APIs, unavailable quota, absent required range support, contract violations, and integrity failures all fail closed.
+
+Offline packs are a second byte source for this state machine, not a second cache. A worker-only parser reads the fixed preamble and at most 1 MiB of canonical JSON, validates every safe-integer range, and requires a byte-for-byte identity match with the compiled model, revision, quantization, artifact, segment-digest, license, attribution, model-card, and acceptable-use allowlist. No pack-provided URL, content type, path, script, Wasm module, or runtime option becomes authoritative.
+
+The importer takes the same exclusive per-model Web Lock used by deletion and conflicts with online delivery. It reads each payload range with `Blob.slice().stream()`, hashes and writes bounded chunks at their final OPFS offsets, flushes the synchronous access handle, and only then records a verified segment checkpoint. Small verified graph/config/tokenizer artifacts enter the existing Transformers.js CacheStorage keys. After all artifact bytes arrive, the worker performs ordered whole-file verification, commits all external artifacts to `ready` in one strict IndexedDB transaction, and marks the session verification cache. Failure or cancellation can leave verified partial checkpoints but cannot create a runnable model.
 
 Preload and generation requests share the worker's targeted cancellation protocol. Cancelling a preload aborts probes and response readers but retains every flushed checkpoint; selection can resume it later. Cache inspection combines IndexedDB checkpoints, OPFS file sizes, and auxiliary CacheStorage entries. Where Web Locks are available, deletion takes an exclusive per-model lock; the worker also serializes the operation, disposes the live pipeline, and removes all three storage layers.
 

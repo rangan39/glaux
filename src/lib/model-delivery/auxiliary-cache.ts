@@ -7,6 +7,29 @@ export const TRANSFORMERS_CACHE_NAME = "transformers-cache";
 
 const verifiedThisSession = new Set<string>();
 
+export async function putVerifiedAuxiliaryArtifact(
+  model: ModelDeliveryManifest,
+  artifact: ModelAuxiliaryArtifact,
+  body: Blob
+) {
+  if (typeof caches === "undefined") throw new ModelDeliveryUnavailableError("This browser cannot store the model files Sophon needs.");
+  if (body.size !== artifact.size) throw new Error(`Verified model metadata size mismatch for ${artifact.path}.`);
+  const cache = await caches.open(TRANSFORMERS_CACHE_NAME);
+  const key = getArtifactUrl(model, artifact);
+  try {
+    await cache.put(key, new Response(body, {
+      headers: {
+        "content-length": String(artifact.size),
+        "content-type": contentTypeForPath(artifact.path)
+      }
+    }));
+  } catch (error) {
+    await cache.delete(key).catch(() => undefined);
+    throw toModelStorageError(error, "The browser ran out of storage while caching verified model files.");
+  }
+  verifiedThisSession.add(getArtifactKey(model, artifact));
+}
+
 export async function ensureAuxiliaryArtifact(
   model: ModelDeliveryManifest,
   artifact: ModelAuxiliaryArtifact,
@@ -110,4 +133,8 @@ async function readAndHash(
 
 function throwIfAborted(signal?: AbortSignal) {
   if (signal?.aborted) throw signal.reason instanceof Error ? signal.reason : new DOMException("The model download was cancelled.", "AbortError");
+}
+
+function contentTypeForPath(path: string) {
+  return path.endsWith(".json") ? "application/json" : "application/octet-stream";
 }

@@ -1,7 +1,13 @@
 import { MODEL_SEGMENT_DIGESTS } from "@/lib/model-delivery/segment-digests";
-import type { SophonModelPackLicense } from "@/lib/model-delivery/pack-format";
 
 export const MODEL_SEGMENT_SIZE = 64 * 1024 * 1024;
+
+export type ModelLicense = {
+  spdx: "CC-BY-NC-4.0";
+  modelCardUrl: string;
+  acceptableUsePolicyUrl: string;
+  attribution: string;
+};
 
 export type ModelDeliveryArtifact = {
   path: string;
@@ -20,7 +26,7 @@ export type ModelDeliveryManifest = {
   repo: string;
   revision: string;
   quantization: "q4f16";
-  license: SophonModelPackLicense;
+  license: ModelLicense;
   externalData: readonly ModelDeliveryArtifact[];
   auxiliary: readonly ModelAuxiliaryArtifact[];
 };
@@ -98,7 +104,7 @@ function manifest(
     repo,
     revision,
     quantization: "q4f16",
-    license: modelPackLicense(modelId),
+    license: modelLicense(modelId),
     externalData: artifacts.map(([path, size, sha256]) => ({
       path,
       externalPath: path.slice(path.lastIndexOf("/") + 1),
@@ -110,7 +116,7 @@ function manifest(
   };
 }
 
-function modelPackLicense(modelId: string): SophonModelPackLicense {
+function modelLicense(modelId: string): ModelLicense {
   const region = modelId.slice("tiny-aya-".length);
   const name = region.charAt(0).toUpperCase() + region.slice(1);
   return {

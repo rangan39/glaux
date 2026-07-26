@@ -1,6 +1,6 @@
 "use client";
 
-import { type CSSProperties, type KeyboardEvent, lazy, memo, Suspense, useMemo, useRef, useState } from "react";
+import { type KeyboardEvent, lazy, memo, Suspense, useMemo, useRef, useState } from "react";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
 import { InfoHint } from "@/components/ui/info-hint";
 import { groupTokenPieces, type ContextTokenPiece, type TokenWord } from "@/lib/token-display";
@@ -8,11 +8,6 @@ import { cn } from "@/lib/utils";
 
 const MarkdownContent = lazy(() => import("@/components/markdown-content"));
 const markdownSyntax = /(?:^|\n)\s{0,3}(?:#{1,6}\s|>\s|[-+*]\s|\d+[.)]\s|```|~~~|(?:-{3,}|\*{3,}|_{3,})\s*(?:\n|$))|(?:\[[^\]\n]+\]\([^)\n]+\)|`[^`\n]+`|\*\*[^*\n]+\*\*|__[^_\n]+__|~~[^~\n]+~~)|(?:^|\n)\s*\|.+\|\s*(?:\n|$)/m;
-const tokenLineStyles: Record<InspectableMessageProps["role"], CSSProperties> = {
-  assistant: { borderLeftColor: "var(--sophon-signal-bright)" },
-  user: { borderLeftColor: "rgb(255 255 255 / 0.9)" }
-};
-
 export type InspectableToken = ContextTokenPiece;
 
 type TokenMode = "text" | "tokens" | "words";
@@ -32,12 +27,14 @@ type InspectableSegment = {
 
 type InspectableMessageProps = {
   content: string;
+  developerMode?: boolean;
   meta?: string;
   role: "user" | "assistant";
+  showMeta?: boolean;
   tokens?: InspectableToken[];
 };
 
-export const InspectableMessage = memo(function InspectableMessage({ content, meta, role, tokens = [] }: InspectableMessageProps) {
+export const InspectableMessage = memo(function InspectableMessage({ content, developerMode = false, meta, role, showMeta = false, tokens = [] }: InspectableMessageProps) {
   const [mode, setMode] = useState<TokenMode>("text");
   const [selection, setSelection] = useState<TokenSelection>(null);
   const [inspectorOpen, setInspectorOpen] = useState(false);
@@ -65,6 +62,7 @@ export const InspectableMessage = memo(function InspectableMessage({ content, me
     return [];
   }, [mode, tokens, words]);
   const hasTokens = tokens.length > 0;
+  const visibleMeta = showMeta ? meta : undefined;
 
   function changeMode(nextMode: TokenMode) {
     setMode(nextMode);
@@ -80,8 +78,8 @@ export const InspectableMessage = memo(function InspectableMessage({ content, me
   return (
     <div className={cn("flex max-w-full flex-col gap-2", role === "user" ? "items-end" : "items-start")} data-message-role={role}>
       <Bubble align={role === "user" ? "end" : "start"} variant={role === "user" ? "default" : "muted"}>
-        <BubbleContent className={cn("break-words rounded-xl shadow-[inset_0_1px_0_rgb(255_255_255/.08),0_14px_36px_rgb(0_0_0/.22)]", role === "user" ? "border-sophon-signal-bright/45 bg-gradient-to-br from-sophon-signal-bright to-sophon-signal font-medium text-[#210b07]" : "border-white/[.14] bg-[rgb(24_34_53/.72)] text-[#e6edf7]")}>
-          {mode !== "text" && hasTokens ? (
+        <BubbleContent className={cn("break-words rounded-xl", role === "user" ? "sophon-accent-message border-sophon-signal-bright/55 font-medium" : "sophon-theme-elevation border-sophon-glass-border bg-sophon-panel text-sophon-copy-primary")}>
+          {developerMode && mode !== "text" && hasTokens ? (
             <SegmentSequence key={mode} kind={mode} role={role} segments={segments} selection={selection} setSelection={setSelection} />
           ) : (
             <MarkdownMessage content={content} role={role} />
@@ -89,11 +87,11 @@ export const InspectableMessage = memo(function InspectableMessage({ content, me
         </BubbleContent>
       </Bubble>
 
-      {(meta || hasTokens) ? (
+      {(visibleMeta || (developerMode && hasTokens)) ? (
         <div className={cn("flex max-w-full flex-wrap items-center gap-x-2 gap-y-1.5 px-1", role === "user" && "flex-row-reverse")}>
-          {meta ? <span className={cn("min-w-0 max-w-full break-words text-xs text-[#aab4c3]", role === "user" && "text-right")}>{meta}</span> : null}
-          {role === "assistant" && meta && hasTokens ? <InfoHint concept="generationMetrics" /> : null}
-          {hasTokens ? (
+          {visibleMeta ? <span className={cn("min-w-0 max-w-full break-words text-xs text-sophon-copy-metadata", role === "user" && "text-right")}>{visibleMeta}</span> : null}
+          {developerMode && role === "assistant" && visibleMeta && hasTokens ? <InfoHint concept="generationMetrics" /> : null}
+          {developerMode && hasTokens ? (
             <TokenModeControl
               expanded={inspectorOpen}
               mode={mode}
@@ -106,7 +104,7 @@ export const InspectableMessage = memo(function InspectableMessage({ content, me
         </div>
       ) : null}
 
-      {mode !== "text" && hasTokens ? (
+      {developerMode && mode !== "text" && hasTokens ? (
         <TokenInspector role={role} selection={selection} tokenCount={tokens.length} />
       ) : null}
     </div>
@@ -118,7 +116,7 @@ function MarkdownMessage({ content, role }: Pick<InspectableMessageProps, "conte
     <div
       className={cn(
         "min-w-0 max-w-full overflow-x-auto text-[15px] leading-6",
-        "[&_a]:break-words [&_a]:font-semibold [&_a]:underline [&_a]:decoration-1 [&_a]:underline-offset-4 [&_a:focus-visible]:rounded-sm [&_a:focus-visible]:outline-none [&_a:focus-visible]:ring-2 [&_a:focus-visible]:ring-sophon-warning",
+        "[&_a]:break-words [&_a]:font-semibold [&_a]:underline [&_a]:decoration-1 [&_a]:underline-offset-4 [&_a:focus-visible]:rounded-sm [&_a:focus-visible]:outline-none [&_a:focus-visible]:ring-2 [&_a:focus-visible]:ring-sophon-signal",
         "[&_blockquote]:my-3 [&_blockquote]:border-l-2 [&_blockquote]:pl-3 [&_blockquote]:italic",
         "[&_code]:rounded [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.9em]",
         "[&_h1]:mb-3 [&_h1]:mt-4 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:mb-2 [&_h2]:mt-4 [&_h2]:text-base [&_h2]:font-semibold [&_h3]:mb-2 [&_h3]:mt-3 [&_h3]:font-semibold",
@@ -128,15 +126,30 @@ function MarkdownMessage({ content, role }: Pick<InspectableMessageProps, "conte
         "[&_pre]:my-3 [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:border [&_pre]:p-3 [&_pre]:text-xs [&_pre]:leading-5 [&_pre_code]:rounded-none [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:text-inherit",
         "[&_table]:my-3 [&_table]:min-w-full [&_table]:border-collapse [&_table]:text-left [&_table]:text-xs [&_td]:border [&_td]:p-2 [&_th]:border [&_th]:p-2 [&_th]:font-semibold",
         role === "user"
-          ? "[&_a]:text-[#150907] [&_blockquote]:border-[#210b07]/45 [&_code]:bg-[#210b07]/10 [&_code]:text-[#150907] [&_hr]:border-[#210b07]/30 [&_li]:marker:text-[#210b07]/70 [&_pre]:border-[#210b07]/35 [&_pre]:bg-[#150907]/95 [&_pre]:text-[#f8fafc] [&_td]:border-[#210b07]/25 [&_th]:border-[#210b07]/35 [&_th]:bg-[#210b07]/10"
-          : "[&_a]:text-[#ff9d87] [&_blockquote]:border-sophon-signal-soft/60 [&_code]:bg-black/35 [&_code]:text-[#ffd4ca] [&_hr]:border-white/15 [&_li]:marker:text-sophon-signal-soft [&_pre]:border-white/15 [&_pre]:bg-[#070b13]/95 [&_pre]:text-[#e6edf7] [&_td]:border-white/15 [&_th]:border-white/20 [&_th]:bg-white/[.06]"
+          ? "[&_a]:text-sophon-on-signal [&_blockquote]:border-sophon-on-signal/45 [&_code]:bg-sophon-on-signal/10 [&_code]:text-sophon-on-signal [&_hr]:border-sophon-on-signal/30 [&_li]:marker:text-sophon-on-signal/70 [&_pre]:border-sophon-on-signal/35 [&_pre]:bg-sophon-code-inverse/95 [&_pre]:text-sophon-code-inverse-copy [&_td]:border-sophon-on-signal/25 [&_th]:border-sophon-on-signal/35 [&_th]:bg-sophon-on-signal/10"
+          : "[&_a]:text-sophon-signal-soft [&_blockquote]:border-sophon-signal-soft/60 [&_code]:bg-sophon-panel-deep [&_code]:text-sophon-signal-soft [&_hr]:border-sophon-glass-border [&_li]:marker:text-sophon-signal-soft [&_pre]:border-sophon-glass-border [&_pre]:bg-sophon-code-inverse [&_pre]:text-sophon-code-inverse-copy [&_td]:border-sophon-glass-border [&_th]:border-sophon-glass-border [&_th]:bg-sophon-panel-deep"
       )}
     >
       {markdownSyntax.test(content) ? (
-        <Suspense fallback={<p>{content}</p>}>
+        <Suspense fallback={<MarkdownLoading />}>
           <MarkdownContent content={content} />
         </Suspense>
       ) : <p>{content}</p>}
+    </div>
+  );
+}
+
+function MarkdownLoading() {
+  return (
+    <div
+      aria-busy="true"
+      className="w-[min(18rem,70vw)] max-w-full space-y-2 py-1 motion-safe:animate-pulse"
+      role="status"
+    >
+      <span className="sr-only">Formatting response</span>
+      <span aria-hidden="true" className="block h-3 w-2/3 rounded-full bg-sophon-panel-deep" />
+      <span aria-hidden="true" className="block h-3 w-full rounded-full bg-sophon-panel-deep" />
+      <span aria-hidden="true" className="block h-3 w-5/6 rounded-full bg-sophon-panel-deep" />
     </div>
   );
 }
@@ -154,7 +167,7 @@ function TokenModeControl({ expanded, mode, onChange, onClose, onOpen, tokenCoun
       <button
         aria-expanded={false}
         aria-label={`Inspect ${tokenCount} message tokens`}
-        className="sophon-type-action inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-md border border-white/[.16] bg-black/25 px-3 font-mono uppercase tracking-[0.06em] text-sophon-copy-metadata transition-colors hover:bg-white/[.07] hover:text-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-warning sm:min-h-9"
+        className="sophon-type-action inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-md border border-sophon-glass-border bg-sophon-glass-tile px-3 font-mono uppercase tracking-[0.06em] text-sophon-copy-metadata transition-colors hover:bg-sophon-glass-strong hover:text-sophon-signal-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-signal sm:min-h-9"
         data-typography-role="action"
         onClick={onOpen}
         type="button"
@@ -166,12 +179,12 @@ function TokenModeControl({ expanded, mode, onChange, onClose, onOpen, tokenCoun
     );
   }
   return (
-    <div aria-label="Message display granularity" className="sophon-type-action flex max-w-full shrink-0 flex-wrap items-center rounded-md border border-white/[.16] bg-black/25 p-0.5 font-mono uppercase tracking-[0.06em] text-sophon-copy-metadata" data-typography-role="action" role="group">
+    <div aria-label="Message display granularity" className="sophon-type-action flex max-w-full shrink-0 flex-wrap items-center rounded-md border border-sophon-glass-border bg-sophon-glass-tile p-0.5 font-mono uppercase tracking-[0.06em] text-sophon-copy-metadata" data-typography-role="action" role="group">
       <InfoHint className="text-sophon-signal-soft" concept="tokenLens" />
       {(["text", "tokens", "words"] as const).map((option) => (
         <button
           aria-pressed={mode === option}
-          className={cn("min-h-11 min-w-11 rounded px-2.5 py-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-warning sm:min-h-9 sm:min-w-12", mode === option ? "bg-white/[.12] text-[#f8fafc]" : "hover:bg-white/[.07] hover:text-[#f8fafc]")}
+          className={cn("min-h-11 min-w-11 rounded px-2.5 py-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-signal sm:min-h-9 sm:min-w-12", mode === option ? "bg-sophon-signal/15 text-sophon-signal-soft" : "hover:bg-sophon-glass-strong hover:text-sophon-signal-soft")}
           key={option}
           onClick={() => onChange(option)}
           type="button"
@@ -181,7 +194,7 @@ function TokenModeControl({ expanded, mode, onChange, onClose, onOpen, tokenCoun
       ))}
       <button
         aria-label="Close token inspector"
-        className="min-h-11 rounded px-2.5 py-1 text-sophon-copy-metadata transition-colors hover:bg-white/[.07] hover:text-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-warning sm:min-h-9"
+        className="min-h-11 rounded px-2.5 py-1 text-sophon-copy-metadata transition-colors hover:bg-sophon-glass-strong hover:text-sophon-signal-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-signal sm:min-h-9"
         onClick={onClose}
         type="button"
       >
@@ -224,7 +237,7 @@ function SegmentSequence({ kind, role, segments, selection, setSelection }: {
           <button
             aria-label={segment.ariaLabel}
             aria-pressed={selected}
-            className={cn("inline-flex min-h-6 cursor-crosshair items-center whitespace-pre-wrap rounded-sm border-l border-dotted px-px py-0 font-inherit text-inherit transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-warning", segmentClass(role, selected), !segment.active && "opacity-75")}
+            className={cn("inline-flex min-h-6 cursor-crosshair items-center whitespace-pre-wrap rounded-sm border-l border-dotted px-px py-0 font-inherit text-inherit transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-signal", role === "user" ? "border-sophon-on-signal/70" : "border-sophon-signal-bright", segmentClass(role, selected), !segment.active && "opacity-75")}
             data-context={segment.active ? "active" : "omitted"}
             data-token-id={segment.tokenId}
             key={segment.key}
@@ -233,7 +246,6 @@ function SegmentSequence({ kind, role, segments, selection, setSelection }: {
             onKeyDown={(event) => handleKeyDown(event, index)}
             onMouseEnter={() => setSelection(segment.selection)}
             ref={(node) => { segmentRefs.current[index] = node; }}
-            style={tokenLineStyles[role]}
             tabIndex={activeIndex === index ? 0 : -1}
             type="button"
           >
@@ -252,19 +264,19 @@ function TokenInspector({ role, selection, tokenCount }: {
 }) {
   const details = selectionDetails(selection, role);
   return (
-    <div className="sophon-type-metadata flex max-w-full flex-wrap items-center gap-2 rounded-md border border-white/[.14] bg-sophon-panel-deep/90 px-2.5 py-2 font-mono uppercase tracking-[0.06em] text-sophon-copy-metadata" data-typography-role="metadata">
+    <div className="sophon-type-metadata flex max-w-full flex-wrap items-center gap-2 rounded-md border border-sophon-glass-border bg-sophon-panel-deep/90 px-2.5 py-2 font-mono uppercase tracking-[0.06em] text-sophon-copy-metadata" data-typography-role="metadata">
       {details ? (
         <>
           <span className="text-sophon-signal-soft">{details.index}</span>
-          <span aria-hidden="true" className="text-[#64748b]">/</span>
-          <span className="text-[#cbd5e1]">{details.ids}</span>
-          <span aria-hidden="true" className="text-[#64748b]">/</span>
-          <span className="max-w-52 truncate normal-case tracking-normal text-[#d7dde8]">“{details.text}”</span>
-          <span aria-hidden="true" className="text-[#64748b]">/</span>
+          <span aria-hidden="true" className="text-sophon-copy-decorative">/</span>
+          <span className="text-sophon-copy-body">{details.ids}</span>
+          <span aria-hidden="true" className="text-sophon-copy-decorative">/</span>
+          <span className="max-w-52 truncate normal-case tracking-normal text-sophon-copy-primary">“{details.text}”</span>
+          <span aria-hidden="true" className="text-sophon-copy-decorative">/</span>
           <span className={details.active ? "text-sophon-verified" : "text-sophon-warning"}>{details.active ? "within context" : "outside context"}</span>
         </>
       ) : (
-        <><span className="font-serif text-sm normal-case text-sophon-signal-soft">τ</span><span>Select a segment</span><span className="ml-auto tabular-nums text-[#94a3b8]">{tokenCount} tokens</span></>
+        <><span className="font-serif text-sm normal-case text-sophon-signal-soft">τ</span><span>Select a segment</span><span className="ml-auto tabular-nums text-sophon-copy-metadata">{tokenCount} tokens</span></>
       )}
     </div>
   );
@@ -291,12 +303,12 @@ function selectionDetails(selection: TokenSelection, role: InspectableMessagePro
 function segmentClass(role: InspectableMessageProps["role"], selected: boolean) {
   if (role === "user") {
     return selected
-      ? "bg-[#210b07]/15"
-      : "hover:bg-[#210b07]/[.07]";
+      ? "bg-sophon-on-signal/15"
+      : "hover:bg-sophon-on-signal/[.07]";
   }
   return selected
     ? "bg-sophon-signal-soft/15"
-    : "hover:bg-white/[.045]";
+    : "hover:bg-sophon-signal/10";
 }
 
 function rovingIndex(key: string, index: number, count: number) {

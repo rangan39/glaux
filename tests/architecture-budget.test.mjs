@@ -10,7 +10,7 @@ const sourceFiles = walk(sourceRoot).filter((file) => [".css", ".ts", ".tsx"].in
 
 test("keeps deleted runtime and UI stacks out of production source", () => {
   const source = sourceFiles.map((file) => readFileSync(file, "utf8")).join("\n");
-  for (const banned of ["@radix-ui/", "class-variance-authority", "next/dynamic", "onnxruntime-web", "runLocalModel"]) {
+  for (const banned of ["@radix-ui/", "class-variance-authority", "next/dynamic", "onnxruntime-web", "runLocalModel", "inspect-pack", "import-pack", "model-pack-importer", ".sophon-model"]) {
     assert.equal(source.includes(banned), false, `Deleted production path returned: ${banned}`);
   }
   assert.equal(source.match(/pipeline\("text-generation"/g)?.length, 1, "There must be one text-generation engine.");

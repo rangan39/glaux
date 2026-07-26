@@ -17,6 +17,14 @@ const auditedFiles = [
   "src/components/ui/info-hint.tsx"
 ];
 const auditedSource = auditedFiles.map((file) => read(file)).join("\n");
+const themeConsumerFiles = [
+  "src/components/sophon-model-sidebar.tsx",
+  "src/components/sophon-workbench.tsx",
+  "src/components/token-lens.tsx",
+  "src/components/ui/button.tsx",
+  "src/components/ui/info-hint.tsx"
+];
+const themeConsumerSource = themeConsumerFiles.map((file) => read(file)).join("\n");
 
 test("keeps semantic type roles above the interface readability floor", () => {
   assert.match(css, /\.sophon-type-decorative\s*\{[^}]*font-size:\s*0\.6875rem/s);
@@ -34,7 +42,7 @@ test("keeps semantic type roles above the interface readability floor", () => {
 });
 
 test("keeps normal and disabled copy tokens at WCAG AA contrast", () => {
-  const lightestInteractiveSurface = "#25272c";
+  const darkestInteractiveSurface = "#edf3f7";
   for (const token of [
     "--sophon-copy-primary",
     "--sophon-copy-body",
@@ -43,12 +51,13 @@ test("keeps normal and disabled copy tokens at WCAG AA contrast", () => {
     "--sophon-copy-disabled"
   ]) {
     const foreground = customPropertyHex(css, token);
-    const ratio = contrastRatio(foreground, lightestInteractiveSurface);
-    assert.ok(ratio >= 4.5, `${token} has only ${ratio.toFixed(2)}:1 contrast on ${lightestInteractiveSurface}.`);
+    const ratio = contrastRatio(foreground, darkestInteractiveSurface);
+    assert.ok(ratio >= 4.5, `${token} has only ${ratio.toFixed(2)}:1 contrast on ${darkestInteractiveSurface}.`);
   }
 
-  assert.ok(contrastRatio("#f4f0e9", "#91402f") >= 4.5, "Disabled primary buttons must retain readable labels.");
-  assert.ok(contrastRatio("#210b07", "#ff4d2e") >= 4.5, "Primary action labels must retain readable contrast.");
+  assert.ok(contrastRatio("#40556b", "#b9d4e8") >= 4.5, "Disabled primary buttons must retain readable labels.");
+  assert.ok(contrastRatio("#061225", "#008cff") >= 4.5, "Primary action labels must retain readable contrast.");
+  assert.ok(contrastRatio("#061225", "#00b8ff") >= 4.5, "Primary action labels must remain readable across the accent gradient.");
 });
 
 test("does not dim essential disabled-state copy with component opacity", () => {
@@ -59,8 +68,46 @@ test("does not dim essential disabled-state copy with component opacity", () => 
   assert.match(button, /disabled:text-sophon-copy-disabled/);
 });
 
+test("keeps model styling behind semantic theme tokens", () => {
+  for (const theme of ["water", "fire", "earth", "global"]) {
+    assert.match(css, new RegExp(`main\\[data-model-theme="${theme}"\\]\\s*\\{`), `Missing the ${theme} theme scope.`);
+  }
+  for (const semanticClass of ["sophon-accent-surface", "sophon-accent-avatar", "sophon-accent-message", "sophon-theme-elevation"]) {
+    assert.match(css, new RegExp(`\\.${semanticClass}\\s*\\{`), `Missing the ${semanticClass} semantic class.`);
+  }
+  assert.doesNotMatch(
+    themeConsumerSource,
+    /(?:#[0-9a-f]{3,8}\b|rgba?\(\s*\d)/i,
+    "Theme-consuming components must not contain color literals."
+  );
+});
+
+test("keeps every model accent gradient at WCAG AA contrast", () => {
+  for (const [theme, selector] of [
+    ["water", ":root"],
+    ["fire", 'main[data-model-theme="fire"]'],
+    ["earth", 'main[data-model-theme="earth"]'],
+    ["global", 'main[data-model-theme="global"]']
+  ]) {
+    const block = cssRuleBlock(css, selector);
+    const foreground = customPropertyHex(block, "--sophon-on-signal");
+    for (const token of ["--sophon-signal", "--sophon-signal-bright"]) {
+      const background = customPropertyHex(block, token);
+      const ratio = contrastRatio(foreground, background);
+      assert.ok(ratio >= 4.5, `${theme} ${token} has only ${ratio.toFixed(2)}:1 contrast.`);
+    }
+  }
+});
+
 function read(path) {
   return readFileSync(join(root, path), "utf8");
+}
+
+function cssRuleBlock(source, selector) {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = source.match(new RegExp(`${escaped}\\s*\\{([^}]+)\\}`, "s"));
+  assert.ok(match, `Missing ${selector}.`);
+  return match[1];
 }
 
 function customPropertyHex(source, property) {

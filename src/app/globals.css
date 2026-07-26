@@ -29,7 +29,11 @@
   --color-sophon-signal: var(--sophon-signal);
   --color-sophon-signal-bright: var(--sophon-signal-bright);
   --color-sophon-signal-soft: var(--sophon-signal-soft);
+  --color-sophon-signal-hover: var(--sophon-signal-hover);
+  --color-sophon-on-signal: var(--sophon-on-signal);
   --color-sophon-verified: var(--sophon-verified);
+  --color-sophon-verified-bright: var(--sophon-verified-bright);
+  --color-sophon-on-verified: var(--sophon-on-verified);
   --color-sophon-warning: var(--sophon-warning);
   --color-sophon-glass: var(--sophon-glass);
   --color-sophon-glass-strong: var(--sophon-glass-strong);
@@ -41,6 +45,11 @@
   --color-sophon-copy-metadata: var(--sophon-copy-metadata);
   --color-sophon-copy-decorative: var(--sophon-copy-decorative);
   --color-sophon-copy-disabled: var(--sophon-copy-disabled);
+  --color-sophon-disabled-primary: var(--sophon-disabled-primary);
+  --color-sophon-disabled-surface: var(--sophon-disabled-surface);
+  --color-sophon-backdrop: var(--sophon-backdrop);
+  --color-sophon-code-inverse: var(--sophon-code-inverse);
+  --color-sophon-code-inverse-copy: var(--sophon-code-inverse-copy);
   --font-serif: var(--font-cormorant), Cormorant Garamond, EB Garamond, Georgia, ui-serif, serif;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -49,52 +58,288 @@
 }
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
   --radius: 0.25rem;
-  --background: #090a0d;
-  --foreground: #f4f0e9;
-  --card: #111319;
-  --card-foreground: #f4f0e9;
-  --popover: #111319;
-  --popover-foreground: #f4f0e9;
-  --primary: #ff4d2e;
-  --primary-foreground: #150907;
-  --secondary: #1b1e25;
-  --secondary-foreground: #e9e4dc;
-  --muted: #15181e;
-  --muted-foreground: #8b8d95;
-  --accent: #24191a;
-  --accent-foreground: #ffd7c9;
-  --destructive: #ff5f63;
-  --destructive-foreground: #160607;
-  --border: #292c34;
-  --input: #292c34;
-  --ring: #ff4d2e;
-  --sophon-canvas: #090a0d;
-  --sophon-panel: #0b0c10;
-  --sophon-panel-deep: #0a0b0e;
-  --sophon-field: #111319;
-  --sophon-signal: #ff4d2e;
-  --sophon-signal-bright: #ff694b;
-  --sophon-signal-soft: #ff795d;
-  --sophon-verified: #7df0a8;
-  --sophon-warning: #ffc857;
-  --sophon-glass: rgb(18 21 29 / 0.58);
-  --sophon-glass-strong: rgb(13 15 21 / 0.78);
-  --sophon-glass-tile: rgb(255 255 255 / 0.055);
-  --sophon-glass-border: rgb(255 255 255 / 0.12);
-  --sophon-glass-highlight: rgb(255 255 255 / 0.09);
-  --sophon-glass-shadow: rgb(0 0 0 / 0.32);
-  --sophon-glass-fallback: #12151d;
-  --sophon-glass-strong-fallback: #0d0f15;
-  --sophon-glass-tile-fallback: #191c23;
-  --sophon-coral-glow: rgb(255 77 46 / 0.24);
-  /* Opaque role colors stay WCAG AA against #25272c, the lightest default interactive surface. */
-  --sophon-copy-primary: #f4f0e9;
-  --sophon-copy-body: #d8d4cd;
-  --sophon-copy-metadata: #c2c0bc;
-  --sophon-copy-decorative: #aaa9a7;
-  --sophon-copy-disabled: #aaa9a7;
+  --background: #f8fbff;
+  --foreground: #071426;
+  --card: #ffffff;
+  --card-foreground: #071426;
+  --popover: #ffffff;
+  --popover-foreground: #071426;
+  --primary: #008cff;
+  --primary-foreground: #061225;
+  --secondary: #eef6ff;
+  --secondary-foreground: #173a5f;
+  --muted: #eff4f8;
+  --muted-foreground: #526579;
+  --accent: #e5f6ff;
+  --accent-foreground: #005fb8;
+  --destructive: #d92d3a;
+  --destructive-foreground: #ffffff;
+  --border: #d5e2ee;
+  --input: #c7d9e7;
+  --ring: #008cff;
+  --sophon-canvas: #f8fbff;
+  --sophon-panel: #ffffff;
+  --sophon-panel-deep: #f3f8fd;
+  --sophon-field: #ffffff;
+  --sophon-signal: #008cff;
+  --sophon-signal-bright: #00b8ff;
+  --sophon-signal-soft: #006bd6;
+  --sophon-signal-hover: #22c8ff;
+  --sophon-on-signal: #061225;
+  --sophon-signal-glow: rgb(0 140 255 / 0.24);
+  --sophon-signal-shadow: rgb(0 140 255 / 0.18);
+  --sophon-signal-border: rgb(0 140 255 / 0.48);
+  --sophon-signal-ring: rgb(0 140 255 / 0.1);
+  --sophon-verified: #08784f;
+  --sophon-verified-bright: #00e676;
+  --sophon-on-verified: #043d2a;
+  --sophon-verified-glow: rgb(0 230 118 / 0.3);
+  --sophon-warning: #b45309;
+  --sophon-glass: rgb(255 255 255 / 0.78);
+  --sophon-glass-strong: rgb(255 255 255 / 0.94);
+  --sophon-glass-tile: rgb(240 247 253 / 0.9);
+  --sophon-glass-border: rgb(73 112 145 / 0.23);
+  --sophon-glass-highlight: rgb(255 255 255 / 0.92);
+  --sophon-glass-shadow: rgb(26 83 125 / 0.13);
+  --sophon-glass-fallback: #ffffff;
+  --sophon-glass-strong-fallback: #ffffff;
+  --sophon-glass-tile-fallback: #f0f7fd;
+  --sophon-coral-glow: rgb(0 140 255 / 0.22);
+  --sophon-disabled-primary: #b9d4e8;
+  --sophon-disabled-surface: #edf3f7;
+  --sophon-backdrop: rgb(23 58 95 / 0.28);
+  --sophon-code-inverse: #061225;
+  --sophon-code-inverse-copy: #f8fbff;
+  --sophon-grid-image: linear-gradient(rgb(0 113 188 / 0.055) 1px, transparent 1px), linear-gradient(90deg, rgb(0 113 188 / 0.055) 1px, transparent 1px);
+  --sophon-grid-size: 42px 42px;
+  --sophon-noise-image:
+    radial-gradient(circle at 12% 4%, rgb(0 184 255 / 0.19), transparent 30%),
+    radial-gradient(circle at 88% 22%, rgb(0 108 255 / 0.12), transparent 34%),
+    radial-gradient(circle at 56% 92%, rgb(0 184 255 / 0.08), transparent 32%);
+  --sophon-glass-gradient: linear-gradient(145deg, rgb(255 255 255 / 0.92), rgb(240 248 255 / 0.72));
+  --sophon-glass-strong-gradient: linear-gradient(145deg, rgb(255 255 255 / 0.97), rgb(244 250 255 / 0.9));
+  /* Opaque role colors stay WCAG AA against the lightest default interactive surfaces. */
+  --sophon-copy-primary: #071426;
+  --sophon-copy-body: #24384f;
+  --sophon-copy-metadata: #4d6175;
+  --sophon-copy-decorative: #5a6c7e;
+  --sophon-copy-disabled: #40556b;
+}
+
+main[data-model-theme="fire"] {
+  --background: #fff8f2;
+  --foreground: #2d160c;
+  --card: #fffdfb;
+  --card-foreground: #2d160c;
+  --popover: #fffdfb;
+  --popover-foreground: #2d160c;
+  --primary: #e85d04;
+  --primary-foreground: #241006;
+  --secondary: #fff0e4;
+  --secondary-foreground: #71320f;
+  --muted: #f9eee6;
+  --muted-foreground: #745242;
+  --accent: #ffead7;
+  --accent-foreground: #9b3000;
+  --border: #ead2c1;
+  --input: #dfbea8;
+  --ring: #e85d04;
+  --sophon-canvas: #fff8f2;
+  --sophon-panel: #fffdfb;
+  --sophon-panel-deep: #fff0e5;
+  --sophon-field: #fffdfa;
+  --sophon-signal: #e85d04;
+  --sophon-signal-bright: #ff9b42;
+  --sophon-signal-soft: #b63a00;
+  --sophon-signal-hover: #ffad66;
+  --sophon-on-signal: #241006;
+  --sophon-signal-glow: rgb(232 93 4 / 0.28);
+  --sophon-signal-shadow: rgb(194 65 12 / 0.2);
+  --sophon-signal-border: rgb(232 93 4 / 0.5);
+  --sophon-signal-ring: rgb(232 93 4 / 0.12);
+  --sophon-glass: rgb(255 253 251 / 0.8);
+  --sophon-glass-strong: rgb(255 253 251 / 0.95);
+  --sophon-glass-tile: rgb(255 241 230 / 0.92);
+  --sophon-glass-border: rgb(151 72 25 / 0.24);
+  --sophon-glass-shadow: rgb(125 54 17 / 0.15);
+  --sophon-glass-fallback: #fffdfb;
+  --sophon-glass-strong-fallback: #fffdfb;
+  --sophon-glass-tile-fallback: #fff1e6;
+  --sophon-coral-glow: rgb(232 93 4 / 0.23);
+  --sophon-disabled-primary: #efc7ae;
+  --sophon-disabled-surface: #f8e9de;
+  --sophon-backdrop: rgb(83 33 8 / 0.3);
+  --sophon-copy-primary: #2d160c;
+  --sophon-copy-body: #4a2b1d;
+  --sophon-copy-metadata: #6b4b3a;
+  --sophon-copy-decorative: #765845;
+  --sophon-copy-disabled: #604536;
+  --sophon-grid-image: linear-gradient(rgb(194 65 12 / 0.06) 1px, transparent 1px), linear-gradient(90deg, rgb(194 65 12 / 0.06) 1px, transparent 1px);
+  --sophon-grid-size: 46px 46px;
+  --sophon-noise-image:
+    radial-gradient(circle at 14% 2%, rgb(255 122 24 / 0.24), transparent 29%),
+    radial-gradient(circle at 90% 24%, rgb(194 65 12 / 0.16), transparent 35%),
+    radial-gradient(circle at 58% 94%, rgb(255 155 66 / 0.12), transparent 31%);
+  --sophon-glass-gradient: linear-gradient(145deg, rgb(255 255 255 / 0.94), rgb(255 239 226 / 0.76));
+  --sophon-glass-strong-gradient: linear-gradient(145deg, rgb(255 255 255 / 0.98), rgb(255 245 237 / 0.92));
+}
+
+main[data-model-theme="earth"] {
+  --background: #f5f2eb;
+  --foreground: #211c17;
+  --card: #fffdf8;
+  --card-foreground: #211c17;
+  --popover: #fffdf8;
+  --popover-foreground: #211c17;
+  --primary: #9a8264;
+  --primary-foreground: #1f1913;
+  --secondary: #eee8de;
+  --secondary-foreground: #4f4337;
+  --muted: #ece7df;
+  --muted-foreground: #675b4e;
+  --accent: #e7ded0;
+  --accent-foreground: #594839;
+  --border: #d6ccbd;
+  --input: #c9bcaa;
+  --ring: #806b52;
+  --sophon-canvas: #f5f2eb;
+  --sophon-panel: #fffdf8;
+  --sophon-panel-deep: #ece7df;
+  --sophon-field: #fffdfa;
+  --sophon-signal: #9a8264;
+  --sophon-signal-bright: #d3c2a8;
+  --sophon-signal-soft: #5f5143;
+  --sophon-signal-hover: #dfd2bd;
+  --sophon-on-signal: #1f1913;
+  --sophon-signal-glow: rgb(128 107 82 / 0.25);
+  --sophon-signal-shadow: rgb(91 76 61 / 0.18);
+  --sophon-signal-border: rgb(128 107 82 / 0.48);
+  --sophon-signal-ring: rgb(128 107 82 / 0.12);
+  --sophon-glass: rgb(255 253 248 / 0.78);
+  --sophon-glass-strong: rgb(255 253 248 / 0.94);
+  --sophon-glass-tile: rgb(238 231 220 / 0.92);
+  --sophon-glass-border: rgb(91 76 61 / 0.24);
+  --sophon-glass-shadow: rgb(73 62 50 / 0.14);
+  --sophon-glass-fallback: #fffdf8;
+  --sophon-glass-strong-fallback: #fffdf8;
+  --sophon-glass-tile-fallback: #eee7dc;
+  --sophon-coral-glow: rgb(128 107 82 / 0.22);
+  --sophon-disabled-primary: #cfc3b3;
+  --sophon-disabled-surface: #ece7df;
+  --sophon-backdrop: rgb(47 41 35 / 0.3);
+  --sophon-copy-primary: #211c17;
+  --sophon-copy-body: #40372e;
+  --sophon-copy-metadata: #62564a;
+  --sophon-copy-decorative: #6d6256;
+  --sophon-copy-disabled: #5d5147;
+  --sophon-grid-image: linear-gradient(165deg, rgb(91 76 61 / 0.065) 1px, transparent 1px), linear-gradient(15deg, rgb(154 130 100 / 0.04) 1px, transparent 1px);
+  --sophon-grid-size: 72px 56px;
+  --sophon-noise-image:
+    radial-gradient(ellipse at 10% 0%, rgb(154 130 100 / 0.22), transparent 31%),
+    radial-gradient(ellipse at 92% 28%, rgb(91 76 61 / 0.12), transparent 36%),
+    repeating-linear-gradient(168deg, transparent 0 62px, rgb(78 68 57 / 0.045) 63px, transparent 64px 118px);
+  --sophon-glass-gradient: linear-gradient(145deg, rgb(255 255 252 / 0.93), rgb(235 229 218 / 0.74));
+  --sophon-glass-strong-gradient: linear-gradient(145deg, rgb(255 255 252 / 0.97), rgb(244 239 231 / 0.91));
+}
+
+main[data-model-theme="global"] {
+  --background: #f7f7f6;
+  --foreground: #090909;
+  --card: #ffffff;
+  --card-foreground: #090909;
+  --popover: #ffffff;
+  --popover-foreground: #090909;
+  --primary: #111111;
+  --primary-foreground: #ffffff;
+  --secondary: #eeeeed;
+  --secondary-foreground: #1a1a1a;
+  --muted: #f0f0ef;
+  --muted-foreground: #555555;
+  --accent: #e8e8e7;
+  --accent-foreground: #111111;
+  --border: #d1d1d0;
+  --input: #c5c5c4;
+  --ring: #111111;
+  --sophon-canvas: #f7f7f6;
+  --sophon-panel: #ffffff;
+  --sophon-panel-deep: #f1f1f0;
+  --sophon-field: #ffffff;
+  --sophon-signal: #111111;
+  --sophon-signal-bright: #3f3f46;
+  --sophon-signal-soft: #18181b;
+  --sophon-signal-hover: #52525b;
+  --sophon-on-signal: #ffffff;
+  --sophon-signal-glow: rgb(0 0 0 / 0.25);
+  --sophon-signal-shadow: rgb(0 0 0 / 0.18);
+  --sophon-signal-border: rgb(0 0 0 / 0.48);
+  --sophon-signal-ring: rgb(0 0 0 / 0.11);
+  --sophon-glass: rgb(255 255 255 / 0.8);
+  --sophon-glass-strong: rgb(255 255 255 / 0.95);
+  --sophon-glass-tile: rgb(244 244 243 / 0.92);
+  --sophon-glass-border: rgb(0 0 0 / 0.2);
+  --sophon-glass-shadow: rgb(0 0 0 / 0.12);
+  --sophon-glass-fallback: #ffffff;
+  --sophon-glass-strong-fallback: #ffffff;
+  --sophon-glass-tile-fallback: #f4f4f3;
+  --sophon-coral-glow: rgb(0 0 0 / 0.2);
+  --sophon-disabled-primary: #c8c8c7;
+  --sophon-disabled-surface: #ececeb;
+  --sophon-backdrop: rgb(0 0 0 / 0.3);
+  --sophon-copy-primary: #090909;
+  --sophon-copy-body: #262626;
+  --sophon-copy-metadata: #525252;
+  --sophon-copy-decorative: #5f5f5f;
+  --sophon-copy-disabled: #4a4a4a;
+  --sophon-grid-image: linear-gradient(rgb(0 0 0 / 0.045) 1px, transparent 1px), linear-gradient(90deg, rgb(0 0 0 / 0.045) 1px, transparent 1px);
+  --sophon-grid-size: 42px 42px;
+  --sophon-noise-image:
+    radial-gradient(circle at 12% 4%, rgb(0 0 0 / 0.1), transparent 30%),
+    radial-gradient(circle at 88% 22%, rgb(0 0 0 / 0.07), transparent 34%),
+    radial-gradient(circle at 56% 92%, rgb(0 0 0 / 0.05), transparent 32%);
+  --sophon-glass-gradient: linear-gradient(145deg, rgb(255 255 255 / 0.94), rgb(240 240 239 / 0.76));
+  --sophon-glass-strong-gradient: linear-gradient(145deg, rgb(255 255 255 / 0.98), rgb(247 247 246 / 0.92));
+}
+
+main[data-model-theme="water"] {
+  --sophon-grid-image: linear-gradient(rgb(0 113 188 / 0.055) 1px, transparent 1px), linear-gradient(90deg, rgb(0 113 188 / 0.055) 1px, transparent 1px);
+  --sophon-grid-size: 42px 42px;
+}
+
+.sophon-accent-surface {
+  background: linear-gradient(145deg, var(--sophon-signal-bright), var(--sophon-signal));
+  color: var(--sophon-on-signal);
+  box-shadow: 0 0 24px var(--sophon-signal-glow);
+}
+
+.sophon-accent-surface:hover {
+  background: linear-gradient(145deg, var(--sophon-signal-hover), var(--sophon-signal-bright));
+}
+
+.sophon-accent-avatar {
+  background: linear-gradient(145deg, var(--sophon-signal-bright), var(--sophon-signal));
+  color: var(--sophon-on-signal);
+  box-shadow: 0 0 20px var(--sophon-signal-shadow);
+}
+
+.sophon-accent-message {
+  background: linear-gradient(145deg, var(--sophon-signal-bright), var(--sophon-signal));
+  color: var(--sophon-on-signal);
+  box-shadow:
+    inset 0 1px 0 var(--sophon-glass-highlight),
+    0 14px 36px var(--sophon-signal-shadow);
+}
+
+.sophon-theme-elevation {
+  box-shadow:
+    inset 0 1px 0 var(--sophon-glass-highlight),
+    0 14px 36px var(--sophon-glass-shadow);
+}
+
+.sophon-verified-emphasis {
+  color: var(--sophon-on-verified);
+  box-shadow: 0 0 12px var(--sophon-verified-glow);
 }
 
 * {
@@ -109,9 +354,9 @@ body {
 body {
   margin: 0;
   background:
-    radial-gradient(circle at 14% -8%, rgb(255 77 46 / 0.15), transparent 34rem),
-    radial-gradient(circle at 88% 18%, rgb(73 105 174 / 0.12), transparent 38rem),
-    linear-gradient(145deg, #090a0d 0%, #0e1017 52%, #08090c 100%);
+    radial-gradient(circle at 14% -8%, rgb(0 184 255 / 0.17), transparent 34rem),
+    radial-gradient(circle at 88% 18%, rgb(0 108 255 / 0.1), transparent 38rem),
+    linear-gradient(145deg, #ffffff 0%, #f7fbff 52%, #edf7ff 100%);
   color: var(--foreground);
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -142,7 +387,7 @@ body {
 
 .privacy-copy h2 {
   margin-bottom: 0.75rem;
-  color: #fff;
+  color: var(--sophon-copy-primary);
   font-size: 1.125rem;
   font-weight: 600;
   letter-spacing: -0.01em;
@@ -160,37 +405,34 @@ body {
 }
 
 .privacy-copy strong {
-  color: rgb(255 255 255 / 0.9);
+  color: var(--sophon-copy-primary);
   font-weight: 600;
 }
 
 .privacy-copy code {
-  border: 1px solid rgb(255 255 255 / 0.1);
+  border: 1px solid var(--sophon-glass-border);
   border-radius: 0.35rem;
-  background: rgb(0 0 0 / 0.22);
+  background: var(--sophon-panel-deep);
   padding: 0.1rem 0.3rem;
-  color: #ffb4a4;
+  color: var(--sophon-signal-soft);
   font-size: 0.9em;
 }
 
 .privacy-copy a {
-  color: #ffb4a4;
+  color: var(--sophon-signal-soft);
   text-decoration: underline;
-  text-decoration-color: rgb(255 255 255 / 0.22);
+  text-decoration-color: var(--sophon-signal-border);
   text-underline-offset: 0.2rem;
 }
 
 .sophon-grid {
-  background-image: linear-gradient(rgb(255 255 255 / 0.035) 1px, transparent 1px), linear-gradient(90deg, rgb(255 255 255 / 0.035) 1px, transparent 1px);
-  background-size: 42px 42px;
+  background-image: var(--sophon-grid-image);
+  background-size: var(--sophon-grid-size);
   mask-image: linear-gradient(to bottom, black, transparent 78%);
 }
 
 .sophon-noise {
-  background-image:
-    radial-gradient(circle at 12% 4%, rgb(255 77 46 / 0.18), transparent 30%),
-    radial-gradient(circle at 88% 22%, rgb(73 105 174 / 0.14), transparent 34%),
-    radial-gradient(circle at 56% 92%, rgb(255 121 93 / 0.07), transparent 32%);
+  background-image: var(--sophon-noise-image);
 }
 
 .sophon-glass,
@@ -209,13 +451,13 @@ body {
 .sophon-glass-strong {
   background: var(--sophon-glass-strong-fallback);
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.1),
-    0 24px 70px rgb(0 0 0 / 0.38);
+    inset 0 1px 0 var(--sophon-glass-highlight),
+    0 24px 70px var(--sophon-glass-shadow);
 }
 
 .sophon-glass-tile {
   background: var(--sophon-glass-tile-fallback);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.07);
+  box-shadow: inset 0 1px 0 var(--sophon-glass-highlight);
 }
 
 .sophon-glass-interactive {
@@ -227,10 +469,10 @@ body {
 
 .sophon-glass-interactive:hover,
 .sophon-glass-interactive:focus-within {
-  border-color: rgb(255 105 75 / 0.45);
+  border-color: var(--sophon-signal-border);
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.12),
-    0 0 0 3px rgb(255 77 46 / 0.08),
+    inset 0 1px 0 var(--sophon-glass-highlight),
+    0 0 0 3px var(--sophon-signal-ring),
     0 18px 50px var(--sophon-glass-shadow);
 }
 
@@ -272,13 +514,13 @@ body {
 
 @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
   .sophon-glass {
-    background: linear-gradient(145deg, rgb(255 255 255 / 0.075), rgb(255 255 255 / 0.025));
+    background: var(--sophon-glass-gradient);
     -webkit-backdrop-filter: blur(18px) saturate(125%);
     backdrop-filter: blur(18px) saturate(125%);
   }
 
   .sophon-glass-strong {
-    background: linear-gradient(145deg, rgb(18 20 27 / 0.82), rgb(10 12 17 / 0.66));
+    background: var(--sophon-glass-strong-gradient);
     -webkit-backdrop-filter: blur(28px) saturate(140%);
     backdrop-filter: blur(28px) saturate(140%);
   }

@@ -103,14 +103,16 @@ async function assertState(page, state) {
   }
   if (state === "paused") {
     await assertVisible(page.getByText("Model download paused", { exact: true }), "paused notice");
-    await assertVisible(page.getByRole("button", { name: "Resume download", exact: true }).last(), "resume action");
+    await assertVisible(page.getByRole("button", { name: "Resume download", exact: true }), "resume action");
     return;
   }
   if (state === "verifying") {
     const progress = page.getByRole("progressbar", { name: /Loading Tiny Aya Global/ });
     await assertVisible(progress, "verification progress");
     assert.match(await progress.getAttribute("aria-valuetext") ?? "", /verified/);
-    await assertVisible(page.getByText(/Verifying model/).first(), "verification label");
+    const promptHelp = page.locator("#prompt-help");
+    await assertVisible(promptHelp, "verification label");
+    assert.match(await promptHelp.textContent() ?? "", /Verifying model/);
     return;
   }
   if (state === "ready") {
@@ -123,8 +125,9 @@ async function assertState(page, state) {
     return;
   }
   if (state === "generating") {
-    await assertVisible(page.getByRole("article", { name: "Sophon is responding", exact: true }), "streaming response");
-    await assertVisible(page.getByRole("button", { name: "Stop generation", exact: true }).first(), "stop action");
+    const response = page.getByRole("article", { name: "Sophon is responding", exact: true });
+    await assertVisible(response, "streaming response");
+    await assertVisible(response.getByRole("button", { name: "Stop generation", exact: true }), "stop action");
     return;
   }
   if (state === "stopped" || state === "error") {

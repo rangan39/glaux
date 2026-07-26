@@ -149,8 +149,8 @@ const BASE_MESSAGES: ProductTestMessage[] = [
   {
     id: "assistant-welcome",
     role: "assistant",
-    content: "Hi — I’m Sophon. Choose a Tiny Aya model to download, then your prompts will run privately in this browser.",
-    meta: "Cohere open weights · local by design · no server inference"
+    content: "Hi — I’m Sophon. Choose a multilingual Tiny Aya model to download, then chat locally in this browser.",
+    meta: "Open-source web tool · local inference · no server inference"
   },
   {
     id: "fixture-user-complete",

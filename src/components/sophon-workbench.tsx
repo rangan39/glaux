@@ -34,7 +34,7 @@ import {
   type ProductTestState
 } from "@/lib/product-test-fixtures";
 import { cn } from "@/lib/utils";
-import { PRIVACY_PATH, PROJECT_SUPPORT_URL } from "@/lib/trust-navigation";
+import { PRIVACY_PATH, PROJECT_REPOSITORY_URL, PROJECT_SUPPORT_URL } from "@/lib/trust-navigation";
 
 type ChatMessage = {
   id: string;
@@ -75,8 +75,8 @@ const STARTER_MESSAGES: ChatMessage[] = [
   {
     id: "assistant-welcome",
     role: "assistant",
-    content: "Hi — I’m Sophon. Choose a Tiny Aya model to download, then your prompts will run privately in this browser.",
-    meta: "Cohere open weights · local by design · no server inference"
+    content: "Hi — I’m Sophon. Choose a multilingual Tiny Aya model to download, then chat locally in this browser.",
+    meta: "Open-source web tool · local inference · no server inference"
   }
 ];
 export function SophonWorkbench() {
@@ -711,9 +711,9 @@ export function SophonWorkbench() {
             <div className={cn("min-w-0", selectedModel && "max-[359px]:hidden")}>
               <div className="flex items-center gap-2">
                 <h1 className="font-mono text-sm font-semibold tracking-[0.12em] text-sophon-copy-primary">SOPHON</h1>
-                <span className="sophon-type-decorative hidden items-center rounded-md border border-sophon-signal-bright/40 bg-sophon-signal/10 px-2 py-0.5 font-mono font-medium uppercase tracking-[0.12em] text-sophon-signal-soft xl:inline-flex" data-typography-role="decorative">Local AI</span>
+                <span className="sophon-type-decorative hidden items-center rounded-md border border-sophon-signal-bright/40 bg-sophon-signal/10 px-2 py-0.5 font-mono font-medium uppercase tracking-[0.12em] text-sophon-signal-soft xl:inline-flex" data-typography-role="decorative">Open-source local AI</span>
               </div>
-              <p className="sophon-type-metadata hidden whitespace-nowrap font-mono uppercase tracking-[0.12em] text-sophon-copy-metadata xl:block" data-typography-role="metadata">Private AI in your browser</p>
+              <p className="sophon-type-metadata hidden whitespace-nowrap font-mono uppercase tracking-[0.12em] text-sophon-copy-metadata xl:block" data-typography-role="metadata">Multilingual AI, in your browser</p>
             </div>
           </div>
 
@@ -1010,9 +1010,9 @@ function FirstRunWelcome({ cacheState, compatibility, mobileProfile, model, noti
             <Sparkles aria-hidden="true" className="size-3.5" />
             Start here
           </div>
-          <h2 className="max-w-2xl text-xl font-semibold tracking-tight text-sophon-copy-primary sm:text-2xl" id="first-run-title">Private AI, right in your browser</h2>
+          <h2 className="max-w-2xl text-xl font-semibold tracking-tight text-sophon-copy-primary sm:text-2xl" id="first-run-title">Multilingual AI that runs in your browser</h2>
           <p className="sophon-type-body mt-2 max-w-2xl text-sophon-copy-body" data-typography-role="body">
-            Choose one Cohere Tiny Aya model to run locally. No account is needed, and your prompts and responses are not sent to an inference server.
+            Sophon is an open-source web tool for running Tiny Aya models locally with WebGPU. No account is needed, and your prompts and responses are not sent to an inference server.
           </p>
 
           <div className="mt-4 rounded-xl border border-sophon-signal-bright/35 bg-sophon-signal/10 p-3 sm:grid sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:gap-3" data-testid="first-run-recommended">
@@ -1052,7 +1052,7 @@ function FirstRunWelcome({ cacheState, compatibility, mobileProfile, model, noti
               </span>
               <span className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
                 <span className="text-sm font-medium text-sophon-copy-primary">Stays private</span>
-                <span className="sophon-type-metadata text-sophon-copy-metadata" data-typography-role="metadata">Chats remain in this browser.</span>
+                <span className="sophon-type-metadata text-sophon-copy-metadata" data-typography-role="metadata">Chats run in this browser, not an inference server.</span>
               </span>
             </div>
             <div className="flex items-center gap-2 rounded-xl border border-sophon-glass-border bg-sophon-glass-tile px-3 py-2">
@@ -1064,13 +1064,14 @@ function FirstRunWelcome({ cacheState, compatibility, mobileProfile, model, noti
             </div>
           </div>
           <div className="sophon-type-metadata mt-3 flex flex-col gap-2 border-t border-sophon-glass-border pt-3 text-sophon-copy-metadata sm:flex-row sm:items-center sm:justify-between" data-typography-role="metadata">
-            <span>Open weights · {model.licenseLabel} · Downloads can be paused and resumed</span>
+            <span>Open weights model · {model.licenseLabel} · Downloads can be paused and resumed</span>
             <Button className="h-11 self-start rounded-lg px-2.5 sm:h-8 lg:hidden" onClick={onOpenModels} size="sm" type="button" variant="sophon">Compare all {MODEL_REGISTRY.length} models</Button>
-            <span className="hidden items-center gap-3 lg:flex">More multilingual models are available in the library.</span>
+            <span className="hidden items-center gap-3 lg:flex">Choose a model based on the languages you use most.</span>
           </div>
           <nav aria-label="First-run privacy, licensing, and support" className="mt-3 border-t border-sophon-glass-border pt-3 sm:flex sm:items-center sm:justify-between sm:gap-2" data-testid="first-run-trust-nav">
-            <p className="sophon-type-decorative mb-2 shrink-0 font-mono font-semibold uppercase tracking-[0.1em] text-sophon-copy-decorative sm:mb-0" data-typography-role="decorative">Privacy, terms & support</p>
+            <p className="sophon-type-decorative mb-2 shrink-0 font-mono font-semibold uppercase tracking-[0.1em] text-sophon-copy-decorative sm:mb-0" data-typography-role="decorative">Source, privacy & terms</p>
             <div className="flex flex-wrap gap-1.5">
+              <a className="sophon-type-action inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-sophon-glass-border bg-sophon-glass-tile px-3 uppercase tracking-[0.06em] text-sophon-copy-primary transition-colors hover:border-sophon-signal-bright/55 hover:text-sophon-signal-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-signal sm:min-h-9 sm:px-2" data-typography-role="action" href={PROJECT_REPOSITORY_URL} rel="noreferrer" target="_blank"><Code2 aria-hidden="true" className="size-3.5" /> Source <ExternalLinkIndicator /></a>
               <a className="sophon-type-action inline-flex min-h-11 items-center rounded-lg border border-sophon-glass-border bg-sophon-glass-tile px-3 uppercase tracking-[0.06em] text-sophon-copy-primary transition-colors hover:border-sophon-signal-bright/55 hover:text-sophon-signal-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-signal sm:min-h-9 sm:px-2" data-typography-role="action" href={PRIVACY_PATH}>Privacy</a>
               <SophonAcknowledgements className="rounded-lg sm:min-h-9 sm:px-2" compact label="About & licenses" />
               <a className="sophon-type-action inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-sophon-glass-border bg-sophon-glass-tile px-3 uppercase tracking-[0.06em] text-sophon-copy-primary transition-colors hover:border-sophon-signal-bright/55 hover:text-sophon-signal-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-signal sm:min-h-9 sm:px-2" data-typography-role="action" href={PROJECT_SUPPORT_URL} rel="noreferrer" target="_blank">Support <ExternalLinkIndicator /></a>

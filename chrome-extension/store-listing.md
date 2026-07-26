@@ -2,7 +2,7 @@
 
 ## Identity
 
-- **Listing name:** Sophon — Private Local AI
+- **Listing name:** Sophon — Open-Source Local AI
 - **Category:** Productivity
 - **Language:** English
 - **Homepage:** https://sophon-coral.vercel.app
@@ -12,11 +12,11 @@
 
 ## Summary
 
-Run multilingual Tiny Aya models locally in Chrome without sending prompts or responses to an inference service.
+Use an open-source web tool to run multilingual Tiny Aya models locally in Chrome, without sending prompts or responses to an inference service.
 
 ## Detailed description
 
-Sophon brings private, multilingual AI chat to desktop Chrome. Select a Tiny Aya model, download its weights once, and run prompts locally with WebGPU. Prompts and generated responses stay in the browser and are never sent to an inference service.
+Sophon is an open-source web tool for private, multilingual AI chat in desktop Chrome. Select a Tiny Aya model, download its weights once, and run prompts locally with WebGPU. Prompts and generated responses stay in the browser and are never sent to an inference service.
 
 Choose from Tiny Aya Global, Earth, Fire, and Water for different language-region strengths. Sophon shows model status and generation performance, supports resumable downloads, accepts verified offline model packs, and lets you delete each saved model from the model library.
 
@@ -25,6 +25,7 @@ Before downloading:
 - Each selected model downloads approximately 2.35 GB and may take several minutes.
 - A recent desktop Chromium browser, WebGPU-capable GPU, sufficient memory, and available browser storage are required.
 - Tiny Aya weights are licensed under CC BY-NC 4.0 for non-commercial use and remain subject to the Cohere Labs Acceptable Use Policy.
+- Sophon’s application code is MIT licensed. The Tiny Aya model-weights licence is separate and remains non-commercial.
 - Sophon is an independent project and is not affiliated with, sponsored by, or endorsed by Cohere or Hugging Face.
 
 Privacy:

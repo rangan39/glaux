@@ -1,8 +1,10 @@
 # Sophon
 
-Sophon is a browser-only local AI chat tool. It runs ONNX language models in a Web Worker with WebGPU, so prompts stay on the device instead of traveling to an inference server.
+Sophon is an open-source, multilingual AI web tool that runs ONNX language models locally in a browser with WebGPU. Prompts stay on the device instead of traveling to an inference server.
 
 Production app: [sophon-coral.vercel.app](https://sophon-coral.vercel.app)
+
+Sophon’s code is available under the [MIT License](LICENSE). The included Tiny Aya models are open weights subject to CC BY-NC 4.0 and the Cohere Labs Acceptable Use Policy; they are limited to non-commercial use.
 
 ## What it does
 

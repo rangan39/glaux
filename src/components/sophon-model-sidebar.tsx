@@ -124,7 +124,7 @@ function ModelPanel({ activeModelId, cacheSummaries = [], capabilities, deleting
             <InfoHint concept="modelLicense" portalContainer={portalContainer} />
           </div>
         </div>
-        <p className="sophon-type-metadata mt-2 normal-case tracking-normal text-sophon-copy-metadata">Choose Global for broad coverage, or a regional model when most prompts use that language group.</p>
+        <p className="sophon-type-metadata mt-2 normal-case tracking-normal text-sophon-copy-metadata">Choose Global for broad coverage, or a regional model when most of your conversations use those languages.</p>
       </footer>
     ) : null}
   </>;

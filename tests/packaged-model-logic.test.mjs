@@ -6,7 +6,7 @@ import test from "node:test";
 
 const rootDir = path.resolve(import.meta.dirname, "..");
 const runtimeDir = path.join(rootDir, "public", "model-runtime");
-const packagedManifest = JSON.parse(await readFile(path.join(runtimeDir, "manifest.json"), "utf8"));
+const packagedManifest = JSON.parse(await readFile(path.join(runtimeDir, "artifacts.json"), "utf8"));
 const sourceManifest = JSON.parse(await readFile(path.join(rootDir, "models", "model-artifacts.seed.json"), "utf8"));
 
 test("packages every behavior-defining model artifact with pinned bytes", async () => {

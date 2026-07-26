@@ -25,7 +25,7 @@ Open DevTools for the extension page and use the Network panel:
 - Prompts and responses do not appear in request URLs, headers, or bodies.
 - Application JavaScript, WebAssembly, the ONNX graph, configuration, generation configuration, and tokenizer files load from the `chrome-extension://` origin.
 
-The package audit report and `model-runtime/manifest.json` enumerate the behavior-defining model files included in the submitted ZIP. Remote tensor files are pinned by immutable revision, exact size, whole-file SHA-256, and 64 MiB segment SHA-256.
+The package audit report and `model-runtime/artifacts.json` enumerate the behavior-defining model files included in the submitted ZIP. Remote tensor files are pinned by immutable revision, exact size, whole-file SHA-256, and 64 MiB segment SHA-256.
 
 ## Additional behavior
 

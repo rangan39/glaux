@@ -22,7 +22,7 @@ The toolbar action opens Sophon in a full extension tab. Model files are stored 
 - Remote: only `onnx/model_q4f16.onnx_data` and `onnx/model_q4f16.onnx_data_1` tensor sidecars for each model.
 - Packaged: application JavaScript, ONNX Runtime WebAssembly, ONNX graph, `config.json`, `generation_config.json`, `tokenizer.json`, and `tokenizer_config.json`.
 - Every remote tensor file is pinned by a 40-character immutable revision, exact path, exact byte size, whole-file SHA-256, and 64 MiB segment SHA-256.
-- `public/model-runtime/manifest.json` lists the deduplicated packaged model-logic files and their exact hashes.
+- `public/model-runtime/artifacts.json` lists the deduplicated packaged model-logic files and their exact hashes.
 - The build rejects executable inline scripts, remote scripts, remote WebAssembly, reserved Chrome paths, packaged `.onnx_data`, packaged `.sophon-model`, version drift, or a 128px icon outside the required safe area.
 - `npm run audit:extension` independently hashes model logic and emits the complete remote-tensor allowlist.
 

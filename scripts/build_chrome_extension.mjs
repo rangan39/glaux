@@ -154,6 +154,15 @@ async function validateExtension(externalizedScripts) {
   }
 
   const files = await walk(extensionDir);
+  const manifestFiles = files
+    .filter((file) => path.basename(file) === "manifest.json")
+    .map((file) => path.relative(extensionDir, file))
+    .sort();
+  assert.deepEqual(
+    manifestFiles,
+    ["manifest.json"],
+    "Chrome Web Store packages must contain exactly one manifest.json at the ZIP root."
+  );
   for (const file of files) {
     const relativePath = path.relative(extensionDir, file);
     assert.ok(

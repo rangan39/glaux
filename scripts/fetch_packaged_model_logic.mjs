@@ -8,7 +8,7 @@ import { pipeline } from "node:stream/promises";
 
 const rootDir = path.resolve(import.meta.dirname, "..");
 const outputDir = path.join(rootDir, "public", "model-runtime");
-const packagedManifest = JSON.parse(await readFile(path.join(outputDir, "manifest.json"), "utf8"));
+const packagedManifest = JSON.parse(await readFile(path.join(outputDir, "artifacts.json"), "utf8"));
 const sourceManifest = JSON.parse(await readFile(path.join(rootDir, "models", "model-artifacts.seed.json"), "utf8"));
 
 assert.equal(packagedManifest.schemaVersion, 1);

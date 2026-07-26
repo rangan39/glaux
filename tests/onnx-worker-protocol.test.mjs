@@ -79,45 +79,10 @@ test("validates model cache inventory and deletion operations", () => {
   assert.equal(isWorkerResult("delete-cache", { modelId: "tiny-aya-global", deleted: true }), true);
 });
 
-test("validates offline pack inspection, import, and progress envelopes", () => {
+test("rejects retired offline model-pack operations", () => {
   const file = new Blob([Uint8Array.of(1, 2, 3)]);
-  assert.equal(isWorkerRequest({ type: "inspect-pack", requestId: "inspect-1", file, expectedModelId: "tiny-aya-global" }), true);
-  assert.equal(isWorkerRequest({ type: "inspect-pack", requestId: "inspect-2", file: { size: 3 } }), false);
-  assert.equal(isWorkerRequest({ type: "import-pack", requestId: "import-1", file, expectedModelId: "tiny-aya-global" }), true);
-  assert.equal(isWorkerRequest({ type: "import-pack", requestId: "import-2", file, expectedModelId: "" }), false);
-  assert.equal(isWorkerResult("inspect-pack", {
-    formatVersion: 1,
-    fileName: "global.sophon-model",
-    modelId: "tiny-aya-global",
-    repo: "fixture/repo",
-    revision: "0".repeat(40),
-    quantization: "q4f16",
-    packBytes: 101,
-    modelBytes: 100,
-    requiredBytes: 90,
-    availableBytes: null,
-    resumableBytes: 10,
-    alreadyReady: false,
-    license: {
-      spdx: "CC-BY-NC-4.0",
-      modelCardUrl: "https://example.test/model",
-      acceptableUsePolicyUrl: "https://example.test/aup",
-      attribution: "Fixture."
-    }
-  }), true);
-  assert.equal(isWorkerResult("import-pack", {
-    modelId: "tiny-aya-global",
-    imported: true,
-    totalBytes: 100,
-    resumedBytes: 25
-  }), true);
-  for (const stage of ["validate", "import", "verify", "ready"]) {
-    assert.equal(isWorkerResponse({
-      type: "log",
-      requestId: "import-1",
-      event: { level: "info", message: stage, phase: "import", progress: { loaded: stage === "ready" ? 100 : 25, total: 100, stage } }
-    }), true);
-  }
+  assert.equal(isWorkerRequest({ type: "inspect-pack", requestId: "inspect-1", file }), false);
+  assert.equal(isWorkerRequest({ type: "import-pack", requestId: "import-1", file, expectedModelId: "tiny-aya-global" }), false);
 });
 
 test("validates worker events before dispatching them", () => {

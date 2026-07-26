@@ -2,11 +2,9 @@ import type { BrowserEngine, HardwareTier } from "@/lib/browser-runtime";
 import type { ModelProvider } from "@/lib/onnx-models";
 import type { GenerationTimingSnapshot } from "@/lib/generation-metrics";
 
-import type { SophonModelPackLicense } from "@/lib/model-delivery/pack-format";
-
-export type OnnxRuntimePhase = "download" | "import" | "tokenize" | "inference" | "generate" | "runtime";
+export type OnnxRuntimePhase = "download" | "tokenize" | "inference" | "generate" | "runtime";
 export type OnnxLogLevel = "info" | "success" | "warning" | "error";
-export type OnnxDownloadStage = "validate" | "download" | "resume" | "import" | "verify" | "cache" | "ready";
+export type OnnxDownloadStage = "validate" | "download" | "resume" | "verify" | "cache" | "ready";
 
 export type OnnxDownloadProgress = {
   loaded: number;
@@ -113,27 +111,4 @@ export type ModelCacheSummary = {
 export type ModelCacheDeleteResult = {
   modelId: string;
   deleted: true;
-};
-
-export type ModelPackInspection = {
-  formatVersion: 1;
-  fileName: string;
-  modelId: string;
-  repo: string;
-  revision: string;
-  quantization: "q4f16";
-  packBytes: number;
-  modelBytes: number;
-  requiredBytes: number;
-  availableBytes: number | null;
-  resumableBytes: number;
-  alreadyReady: boolean;
-  license: SophonModelPackLicense;
-};
-
-export type ModelPackImportResult = {
-  modelId: string;
-  imported: true;
-  totalBytes: number;
-  resumedBytes: number;
 };

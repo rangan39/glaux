@@ -13,8 +13,8 @@ export default function PrivacyPolicy() {
       <div aria-hidden="true" className="sophon-noise pointer-events-none absolute inset-0" />
       <div aria-hidden="true" className="sophon-grid pointer-events-none absolute inset-0 opacity-45" />
       <article className="sophon-glass-strong relative mx-auto max-w-3xl rounded-3xl px-6 py-8 sm:px-10 sm:py-12">
-        <a className="font-mono text-xs uppercase tracking-[0.14em] text-[#ffb4a4] underline decoration-white/20 underline-offset-4 hover:text-sophon-signal-bright" href={HOME_PATH}>← Back to Sophon</a>
-        <h1 className="mt-6 text-3xl font-semibold tracking-tight text-white sm:text-4xl">Privacy Policy</h1>
+        <a className="font-mono text-xs uppercase tracking-[0.14em] text-sophon-signal-soft underline decoration-sophon-signal/30 underline-offset-4 hover:text-sophon-signal" href={HOME_PATH}>← Back to Sophon</a>
+        <h1 className="mt-6 text-3xl font-semibold tracking-tight text-sophon-copy-primary sm:text-4xl">Privacy Policy</h1>
         <p className="sophon-type-metadata mt-2 font-mono uppercase tracking-[0.08em] text-sophon-copy-metadata" data-typography-role="metadata">Effective July 25, 2026</p>
 
         <div className="privacy-copy mt-8 space-y-8 text-sm leading-7 text-sophon-copy-body sm:text-base" data-typography-role="body">
@@ -29,7 +29,6 @@ export default function PrivacyPolicy() {
               <li><strong>Prompts and responses:</strong> kept in memory for the current page session so Sophon can maintain conversation context. They are not saved to browser storage. Resetting, reloading, or closing the page removes them.</li>
               <li><strong>Selected model:</strong> the identifier of the last model that became ready is stored in local browser storage so Sophon can restore it later.</li>
               <li><strong>Model data:</strong> downloaded tensor weights, integrity checkpoints, resumable-download state, and verified packaged model files are stored in browser-private OPFS, IndexedDB, and Cache Storage.</li>
-              <li><strong>Offline imports:</strong> imported model bytes enter the same browser-private model cache. Sophon does not copy or retain the complete source <code>.sophon-model</code> file.</li>
               <li><strong>Runtime measurements:</strong> token counts and performance measurements such as time to first token are calculated and displayed locally. They are not transmitted.</li>
             </ul>
           </section>
@@ -66,7 +65,7 @@ export default function PrivacyPolicy() {
             <p>Material changes will be posted on this page with a new effective date. Questions or privacy requests can be filed through the project&apos;s <a className="inline-flex items-center gap-1" href={PROJECT_SUPPORT_URL} rel="noreferrer" target="_blank">public support tracker <ExternalLinkIndicator /></a>. Because Sophon does not operate accounts or receive conversation data, the developer generally has no user record to retrieve or delete.</p>
           </section>
 
-          <p className="sophon-type-metadata border-t border-white/10 pt-6 text-sophon-copy-metadata" data-typography-role="metadata">Sophon is an independent project and is not affiliated with, sponsored by, or endorsed by Cohere or Hugging Face.</p>
+          <p className="sophon-type-metadata border-t border-sophon-glass-border pt-6 text-sophon-copy-metadata" data-typography-role="metadata">Sophon is an independent project and is not affiliated with, sponsored by, or endorsed by Cohere or Hugging Face.</p>
         </div>
       </article>
     </main>

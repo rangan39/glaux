@@ -4,7 +4,7 @@ export default function Loading() {
       <div aria-hidden="true" className="sophon-noise pointer-events-none absolute inset-0" />
       <div aria-hidden="true" className="sophon-grid pointer-events-none absolute inset-0 opacity-45" />
       <div className="sophon-glass-strong relative flex flex-col items-center rounded-2xl px-8 py-7">
-        <div aria-hidden="true" className="grid size-14 place-items-center rounded-xl border border-sophon-signal-bright/60 bg-gradient-to-br from-sophon-signal-bright to-sophon-signal font-serif text-2xl font-semibold text-[#210b07] shadow-[0_0_30px_rgb(255_77_46/.24)]">Σ</div>
+        <div aria-hidden="true" className="grid size-14 place-items-center rounded-xl border border-sophon-signal-bright/60 bg-gradient-to-br from-sophon-signal-bright to-sophon-signal font-serif text-2xl font-semibold text-[#061225] shadow-[0_0_30px_rgb(0_140_255/.24)]">Σ</div>
         <p className="sophon-type-status mt-4 font-mono uppercase tracking-[0.1em] text-sophon-copy-metadata" data-typography-role="status">Loading inference console</p>
       </div>
     </main>

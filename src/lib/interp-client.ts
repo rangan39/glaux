@@ -4,8 +4,6 @@ import type {
   GenerationTelemetryEvent,
   ModelCacheDeleteResult,
   ModelCacheSummary,
-  ModelPackImportResult,
-  ModelPackInspection,
   OnnxLogEvent,
   OnnxRunOptions,
   OnnxRunResponse,
@@ -40,15 +38,12 @@ const WORKER_TIMEOUTS: Record<WorkerRequestType, { idleMs: number; overallMs: nu
   cancel: { idleMs: 10_000, overallMs: 10_000 },
   preload: { idleMs: 2 * 60_000, overallMs: 6 * 60 * 60_000 },
   "cache-status": { idleMs: 30_000, overallMs: 30_000 },
-  "delete-cache": { idleMs: 2 * 60_000, overallMs: 10 * 60_000 },
-  "inspect-pack": { idleMs: 30_000, overallMs: 30_000 },
-  "import-pack": { idleMs: 2 * 60_000, overallMs: 6 * 60 * 60_000 }
+  "delete-cache": { idleMs: 2 * 60_000, overallMs: 10 * 60_000 }
 };
 
 let runtimeWorker: Worker | null = null;
 let activeGenerationRequestId: string | null = null;
 let activePreloadRequestId: string | null = null;
-let activeModelImportRequestId: string | null = null;
 let requestCounter = 0;
 const pendingRequests = new Map<string, PendingRequest>();
 
@@ -109,36 +104,6 @@ export async function getCachedModels(): Promise<ModelCacheSummary[]> {
 
 export function deleteCachedModel(modelId: string): Promise<ModelCacheDeleteResult> {
   return dispatchWorkerRequest({ type: "delete-cache", modelId }).promise;
-}
-
-export function inspectModelPack(file: Blob, expectedModelId?: string): Promise<ModelPackInspection> {
-  return dispatchWorkerRequest({ type: "inspect-pack", file, expectedModelId }).promise;
-}
-
-export async function importModelPack(
-  file: Blob,
-  expectedModelId: string,
-  onLog?: (event: OnnxLogEvent) => void,
-  signal?: AbortSignal
-): Promise<ModelPackImportResult> {
-  const request = dispatchWorkerRequest({ type: "import-pack", file, expectedModelId }, onLog);
-  activeModelImportRequestId = request.requestId;
-  const cancel = () => {
-    void cancelModelImport(request.requestId).catch(() => undefined);
-  };
-  signal?.addEventListener("abort", cancel, { once: true });
-  if (signal?.aborted) cancel();
-  try {
-    return await request.promise;
-  } finally {
-    signal?.removeEventListener("abort", cancel);
-    if (activeModelImportRequestId === request.requestId) activeModelImportRequestId = null;
-  }
-}
-
-export async function cancelModelImport(targetRequestId = activeModelImportRequestId): Promise<GenerationCancelResult> {
-  if (!targetRequestId) return { cancelled: false, targetRequestId: null };
-  return dispatchWorkerRequest({ type: "cancel", targetRequestId }).promise;
 }
 
 export function terminateRuntimeWorker() {
@@ -247,7 +212,6 @@ function resetRuntimeWorker(error: Error) {
   runtimeWorker = null;
   activeGenerationRequestId = null;
   activePreloadRequestId = null;
-  activeModelImportRequestId = null;
   worker?.terminate();
   for (const request of pendingRequests.values()) {
     window.clearTimeout(request.idleTimeoutId);

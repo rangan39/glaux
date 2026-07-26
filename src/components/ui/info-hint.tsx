@@ -26,6 +26,7 @@ export function InfoHint({ className, concept, portalContainer }: InfoHintProps)
   const triggerRef = useRef<HTMLSpanElement>(null);
   const pointerFocusRef = useRef(false);
   const [openReason, setOpenReason] = useState<"focus" | "hover" | null>(null);
+  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
   const [position, setPosition] = useState<CSSProperties | null>(null);
 
   useLayoutEffect(() => {
@@ -33,6 +34,7 @@ export function InfoHint({ className, concept, portalContainer }: InfoHintProps)
     const updatePosition = () => {
       const trigger = triggerRef.current;
       if (!trigger) return;
+      setPortalTarget(portalContainer?.current ?? trigger.closest("main") ?? document.body);
       const bounds = trigger.getBoundingClientRect();
       const width = Math.min(280, window.innerWidth - 20);
       const center = bounds.left + bounds.width / 2;
@@ -50,7 +52,7 @@ export function InfoHint({ className, concept, portalContainer }: InfoHintProps)
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("scroll", updatePosition, true);
     };
-  }, [openReason]);
+  }, [openReason, portalContainer]);
 
   function handleMouseEnter() {
     setOpenReason("hover");
@@ -82,10 +84,10 @@ export function InfoHint({ className, concept, portalContainer }: InfoHintProps)
     setOpenReason(null);
   }
 
-  const tooltip = openReason && typeof document !== "undefined"
+  const tooltip = openReason && portalTarget && typeof document !== "undefined"
     ? createPortal(
       <span
-        className="sophon-type-metadata fixed z-[70] w-max rounded-lg border border-white/15 bg-[#111319]/95 px-3 py-2.5 text-left font-normal tracking-normal text-sophon-copy-body shadow-[0_18px_52px_rgb(0_0_0/.48),inset_0_1px_0_rgb(255_255_255/.08)] outline-none backdrop-blur-xl"
+        className="sophon-type-metadata fixed z-[70] w-max rounded-lg border border-sophon-glass-border bg-sophon-panel/95 px-3 py-2.5 text-left font-normal tracking-normal text-sophon-copy-body shadow-[0_18px_52px_var(--sophon-glass-shadow),inset_0_1px_0_var(--sophon-glass-highlight)] outline-none backdrop-blur-xl"
         data-help-id={concept}
         data-slot="tooltip-content"
         id={tooltipId}
@@ -94,7 +96,7 @@ export function InfoHint({ className, concept, portalContainer }: InfoHintProps)
       >
         <span className="sr-only">{hint.title}. </span>{hint.description}
       </span>,
-      portalContainer?.current ?? document.body
+      portalTarget
     )
     : null;
 
@@ -104,8 +106,8 @@ export function InfoHint({ className, concept, portalContainer }: InfoHintProps)
         aria-describedby={tooltipId}
         aria-label={hint.label}
         className={cn(
-          "inline-grid size-7 shrink-0 place-items-center rounded-md text-sophon-copy-decorative transition-colors hover:bg-white/[.07] hover:text-sophon-signal-bright focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-warning",
-          openReason && "bg-white/[.07] text-sophon-signal-bright",
+          "inline-grid size-7 shrink-0 place-items-center rounded-md text-sophon-copy-decorative transition-colors hover:bg-sophon-glass-tile hover:text-sophon-signal-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-signal",
+          openReason && "bg-sophon-glass-tile text-sophon-signal-soft",
           className
         )}
         data-help-id={concept}

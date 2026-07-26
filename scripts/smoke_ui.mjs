@@ -88,6 +88,15 @@ try {
   assert.ok(models.every((model) => /non-commercial/.test(model.label)), "Every Tiny Aya model must disclose its non-commercial license.");
   assert.ok(models.some((model) => !model.disabled), "At least one model must be compatible with the smoke-test browser.");
   assert.ok(models.every((model) => !model.checked), "No model should be selected before an explicit user choice.");
+  const selectionIndicators = modelLibrary.locator("[data-model-selection-indicator]");
+  assert.equal(await selectionIndicators.count(), 4, "Every expanded desktop model card must expose a visible radio affordance.");
+  assert.equal(await modelLibrary.locator('[data-model-selection-indicator][data-selected="true"]').count(), 0, "Visible selection affordances must agree with the unchecked native radios.");
+  const earthRadio = modelLibrary.getByRole("radio", { name: /Choose Tiny Aya Earth/ });
+  await modelLibrary.locator('[data-model-id="tiny-aya-earth"]').click();
+  assert.equal(await earthRadio.isChecked(), true, "Choosing an uncached model must update the native radio selection.");
+  assert.equal(await modelLibrary.locator('[data-model-selection-indicator][data-selected="true"]').count(), 1, "Exactly one visible model selection affordance must be active.");
+  assert.equal(await activePage.getByRole("dialog", { name: /Download Tiny Aya Earth/ }).count(), 0, "Choosing an uncached model must not open the download confirmation.");
+  await assertVisible(modelLibrary.getByRole("button", { name: "Download Earth · ~2.35 GB", exact: true }), "selected-model network download action");
   await assertModelLibraryLayout(modelLibrary, { width: 1440, height: 900 }, "desktop");
   await assertTypographyRoles(modelLibrary, "desktop model library");
   const firstRunViewports = [
@@ -152,7 +161,8 @@ try {
   await assertVisible(firstRunDownloadConfirmation, "first-run model download confirmation");
   await firstRunDownloadConfirmation.getByRole("button", { name: "Download model", exact: true }).click();
   await assertVisible(textarea, "labeled prompt textarea");
-  assert.equal(await textarea.getAttribute("placeholder"), "Write a prompt while the model gets ready...");
+  assert.equal(await textarea.getAttribute("placeholder"), "Prompting unlocks when the model is ready...");
+  assert.equal(await textarea.isDisabled(), true, "The prompt must remain disabled until the selected model is ready.");
   await activePage.locator("#prompt-error").waitFor({ state: "visible", timeout: timeoutMs });
   await assertVisible(resetButton, "conversation reset control after a failed model preload");
   assert.equal(await resetButton.isEnabled(), true, "Reset must recover the composer after a failed model preload.");
@@ -205,12 +215,12 @@ try {
   await browserStorageContent.waitFor({ state: "hidden", timeout: timeoutMs });
   assert.equal(await modelRadios.count(), 4, "Model library must expose exactly four native radio controls.");
   assert.equal(await sendButton.isDisabled(), true, "Send must be disabled for an empty prompt.");
-  await textarea.fill("UI smoke check");
   await assertVisible(resetButton, "conversation reset control");
   assert.equal(await resetButton.getAttribute("title"), "Reset conversation");
   assert.equal((await resetButton.textContent())?.trim(), "", "Reset control must remain icon-only.");
-  assert.equal(await sendButton.isDisabled(), true, "Send must remain disabled until a model is selected.");
-  assert.equal(await resetButton.isEnabled(), true, "Reset must enable when the composer contains text.");
+  assert.equal(await textarea.isDisabled(), true, "A failed model download must leave the prompt locked.");
+  assert.equal(await textarea.inputValue(), "", "The locked prompt must not accept a draft.");
+  assert.equal(await resetButton.isEnabled(), true, "Reset must recover the composer after a failed model preload.");
   await resetButton.press("Enter");
   assert.equal(await textarea.inputValue(), "", "Reset must clear the composer.");
   await resetButton.waitFor({ state: "detached", timeout: timeoutMs });
@@ -228,9 +238,8 @@ try {
 
   await activePage.setViewportSize({ width: 320, height: 568 });
   await assertVisible(textarea, "mobile prompt textarea");
-  await textarea.fill("Mobile reset check");
-  await assertVisible(resetButton, "mobile conversation reset control");
-  await assertWithinViewport(resetButton, 320, "mobile conversation reset control");
+  assert.equal(await textarea.isDisabled(), true, "The mobile prompt must remain locked until the model is ready.");
+  await assertWithinViewport(textarea, 320, "mobile prompt textarea");
   const mobileTrigger = activePage.getByRole("button", { name: "Open model library", exact: true });
   await assertVisible(mobileTrigger, "mobile model-library trigger");
   await mobileTrigger.click();
@@ -353,7 +362,9 @@ try {
   await assertVisible(progressBar, "model download progress bar");
   assert.equal(await progressBar.getAttribute("aria-valuenow"), null, "Progress must remain indeterminate until byte totals arrive.");
   assert.equal(await preloadModels.locator('[data-model-id="tiny-aya-earth"] input').isEnabled(), true, "Other model radios must remain enabled so another selection can cancel the download.");
-  await activePage.getByRole("textbox", { name: "Message Sophon", exact: true }).fill("Preload gate");
+  const preloadPrompt = activePage.getByRole("textbox", { name: "Message Sophon", exact: true });
+  assert.equal(await preloadPrompt.isDisabled(), true, "The prompt must remain disabled while the selected model downloads.");
+  assert.equal(await preloadPrompt.inputValue(), "", "The disabled prompt must not accept text during download.");
   assert.equal(await preloadSend.isDisabled(), true, "Send must remain disabled while the selected model downloads.");
   rejectModelRequests = true;
   await blockedModelRoute.abort("blockedbyclient");
@@ -493,6 +504,13 @@ try {
   const assistantFixtureMessage = activePage.getByRole("article", { name: "Message from Sophon", exact: true }).filter({ hasText: "Fixture response" });
   await assertVisible(userFixtureMessage, "generated fixture user message");
   await assertVisible(assistantFixtureMessage, "generated fixture assistant message");
+  assert.equal(await assistantFixtureMessage.getByText(/5\.0 tokens\/s/).count(), 0, "Chat mode must hide response metrics.");
+  assert.equal(await userFixtureMessage.getByRole("button", { name: "Inspect 3 message tokens", exact: true }).count(), 0, "Chat mode must hide token inspection.");
+  const interfaceModeToggle = activePage.getByTestId("interface-mode-toggle");
+  await assertVisible(interfaceModeToggle, "interface-mode toggle");
+  assert.equal(await interfaceModeToggle.getAttribute("data-mode"), "chat", "Chat mode must be the default.");
+  await interfaceModeToggle.click();
+  assert.equal(await interfaceModeToggle.getAttribute("data-mode"), "developer", "The interface must switch to Developer mode.");
   await assertVisible(assistantFixtureMessage.getByText("WebGPU · 2/3 → 2 tokens · 5.0 tokens/s · first token 120 ms · 1 earlier tokens omitted", { exact: true }), "plain-language response metrics");
   await userFixtureMessage.getByRole("button", { name: "Inspect 3 message tokens", exact: true }).click();
   await assistantFixtureMessage.getByRole("button", { name: "Inspect 2 message tokens", exact: true }).click();
@@ -527,6 +545,10 @@ try {
   assert.equal(await userFixtureMessage.locator('[data-context="omitted"]').count(), 1, "The token lens must preserve outside-context state.");
   await assistantFixtureMessage.getByRole("button", { name: "tokens", exact: true }).click();
   await assertVisible(assistantFixtureMessage.getByRole("toolbar", { name: /2 inspectable token segments/ }), "assistant token toolbar");
+  await interfaceModeToggle.click();
+  assert.equal(await interfaceModeToggle.getAttribute("data-mode"), "chat", "The interface must switch back to Chat mode.");
+  assert.equal(await activePage.locator('[role="toolbar"][aria-label*="inspectable token segments"]').count(), 0, "Chat mode must close open token inspectors.");
+  assert.equal(await assistantFixtureMessage.getByText(/5\.0 tokens\/s/).count(), 0, "Chat mode must hide response metrics after switching back.");
 
   const deleteCached = activePage.getByRole("button", { name: "Delete downloaded files for Tiny Aya Global 3.35B · non-commercial", exact: true });
   await assertVisible(deleteCached, "downloaded model deletion control");
@@ -801,9 +823,9 @@ async function assertModelLibraryLayout(library, viewport, surface) {
   const list = library.getByTestId(surface === "desktop" ? "desktop-model-list" : "mobile-model-list");
   await assertVisible(list, `${viewport.width}px ${surface} model list`);
   const cards = library.locator(`[data-model-surface="${surface}"]`);
-  const actions = library.locator('button[aria-label^="Install "][aria-label$=" from an offline file"]');
+  const retiredOfflineActions = library.locator('button[aria-label*="offline file"]');
   assert.equal(await cards.count(), 4, `${viewport.width}px ${surface} model list must render four cards.`);
-  assert.equal(await actions.count(), 4, `${viewport.width}px ${surface} model list must render four offline-file actions.`);
+  assert.equal(await retiredOfflineActions.count(), 0, `${viewport.width}px ${surface} model list must not expose the retired offline-file import.`);
 
   const contentGeometry = await library.locator("[data-model-card]").evaluateAll((nodes) => nodes.map((card) => {
     const cardBox = card.getBoundingClientRect();
@@ -829,22 +851,38 @@ async function assertModelLibraryLayout(library, viewport, surface) {
   assert.equal(contentGeometry.length, 4, `${viewport.width}px ${surface} model list must expose four measurable cards.`);
   assert.equal(contentGeometry.flatMap(({ fields }) => fields).filter(({ clipped, insideCard }) => clipped || !insideCard).length, 0, `${viewport.width}px ${surface} model text or badges are clipped: ${JSON.stringify(contentGeometry)}`);
 
-  const actionLocators = await actions.all();
-  for (const action of actionLocators) {
-    await action.scrollIntoViewIfNeeded();
-    const [actionBox, listBox, label] = await Promise.all([action.boundingBox(), list.boundingBox(), action.getAttribute("aria-label")]);
-    assert.ok(actionBox && listBox, `Expected measurable ${label ?? "offline-file action"} geometry at ${viewport.width}px.`);
-    assert.ok(
-      actionBox.x >= listBox.x - 1
-        && actionBox.x + actionBox.width <= listBox.x + listBox.width + 1
-        && actionBox.y >= listBox.y - 1
-        && actionBox.y + actionBox.height <= listBox.y + listBox.height + 1,
-      `${label ?? "Offline-file action"} is outside the ${viewport.width}px model-list viewport: ${JSON.stringify({ actionBox, listBox })}`
-    );
-    assert.ok(actionBox.width >= 24 && actionBox.height >= 24, `${label ?? "Offline-file action"} is too small to operate: ${JSON.stringify(actionBox)}`);
-    assert.equal(await action.isEnabled(), true, `${label ?? "Offline-file action"} must be operable.`);
-    await action.focus();
-    assert.equal(await action.evaluate((element) => document.activeElement === element), true, `${label ?? "Offline-file action"} must accept keyboard focus.`);
+  if (surface === "desktop" && viewport.width === 1440 && viewport.height === 900) {
+    const verticalGeometry = await library.evaluate((element) => {
+      const listElement = element.querySelector('[data-testid="desktop-model-list"]');
+      const footer = element.querySelector("footer");
+      if (!listElement || !footer) return null;
+      const listBox = listElement.getBoundingClientRect();
+      const footerBox = footer.getBoundingClientRect();
+      const cards = [...element.querySelectorAll("[data-model-card]")].map((card) => {
+        const box = card.getBoundingClientRect();
+        return {
+          bottom: box.bottom,
+          top: box.top,
+          fields: ["[data-model-name]", "[data-model-description]", "[data-model-status]"].map((selector) => {
+            const field = card.querySelector(selector);
+            const fieldBox = field?.getBoundingClientRect();
+            return { bottom: fieldBox?.bottom ?? Infinity, selector, top: fieldBox?.top ?? -Infinity };
+          })
+        };
+      });
+      return {
+        cards,
+        footer: { bottom: footerBox.bottom, top: footerBox.top },
+        library: element.getBoundingClientRect().toJSON(),
+        list: { bottom: listBox.bottom, clientHeight: listElement.clientHeight, scrollHeight: listElement.scrollHeight, scrollTop: listElement.scrollTop, top: listBox.top }
+      };
+    });
+    assert.ok(verticalGeometry, "Desktop model-library geometry must be measurable.");
+    assert.equal(verticalGeometry.list.scrollTop, 0, "Desktop model-library comparison must begin at the top of the list.");
+    assert.ok(verticalGeometry.list.clientHeight > 0, `Desktop model list has no usable height: ${JSON.stringify(verticalGeometry)}`);
+    assert.ok(verticalGeometry.cards.every((card) => card.top >= verticalGeometry.list.top - 1 && card.bottom <= verticalGeometry.list.bottom + 1), `All four desktop model cards must be initially visible at 1440×900: ${JSON.stringify(verticalGeometry)}`);
+    assert.ok(verticalGeometry.cards.flatMap((card) => card.fields).every((field) => field.top >= verticalGeometry.list.top - 1 && field.bottom <= verticalGeometry.list.bottom + 1), `All model names, descriptions, and statuses must be initially visible at 1440×900: ${JSON.stringify(verticalGeometry)}`);
+    assert.ok(verticalGeometry.footer.top >= verticalGeometry.list.bottom - 1 && verticalGeometry.footer.bottom <= verticalGeometry.library.bottom + 1, `The model specification footer must remain visible without overlapping the list: ${JSON.stringify(verticalGeometry)}`);
   }
 
   const overflow = await library.evaluate((element) => {

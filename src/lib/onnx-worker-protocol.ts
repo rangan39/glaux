@@ -4,8 +4,6 @@ import type {
   GenerationTelemetryEvent,
   ModelCacheDeleteResult,
   ModelCacheSummary,
-  ModelPackImportResult,
-  ModelPackInspection,
   OnnxLogEvent,
   OnnxRunOptions,
   OnnxRunResponse,
@@ -24,8 +22,6 @@ type WorkerRequestInputMap = {
   preload: { type: "preload"; modelId: string };
   "cache-status": { type: "cache-status" };
   "delete-cache": { type: "delete-cache"; modelId: string };
-  "inspect-pack": { type: "inspect-pack"; file: Blob; expectedModelId?: string };
-  "import-pack": { type: "import-pack"; file: Blob; expectedModelId: string };
 };
 
 export type WorkerRequestType = keyof WorkerRequestInputMap;
@@ -41,8 +37,6 @@ export type WorkerResultMap = {
   preload: { ok: true };
   "cache-status": { models: ModelCacheSummary[] };
   "delete-cache": ModelCacheDeleteResult;
-  "inspect-pack": ModelPackInspection;
-  "import-pack": ModelPackImportResult;
 };
 
 export type WorkerResponse =
@@ -59,13 +53,6 @@ export function isWorkerRequest(value: unknown): value is WorkerRequest {
   if (value.type === "preload") return typeof value.modelId === "string" && value.modelId.length > 0;
   if (value.type === "cache-status") return true;
   if (value.type === "delete-cache") return typeof value.modelId === "string" && value.modelId.length > 0;
-  if (value.type === "inspect-pack") {
-    return isBlobLike(value.file)
-      && (value.expectedModelId === undefined || typeof value.expectedModelId === "string" && value.expectedModelId.length > 0);
-  }
-  if (value.type === "import-pack") {
-    return isBlobLike(value.file) && typeof value.expectedModelId === "string" && value.expectedModelId.length > 0;
-  }
   if (value.type === "generate") {
     return isChat(value.messages)
       && typeof value.modelId === "string"
@@ -119,39 +106,7 @@ export function isWorkerResult(type: WorkerRequestType, value: unknown): value i
   if (type === "delete-cache") {
     return value.deleted === true && typeof value.modelId === "string";
   }
-  if (type === "inspect-pack") return isModelPackInspection(value);
-  if (type === "import-pack") {
-    return value.imported === true
-      && typeof value.modelId === "string"
-      && isFinitePositive(value.totalBytes)
-      && isFiniteNonNegative(value.resumedBytes)
-      && Number(value.resumedBytes) <= Number(value.totalBytes);
-  }
   return value.ok === true;
-}
-
-function isModelPackInspection(value: Record<string, unknown>) {
-  return value.formatVersion === 1
-    && typeof value.fileName === "string"
-    && typeof value.modelId === "string"
-    && typeof value.repo === "string"
-    && typeof value.revision === "string"
-    && value.quantization === "q4f16"
-    && isFinitePositive(value.packBytes)
-    && isFinitePositive(value.modelBytes)
-    && isFiniteNonNegative(value.requiredBytes)
-    && (value.availableBytes === null || isFiniteNonNegative(value.availableBytes))
-    && isFiniteNonNegative(value.resumableBytes)
-    && typeof value.alreadyReady === "boolean"
-    && isPackLicense(value.license);
-}
-
-function isPackLicense(value: unknown) {
-  return isRecord(value)
-    && value.spdx === "CC-BY-NC-4.0"
-    && typeof value.modelCardUrl === "string"
-    && typeof value.acceptableUsePolicyUrl === "string"
-    && typeof value.attribution === "string";
 }
 
 function isModelCacheSummary(value: unknown) {
@@ -188,7 +143,7 @@ function isLogEvent(value: unknown): value is OnnxLogEvent {
     && (value.level === "info" || value.level === "success" || value.level === "warning" || value.level === "error")
     && typeof value.message === "string"
     && (value.detail === undefined || typeof value.detail === "string")
-    && (value.phase === undefined || value.phase === "download" || value.phase === "import" || value.phase === "tokenize" || value.phase === "inference" || value.phase === "generate" || value.phase === "runtime")
+    && (value.phase === undefined || value.phase === "download" || value.phase === "tokenize" || value.phase === "inference" || value.phase === "generate" || value.phase === "runtime")
     && (value.progress === undefined || isDownloadProgress(value.progress))
     && (value.durationMs === undefined || isFiniteNonNegative(value.durationMs));
 }
@@ -199,7 +154,6 @@ function isDownloadProgress(value: unknown) {
     && value.stage !== "validate"
     && value.stage !== "download"
     && value.stage !== "resume"
-    && value.stage !== "import"
     && value.stage !== "verify"
     && value.stage !== "cache"
     && value.stage !== "ready") return false;
@@ -231,13 +185,6 @@ function isTelemetryEvent(value: unknown): value is GenerationTelemetryEvent {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
-}
-
-function isBlobLike(value: unknown): value is Blob {
-  return isRecord(value)
-    && isFiniteNonNegative(value.size)
-    && typeof value.slice === "function"
-    && typeof value.stream === "function";
 }
 
 function isOptionalFiniteNumber(value: unknown) {

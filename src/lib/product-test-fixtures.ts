@@ -1,6 +1,13 @@
 import type { OnnxInputToken, OnnxToken } from "@/lib/onnx-types";
 
 export const PRODUCT_TEST_QUERY_KEY = "sophon-product-test";
+export const PRODUCT_TEST_MODEL_QUERY_KEY = "sophon-product-model";
+export const PRODUCT_TEST_MODEL_IDS = [
+  "tiny-aya-global",
+  "tiny-aya-earth",
+  "tiny-aya-fire",
+  "tiny-aya-water"
+] as const;
 export const PRODUCT_TEST_STATES = [
   "checking",
   "confirmation",
@@ -8,6 +15,7 @@ export const PRODUCT_TEST_STATES = [
   "paused",
   "verifying",
   "ready",
+  "retry-success",
   "generating",
   "stopped",
   "error",
@@ -15,6 +23,7 @@ export const PRODUCT_TEST_STATES = [
 ] as const;
 
 export type ProductTestState = typeof PRODUCT_TEST_STATES[number];
+export type ProductTestModelId = typeof PRODUCT_TEST_MODEL_IDS[number];
 
 export type ProductTestMessage = {
   id: string;
@@ -56,11 +65,11 @@ export type ProductTestSnapshot = {
 type ProductTestActivity = {
   detail?: string;
   label: string;
-  phase: "download" | "import" | "runtime" | "tokenize" | "prefill" | "decode" | "complete";
+  phase: "download" | "runtime" | "tokenize" | "prefill" | "decode" | "complete";
   progress?: {
     loaded: number;
     total: number;
-    stage?: "validate" | "download" | "resume" | "import" | "verify" | "cache" | "ready";
+    stage?: "validate" | "download" | "resume" | "verify" | "cache" | "ready";
     resumedBytes?: number;
     networkBytes?: number;
     bytesPerSecond?: number;
@@ -135,7 +144,7 @@ Start with **Global** for mixed-language traffic, then route stable regional wor
 local-only://review/this-intentionally-long-unbroken-sample-line-keeps-horizontal-content-contained-within-the-message-bubble
 \`\`\`
 
-The model files stay in browser-private storage. Prompts and responses remain in this page session.`;
+The model files stay in browser-private storage. Review the [local privacy details](/privacy); prompts and responses remain in this page session.`;
 const BASE_MESSAGES: ProductTestMessage[] = [
   {
     id: "assistant-welcome",
@@ -192,13 +201,24 @@ export function parseProductTestState(value: string | null | undefined): Product
   return PRODUCT_TEST_STATES.find((state) => state === value) ?? null;
 }
 
+export function parseProductTestModelId(value: string | null | undefined): ProductTestModelId | null {
+  if (!value) return null;
+  return PRODUCT_TEST_MODEL_IDS.find((modelId) => modelId === value) ?? null;
+}
+
 export function readProductTestState(search = typeof window === "undefined" ? "" : window.location.search) {
   if (!PRODUCT_TESTING_BUILD) return null;
   const requested = new URLSearchParams(search).get(PRODUCT_TEST_QUERY_KEY);
   return parseProductTestState(requested) ?? "checking";
 }
 
-export function createProductTestSnapshot(state: ProductTestState): ProductTestSnapshot {
+export function readProductTestModelId(search = typeof window === "undefined" ? "" : window.location.search) {
+  if (!PRODUCT_TESTING_BUILD) return null;
+  const requested = new URLSearchParams(search).get(PRODUCT_TEST_MODEL_QUERY_KEY);
+  return parseProductTestModelId(requested) ?? MODEL_ID;
+}
+
+export function createProductTestSnapshot(state: ProductTestState, activeModelId: ProductTestModelId = MODEL_ID): ProductTestSnapshot {
   const snapshot = baseSnapshot(state);
 
   if (state === "checking") {
@@ -213,7 +233,7 @@ export function createProductTestSnapshot(state: ProductTestState): ProductTestS
   if (state === "confirmation") {
     return {
       ...snapshot,
-      pendingModelDownloadId: MODEL_ID
+      pendingModelDownloadId: activeModelId
     };
   }
 
@@ -221,7 +241,7 @@ export function createProductTestSnapshot(state: ProductTestState): ProductTestS
     const loaded = 872 * MIB;
     return {
       ...snapshot,
-      modelId: MODEL_ID,
+      modelId: activeModelId,
       prompt: LONG_USER_PROMPT,
       generation: {
         status: "loading",
@@ -240,7 +260,7 @@ export function createProductTestSnapshot(state: ProductTestState): ProductTestS
           }
         }
       },
-      cacheSummaries: cacheSummaries("partial", loaded, loaded)
+      cacheSummaries: cacheSummaries("partial", loaded, loaded, activeModelId)
     };
   }
 
@@ -248,17 +268,17 @@ export function createProductTestSnapshot(state: ProductTestState): ProductTestS
     const saved = 1_088 * MIB;
     return {
       ...snapshot,
-      modelId: MODEL_ID,
+      modelId: activeModelId,
       prompt: LONG_USER_PROMPT,
       modelLoadPaused: true,
-      cacheSummaries: cacheSummaries("partial", saved, saved)
+      cacheSummaries: cacheSummaries("partial", saved, saved, activeModelId)
     };
   }
 
   if (state === "verifying") {
     return {
       ...snapshot,
-      modelId: MODEL_ID,
+      modelId: activeModelId,
       prompt: LONG_USER_PROMPT,
       generation: {
         status: "loading",
@@ -275,19 +295,19 @@ export function createProductTestSnapshot(state: ProductTestState): ProductTestS
           }
         }
       },
-      cacheSummaries: cacheSummaries("partial", MODEL_BYTES, Math.floor(MODEL_BYTES * 0.93))
+      cacheSummaries: cacheSummaries("partial", MODEL_BYTES, Math.floor(MODEL_BYTES * 0.93), activeModelId)
     };
   }
 
-  if (state === "ready" || state === "reset") {
+  if (state === "ready" || state === "retry-success" || state === "reset") {
     return {
       ...snapshot,
-      modelId: MODEL_ID,
-      loadedModelId: MODEL_ID,
+      modelId: activeModelId,
+      loadedModelId: activeModelId,
       messages: cloneMessages(BASE_MESSAGES),
       prompt: LONG_USER_PROMPT,
       resetConfirmationOpen: state === "reset",
-      cacheSummaries: cacheSummaries("cached", MODEL_BYTES, MODEL_BYTES)
+      cacheSummaries: cacheSummaries("cached", MODEL_BYTES, MODEL_BYTES, activeModelId)
     };
   }
 
@@ -295,8 +315,8 @@ export function createProductTestSnapshot(state: ProductTestState): ProductTestS
     const messages = [...cloneMessages(BASE_MESSAGES), cloneMessage(PENDING_MESSAGE)];
     return {
       ...snapshot,
-      modelId: MODEL_ID,
-      loadedModelId: MODEL_ID,
+      modelId: activeModelId,
+      loadedModelId: activeModelId,
       messages,
       generation: {
         status: "running",
@@ -311,7 +331,7 @@ export function createProductTestSnapshot(state: ProductTestState): ProductTestS
           text: PENDING_MESSAGE.content
         }
       },
-      cacheSummaries: cacheSummaries("cached", MODEL_BYTES, MODEL_BYTES)
+      cacheSummaries: cacheSummaries("cached", MODEL_BYTES, MODEL_BYTES, activeModelId)
     };
   }
 
@@ -320,8 +340,8 @@ export function createProductTestSnapshot(state: ProductTestState): ProductTestS
     : "The local WebGPU session was interrupted. Retry to rebuild it without losing your message.";
   return {
     ...snapshot,
-    modelId: MODEL_ID,
-    loadedModelId: MODEL_ID,
+    modelId: activeModelId,
+    loadedModelId: activeModelId,
     messages: [...cloneMessages(BASE_MESSAGES), cloneMessage(PENDING_MESSAGE)],
     error: reason,
     failedTurn: {
@@ -329,7 +349,7 @@ export function createProductTestSnapshot(state: ProductTestState): ProductTestS
       reason,
       text: PENDING_MESSAGE.content
     },
-    cacheSummaries: cacheSummaries("cached", MODEL_BYTES, MODEL_BYTES)
+    cacheSummaries: cacheSummaries("cached", MODEL_BYTES, MODEL_BYTES, activeModelId)
   };
 }
 
@@ -391,13 +411,14 @@ function baseSnapshot(state: ProductTestState): ProductTestSnapshot {
 function cacheSummaries(
   globalState: ProductTestCacheSummary["state"],
   resumableBytes: number,
-  verifiedBytes: number
+  verifiedBytes: number,
+  activeModelId: ProductTestModelId = MODEL_ID
 ) {
-  return ["tiny-aya-global", "tiny-aya-earth", "tiny-aya-fire", "tiny-aya-water"].map((modelId) => ({
+  return PRODUCT_TEST_MODEL_IDS.map((modelId) => ({
     modelId,
-    state: modelId === MODEL_ID ? globalState : "missing",
-    resumableBytes: modelId === MODEL_ID ? resumableBytes : 0,
-    verifiedBytes: modelId === MODEL_ID ? verifiedBytes : 0,
+    state: modelId === activeModelId ? globalState : "missing",
+    resumableBytes: modelId === activeModelId ? resumableBytes : 0,
+    verifiedBytes: modelId === activeModelId ? verifiedBytes : 0,
     totalBytes: MODEL_BYTES
   })) satisfies ProductTestCacheSummary[];
 }

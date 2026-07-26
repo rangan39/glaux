@@ -289,10 +289,10 @@ test("rehashes a ready file before reuse and repairs same-length corruption", as
   assert.equal(stateStore.value?.status, "ready");
 });
 
-test("re-probes online delivery before repairing a corrupt imported cache", async () => {
+test("re-probes online delivery before repairing a corrupt cached artifact", async () => {
   const expected = Uint8Array.from([2, 7, 1, 8, 2, 8]);
   const corrupt = expected.map((value) => value ^ 0xff);
-  const cachedArtifact = artifact(expected, "imported-corrupt");
+  const cachedArtifact = artifact(expected, "cached-reprobe-corrupt");
   const packEtag = '"sophon-pack-v1:0123456789012345678901234567890123456789"';
   const file = new MemoryPositionedFile([], corrupt);
   const stateStore = new MemoryStateStore([], {

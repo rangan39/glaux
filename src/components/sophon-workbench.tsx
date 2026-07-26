@@ -65,6 +65,7 @@ const STARTER_MESSAGES: ChatMessage[] = [
     meta: "Cohere open weights · local by design · no server inference"
   }
 ];
+const PRIVACY_PATH = process.env.NEXT_PUBLIC_SOPHON_CHROME_EXTENSION === "1" ? "/privacy.html" : "/privacy";
 
 export function SophonWorkbench() {
   const [messages, setMessages] = useState(STARTER_MESSAGES);
@@ -860,6 +861,7 @@ export function SophonWorkbench() {
                     <p className="min-w-0 truncate min-[900px]:text-right" data-state={browserStorage === undefined ? "checking" : browserStorage === null ? "unavailable" : "ready"} data-testid="browser-storage">
                       Browser storage · <span className="tabular-nums text-white/70">{storageLabel}</span>
                     </p>
+                    <a className="ml-2 shrink-0 text-white/55 underline decoration-white/20 underline-offset-4 hover:text-sophon-signal-bright" href={PRIVACY_PATH}>Privacy</a>
                   </div>
                 </footer>
               </form>
@@ -1012,7 +1014,7 @@ function FirstRunWelcome({ cacheState, compatibility, mobileProfile, model, noti
           <div className="mt-4 flex flex-col gap-3 border-t border-white/10 pt-4 text-xs text-white/50 sm:flex-row sm:items-center sm:justify-between">
             <span>Open weights · {model.licenseLabel} · Downloads can be paused and resumed</span>
             <Button className="h-11 self-start rounded-xl sm:h-8 lg:hidden" onClick={onOpenModels} size="sm" type="button" variant="sophon">Compare all {MODEL_REGISTRY.length} models</Button>
-            <span className="hidden lg:inline">More multilingual models are available in the library.</span>
+            <span className="hidden items-center gap-3 lg:flex"><span>More multilingual models are available in the library.</span><a className="text-white/65 underline decoration-white/20 underline-offset-4 hover:text-sophon-signal-bright" href={PRIVACY_PATH}>Privacy</a></span>
           </div>
         </div>
       </div>

@@ -7,6 +7,7 @@ register("./alias-loader.mjs", import.meta.url);
 const {
   getArtifactKey,
   getArtifactUrl,
+  getBundledArtifactUrl,
   getModelDeliveryManifest,
   MODEL_DELIVERY_MANIFESTS,
   MODEL_SEGMENT_SIZE
@@ -61,6 +62,19 @@ test("pins every runtime artifact for the four Tiny Aya models", () => {
       "tokenizer.json",
       "tokenizer_config.json"
     ]);
+    assert.deepEqual(model.auxiliary.map(({ bundledPath }) => bundledPath), model.modelId === "tiny-aya-global" ? [
+      "tiny-aya-global/config.json",
+      "shared/model_q4f16.onnx",
+      "tiny-aya-global/generation_config.json",
+      "shared/tokenizer.json",
+      "shared/tokenizer_config.json"
+    ] : [
+      "tiny-aya-regional/config.json",
+      "shared/model_q4f16.onnx",
+      "tiny-aya-regional/generation_config.json",
+      "shared/tokenizer.json",
+      "shared/tokenizer_config.json"
+    ]);
     assert.ok(model.auxiliary.every(({ sha256 }) => /^[a-f0-9]{64}$/.test(sha256)));
     assert.ok(model.auxiliary.every(({ size }) => Number.isSafeInteger(size) && size > 0));
     for (const artifact of model.externalData) {
@@ -69,6 +83,7 @@ test("pins every runtime artifact for the four Tiny Aya models", () => {
     }
     for (const artifact of model.auxiliary) {
       assert.equal(getArtifactUrl(model, artifact), `https://huggingface.co/${repo}/resolve/${revision}/${artifact.path}`);
+      assert.equal(getBundledArtifactUrl(artifact), `/model-runtime/${artifact.bundledPath}`);
       assert.equal(getArtifactKey(model, artifact), `${model.modelId}:${revision}:${artifact.path}`);
     }
   }

@@ -28,7 +28,8 @@ await Promise.all([
 
 await run(process.execPath, [nextBin, "build"], {
   ...process.env,
-  SOPHON_CHROME_EXTENSION: "1"
+  SOPHON_CHROME_EXTENSION: "1",
+  NEXT_PUBLIC_SOPHON_CHROME_EXTENSION: "1"
 });
 
 await cp(exportDir, extensionDir, { recursive: true });
@@ -39,6 +40,7 @@ await Promise.all([
 ]);
 
 await generateIcons();
+await validateStoreIconSafeArea();
 const externalizedScripts = await externalizeInlineScripts();
 const summary = await validateExtension(externalizedScripts);
 console.log(JSON.stringify(summary, null, 2));
@@ -68,6 +70,27 @@ async function generateIcons() {
       .png()
       .toFile(path.join(iconDir, `icon-${size}.png`))
   ));
+}
+
+async function validateStoreIconSafeArea() {
+  const image = await sharp(path.join(extensionDir, "icons", "icon-128.png"))
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  let minX = image.info.width;
+  let minY = image.info.height;
+  let maxX = -1;
+  let maxY = -1;
+  for (let y = 0; y < image.info.height; y += 1) {
+    for (let x = 0; x < image.info.width; x += 1) {
+      if (image.data[(y * image.info.width + x) * image.info.channels + 3] === 0) continue;
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+    }
+  }
+  assert.deepEqual({ minX, minY, maxX, maxY }, { minX: 16, minY: 16, maxX: 111, maxY: 111 }, "The 128px icon must use a 96px safe-area with 16px transparent padding.");
 }
 
 async function externalizeInlineScripts() {
@@ -179,7 +202,7 @@ async function sanitizeChromePaths() {
       await rm(path.join(extensionDir, entry.name), { recursive: true, force: true });
     }
   }
-  await removeReservedDescendants(chromeAssets);
+  await removeReservedDescendants(extensionDir);
 
   const textExtensions = new Set([".css", ".html", ".js", ".json", ".mjs"]);
   for (const file of await walk(extensionDir)) {

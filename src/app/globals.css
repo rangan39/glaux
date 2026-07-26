@@ -106,6 +106,46 @@ body {
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
+.privacy-copy h2 {
+  margin-bottom: 0.75rem;
+  color: #fff;
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.privacy-copy p + p {
+  margin-top: 0.75rem;
+}
+
+.privacy-copy ul {
+  display: grid;
+  gap: 0.65rem;
+  padding-left: 1.25rem;
+  list-style: disc;
+}
+
+.privacy-copy strong {
+  color: rgb(255 255 255 / 0.9);
+  font-weight: 600;
+}
+
+.privacy-copy code {
+  border: 1px solid rgb(255 255 255 / 0.1);
+  border-radius: 0.35rem;
+  background: rgb(0 0 0 / 0.22);
+  padding: 0.1rem 0.3rem;
+  color: #ffb4a4;
+  font-size: 0.9em;
+}
+
+.privacy-copy a {
+  color: #ffb4a4;
+  text-decoration: underline;
+  text-decoration-color: rgb(255 255 255 / 0.22);
+  text-underline-offset: 0.2rem;
+}
+
 .sophon-grid {
   background-image: linear-gradient(rgb(255 255 255 / 0.035) 1px, transparent 1px), linear-gradient(90deg, rgb(255 255 255 / 0.035) 1px, transparent 1px);
   background-size: 42px 42px;

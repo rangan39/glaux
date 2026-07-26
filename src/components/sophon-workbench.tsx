@@ -676,29 +676,29 @@ export function SophonWorkbench() {
   }
 
   return (
-    <main className="relative h-svh w-full overflow-hidden bg-sophon-canvas text-foreground" data-inference={isBusy ? "active" : "idle"}>
+    <main className={cn("relative w-full bg-sophon-canvas text-foreground", selectedModel ? "h-svh overflow-hidden" : "min-h-svh")} data-inference={isBusy ? "active" : "idle"}>
       <div aria-hidden="true" className="sophon-noise pointer-events-none absolute inset-0" />
       <div aria-hidden="true" className="sophon-grid pointer-events-none absolute inset-0 opacity-45" />
-      <div className="relative flex h-svh w-full flex-col bg-transparent">
-        <header className="sophon-glass-strong relative z-20 flex h-[calc(74px+env(safe-area-inset-top))] shrink-0 items-center justify-between border-x-0 border-t-0 px-4 pt-[env(safe-area-inset-top)] sm:px-7">
-          <div className="flex min-w-0 items-center gap-3">
+      <div className={cn("relative flex w-full flex-col bg-transparent", selectedModel ? "h-svh" : "min-h-svh")}>
+        <header className="sophon-glass-strong relative z-20 flex h-[calc(106px+env(safe-area-inset-top))] shrink-0 items-center justify-between border-x-0 border-t-0 px-3 pb-8 pt-[env(safe-area-inset-top)] sm:h-[calc(74px+env(safe-area-inset-top))] sm:px-7 sm:pb-0" data-testid="workbench-header">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3" data-testid="workbench-brand">
             <div className="relative grid size-10 shrink-0 place-items-center rounded-xl border border-sophon-signal-bright/60 bg-gradient-to-br from-sophon-signal-bright to-sophon-signal text-[#210b07] shadow-[0_0_34px_rgb(255_77_46/.24)]">
               <GreekGlyph className="text-lg font-semibold">Σ</GreekGlyph>
               <span aria-hidden="true" className="absolute -right-1 -top-1 size-2 rounded-full bg-sophon-warning shadow-[0_0_12px_var(--sophon-warning)]" />
             </div>
-            <div className="min-w-0">
+            <div className={cn("min-w-0", selectedModel && "max-[359px]:hidden")}>
               <div className="flex items-center gap-2">
                 <h1 className="font-mono text-sm font-semibold tracking-[0.12em] text-white">SOPHON</h1>
                 <span className="hidden items-center rounded-md border border-sophon-signal-bright/35 bg-sophon-signal/15 px-2 py-0.5 font-mono text-[9px] font-medium uppercase tracking-widest text-[#ffb4a4] sm:inline-flex">Local AI</span>
               </div>
-              <p className="hidden font-mono text-[10px] uppercase tracking-[0.18em] text-white/60 sm:block">Private AI in your browser</p>
+              <p className="hidden font-mono text-[10px] uppercase tracking-[0.18em] text-white/60 md:block">Private AI in your browser</p>
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-            <div className={cn("sophon-glass-tile hidden items-center gap-2 rounded-full px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest sm:flex", runtimeStatus.className)}>
-              <span aria-hidden="true" className={cn("size-1.5 rounded-full", runtimeStatus.dotClassName)} />
-              {runtimeStatus.label}{downloadPercentLabel ? ` · ${downloadPercentLabel}` : null}
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-3" data-testid="workbench-actions">
+            <div className={cn("sophon-glass-tile absolute inset-x-3 bottom-2 flex min-w-0 items-center justify-center gap-2 rounded-full px-3 py-1 font-mono text-[10px] uppercase tracking-widest sm:static sm:inset-auto sm:shrink-0 sm:py-1.5", runtimeStatus.className)} data-testid="workbench-status">
+              <span aria-hidden="true" className={cn("size-1.5 shrink-0 rounded-full", runtimeStatus.dotClassName)} />
+              <span className="truncate">{runtimeStatus.label}{downloadPercentLabel ? ` · ${downloadPercentLabel}` : null}</span>
             </div>
             {generation.status === "loading" || offlinePack?.status === "importing" ? <Button aria-label={modelLoadCancelLabel} className="h-11 rounded-xl sm:h-9" onClick={cancelModelLoad} size="sm" title={modelLoadCancelLabel} type="button" variant="sophon"><Square aria-hidden="true" className="size-3 fill-current" /><span className="hidden sm:inline">{modelLoadCancelText}</span></Button> : null}
             {modelLoadPaused && selectedModel ? <Button aria-label="Resume model download" className="hidden h-11 rounded-xl sm:inline-flex sm:h-9" onClick={resumeModelLoad} size="sm" title="Resume model download" type="button" variant="sophon"><Download aria-hidden="true" /><span>Resume</span></Button> : null}
@@ -708,17 +708,17 @@ export function SophonWorkbench() {
               </Button>
             ) : null}
             <SophonAcknowledgements compact />
-            <Button aria-controls="model-library-mobile" aria-expanded={modelSidebarOpen} aria-label="Open model library" className="size-11 rounded-xl px-0 sm:w-auto sm:px-3 lg:hidden" onClick={() => setModelSidebarOpen(true)} size="sm" type="button" variant="sophon"><PanelLeft aria-hidden="true" /><span className="hidden sm:inline">Models</span></Button>
+            <Button aria-controls="model-library-mobile" aria-expanded={modelSidebarOpen} aria-label="Open model library" className="h-11 rounded-xl px-2 sm:h-8 sm:px-3 lg:hidden" data-testid="open-model-library" onClick={() => setModelSidebarOpen(true)} size="sm" type="button" variant="sophon"><PanelLeft aria-hidden="true" /><span>Models</span></Button>
           </div>
           {isModelLoading && loadingModel ? <span aria-label={`Loading ${loadingModel.label}`} aria-valuemax={100} aria-valuemin={0} aria-valuenow={downloadPercent} aria-valuetext={downloadProgress ? formatDownloadAriaText(downloadProgress) : "Preparing model delivery"} className="absolute inset-x-0 bottom-0 h-1 overflow-hidden bg-white/10" role="progressbar"><span className={cn("block h-full bg-gradient-to-r from-sophon-signal to-sophon-signal-bright shadow-[0_0_12px_var(--sophon-signal-bright)] transition-[width] duration-200 motion-reduce:transition-none", downloadPercent === undefined && "w-1/3 animate-pulse motion-reduce:animate-none")} style={downloadPercent === undefined ? undefined : { width: `${downloadPercent}%` }} /></span> : null}
         </header>
 
         <div aria-atomic="true" aria-live="polite" className="sr-only" role="status">{runtimeActivity?.label ?? ""}</div>
 
-        <div className="flex min-h-0 flex-1">
+        <div className={cn("flex flex-1", selectedModel ? "min-h-0" : "min-h-fit")}>
           <SophonModelSidebar cacheSummaries={cacheSummaries} capabilities={capabilities} deletingModelId={deletingModelId} disabled={isRunning || isPackBusy} downloadPercent={downloadPercent} downloadPercentLabel={downloadPercentLabel} importingModelId={offlinePack?.status === "validating" || offlinePack?.status === "importing" ? offlinePack.modelId : null} loadedModelId={loadedModelId} loading={isModelLoading} loadingLabel={downloadStatus} mobileOpen={modelSidebarOpen} modelId={modelId} onDelete={requestDeleteModelDownload} onImport={(targetModelId) => void requestOfflinePackImport(targetModelId)} onMobileOpenChange={setModelSidebarOpen} onSelect={requestModelSelection} recommendedModelId={RECOMMENDED_MODEL_ID} />
-          <section aria-busy={isBusy} aria-label="Conversation" className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          <section aria-busy={isBusy} aria-label="Conversation" className={cn("relative flex min-w-0 flex-1 flex-col", selectedModel && "h-full min-h-0")}>
+            <div className={cn("flex-1", selectedModel ? "min-h-0 overflow-y-auto overscroll-contain" : "overflow-visible")} data-testid="conversation-scroll">
               <div className="mx-auto flex min-w-0 w-full max-w-6xl flex-col px-4 py-6 sm:px-12 sm:py-9">
                 <div aria-live={isRunning ? "off" : "polite"} aria-relevant="additions text" className="min-w-0 space-y-6" role="log">
                   {!selectedModel ? (
@@ -946,6 +946,11 @@ function FirstRunWelcome({ cacheState, compatibility, mobileProfile, model, noti
     : cacheState === "partial"
       ? "Continue model download"
       : "Download recommended model";
+  const compactPrimaryLabel = cacheState === "cached"
+    ? "Use model"
+    : cacheState === "partial"
+      ? "Continue download"
+      : "Download model";
 
   return (
     <section aria-labelledby="first-run-title" className="mx-auto w-full max-w-3xl" data-testid="first-run-welcome">
@@ -966,11 +971,11 @@ function FirstRunWelcome({ cacheState, compatibility, mobileProfile, model, noti
             Choose one Cohere Tiny Aya model to run locally. No account is needed, and your prompts and responses are not sent to an inference server.
           </p>
 
-          <div className="mt-5 rounded-2xl border border-sophon-signal-bright/35 bg-sophon-signal/10 p-4 sm:flex sm:items-center sm:gap-5 sm:p-5">
-            <span aria-hidden="true" className="grid size-11 shrink-0 place-items-center rounded-xl border border-sophon-signal-bright/40 bg-sophon-signal/15 text-[#ffb4a4]">
+          <div className="mt-5 rounded-2xl border border-sophon-signal-bright/35 bg-sophon-signal/10 p-4 sm:grid sm:grid-cols-[auto_minmax(0,1fr)] sm:items-start sm:gap-x-5 sm:gap-y-4 sm:p-5 min-[900px]:grid-cols-[auto_minmax(0,1fr)_auto] min-[900px]:items-center" data-testid="first-run-recommended">
+            <span aria-hidden="true" className="grid size-11 shrink-0 place-items-center rounded-xl border border-sophon-signal-bright/40 bg-sophon-signal/15 text-[#ffb4a4]" data-testid="first-run-recommended-icon">
               <Languages className="size-5" />
             </span>
-            <div className="mt-3 min-w-0 flex-1 sm:mt-0">
+            <div className="mt-3 min-w-0 sm:mt-0" data-testid="first-run-recommended-details">
               <div className="flex flex-wrap items-center gap-2">
                 <h3 className="text-base font-semibold text-white">{modelName}</h3>
                 <span className="rounded-full border border-sophon-verified/30 bg-sophon-verified/10 px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-wider text-sophon-verified">{mobileProfile ? "Mobile mode" : "Recommended"}</span>
@@ -978,7 +983,8 @@ function FirstRunWelcome({ cacheState, compatibility, mobileProfile, model, noti
               <p className="mt-1 text-sm text-white/60">Best all-around choice for broad multilingual use.{mobileProfile ? " Sophon uses a 2K context and shorter responses on this device." : ""}</p>
             </div>
             <Button
-              className="mt-4 h-11 w-full shrink-0 rounded-xl bg-gradient-to-br from-sophon-signal-bright to-sophon-signal px-5 text-[#210b07] shadow-[0_0_24px_rgb(255_77_46/.2)] hover:from-[#ff8068] hover:to-sophon-signal-bright sm:mt-0 sm:w-auto"
+              aria-label={compatibility === "probing" ? "Checking browser compatibility" : compatibility === "incompatible" ? "Browser GPU unavailable" : primaryLabel}
+              className="mt-4 min-h-11 h-auto w-full shrink-0 whitespace-normal rounded-xl bg-gradient-to-br from-sophon-signal-bright to-sophon-signal px-5 py-2 text-center leading-5 text-[#210b07] shadow-[0_0_24px_rgb(255_77_46/.2)] hover:from-[#ff8068] hover:to-sophon-signal-bright sm:col-span-2 sm:mt-0 min-[900px]:col-span-1 min-[900px]:w-auto"
               data-testid="first-run-primary"
               disabled={!canStart}
               onClick={onSelectRecommended}
@@ -986,7 +992,7 @@ function FirstRunWelcome({ cacheState, compatibility, mobileProfile, model, noti
             >
               {compatibility === "probing" ? <><LoaderCircle aria-hidden="true" className="animate-spin motion-reduce:animate-none" /> Checking browser…</>
                 : compatibility === "incompatible" ? "Browser GPU unavailable"
-                  : <><Download aria-hidden="true" /> {primaryLabel}</>}
+                  : <><Download aria-hidden="true" /><span className="min-[360px]:hidden">{compactPrimaryLabel}</span><span className="hidden min-[360px]:inline">{primaryLabel}</span></>}
             </Button>
           </div>
           {compatibility === "incompatible" ? (

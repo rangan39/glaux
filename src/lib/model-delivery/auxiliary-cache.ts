@@ -1,5 +1,11 @@
 import { createSHA256 } from "hash-wasm";
-import { getArtifactKey, getArtifactUrl, type ModelAuxiliaryArtifact, type ModelDeliveryManifest } from "@/lib/model-delivery/manifest";
+import {
+  getArtifactKey,
+  getArtifactUrl,
+  getBundledArtifactUrl,
+  type ModelAuxiliaryArtifact,
+  type ModelDeliveryManifest
+} from "@/lib/model-delivery/manifest";
 import type { DeliveryProgress } from "@/lib/model-delivery/range-downloader";
 import { ModelDeliveryUnavailableError, toModelStorageError } from "@/lib/model-delivery/errors";
 
@@ -59,8 +65,9 @@ export async function ensureAuxiliaryArtifact(
     verifiedThisSession.delete(sessionKey);
   }
 
-  const response = await fetch(key, { cache: "no-store", redirect: "follow", signal });
-  if (!response.ok) throw new Error(`Model metadata request failed with HTTP ${response.status} for ${artifact.path}.`);
+  const bundledUrl = getBundledArtifactUrl(artifact);
+  const response = await fetch(bundledUrl, { cache: "no-store", redirect: "error", signal });
+  if (!response.ok) throw new Error(`Packaged model artifact request failed with HTTP ${response.status} for ${artifact.path}.`);
   if (!response.body) throw new Error("The model artifact response had no body.");
   const [verificationBody, cacheBody] = response.body.tee();
   const guardedCacheBody = signal
@@ -75,7 +82,7 @@ export async function ensureAuxiliaryArtifact(
   });
   try {
     const downloadedSha256 = await readAndHash(new Response(verificationBody), artifact.size, (loaded) => {
-      onProgress({ loaded, total: artifact.size, stage: "download", resumedBytes: 0, networkBytes: loaded });
+      onProgress({ loaded, total: artifact.size, stage: "verify", resumedBytes: 0, networkBytes: 0 });
     }, signal);
     await caching;
     if (downloadedSha256 !== artifact.sha256) {
@@ -88,7 +95,7 @@ export async function ensureAuxiliaryArtifact(
     throw error;
   }
   verifiedThisSession.add(sessionKey);
-  onProgress({ loaded: artifact.size, total: artifact.size, stage: "cache", resumedBytes: 0, networkBytes: artifact.size });
+  onProgress({ loaded: artifact.size, total: artifact.size, stage: "cache", resumedBytes: 0, networkBytes: 0 });
 }
 
 export async function deleteAuxiliaryArtifacts(model: ModelDeliveryManifest) {

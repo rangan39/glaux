@@ -49,7 +49,7 @@ Strong ETags and `If-Range` protect resumed files from remote revision drift. Do
 
 Completed segments are checkpointed after four completions or one second, whichever comes first. A checkpoint flushes OPFS before committing its completed-segment set through a strict IndexedDB transaction. This order permits bounded redundant work after a crash but never records an unflushed segment as resumable. Graceful completion and cancellation drain the outstanding batch.
 
-The allowlist covers ONNX graphs, Tiny Aya external-data files, configuration, generation settings, and tokenizer resources at immutable repository commits. Tiny Aya weights use OPFS only, avoiding a duplicate CacheStorage copy. Sophon then initializes each pipeline in local-files-only mode. Missing platform APIs, unavailable quota, absent required range support, contract violations, and integrity failures all fail closed.
+The allowlist covers ONNX graphs, Tiny Aya external-data files, configuration, generation settings, and tokenizer resources at immutable repository commits. Graphs, configuration, generation settings, and tokenizers are deduplicated into the application package and hashed before they enter Transformers.js-compatible Cache Storage. Only the two external tensor sidecars per model remain remote. Tiny Aya weights use OPFS only, avoiding a duplicate CacheStorage copy. Sophon then initializes each pipeline in local-files-only mode. Missing packaged files, unavailable platform APIs or quota, absent required range support, contract violations, and integrity failures all fail closed.
 
 Offline packs are a second byte source for this state machine, not a second cache. A worker-only parser reads the fixed preamble and at most 1 MiB of canonical JSON, validates every safe-integer range, and requires a byte-for-byte identity match with the compiled model, revision, quantization, artifact, segment-digest, license, attribution, model-card, and acceptable-use allowlist. No pack-provided URL, content type, path, script, Wasm module, or runtime option becomes authoritative.
 
@@ -87,7 +87,7 @@ Request-scoped worker events expose the same measurements during decoding withou
 
 ## Cross-origin isolation
 
-COOP/COEP headers are intentionally deferred. The experimental model path can follow Hugging Face redirects to multiple signed artifact and CDN origins, and the repository does not yet run a conformance check proving that every response in that chain satisfies COEP. Enabling cross-origin isolation before that check could block otherwise valid remote model downloads. Add the headers only alongside an end-to-end delivery test for every supported remote source.
+COOP/COEP headers are intentionally deferred. The external tensor path can follow Hugging Face redirects to multiple signed artifact and CDN origins, and the repository does not yet run a conformance check proving that every response in that chain satisfies COEP. Enabling cross-origin isolation before that check could block otherwise valid weight downloads. Add the headers only alongside an end-to-end delivery test for every supported remote source.
 
 ## Frontend delivery budget
 

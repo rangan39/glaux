@@ -12,6 +12,7 @@ dist/
 coverage/
 artifacts/models/
 artifacts/model-build-venv/
+artifacts/chrome-web-store/
 *.sophon-model
 *.sophon-model.sha256
 *.sophon-model.provenance.txt

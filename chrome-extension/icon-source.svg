@@ -6,7 +6,9 @@
       <stop offset="1" stop-color="#9d2518"/>
     </linearGradient>
   </defs>
-  <rect width="128" height="128" rx="28" fill="#090a0d"/>
-  <rect x="6" y="6" width="116" height="116" rx="24" fill="url(#background)"/>
-  <path d="M91 28H39L66 63 38 100h55V85H67l20-23-19-20h23V28Z" fill="#210b07"/>
+  <g transform="translate(16 16) scale(.75)">
+    <rect width="128" height="128" rx="28" fill="#090a0d"/>
+    <rect x="6" y="6" width="116" height="116" rx="24" fill="url(#background)"/>
+    <path d="M91 28H39L66 63 38 100h55V85H67l20-23-19-20h23V28Z" fill="#210b07"/>
+  </g>
 </svg>

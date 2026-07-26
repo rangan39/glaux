@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "description": "Behavior-defining Tiny Aya files packaged with Sophon. Only external tensor-weight files are downloaded at runtime.",
+  "artifacts": [
+    {
+      "bundledPath": "shared/model_q4f16.onnx",
+      "sourceModel": "tiny-aya-global",
+      "sourcePath": "onnx/model_q4f16.onnx",
+      "size": 362391,
+      "sha256": "0fd23a22d297e492b29cb58c2011374c6851fd2afdadd0d151859721b4faffa7"
+    },
+    {
+      "bundledPath": "shared/tokenizer.json",
+      "sourceModel": "tiny-aya-global",
+      "sourcePath": "tokenizer.json",
+      "size": 21077804,
+      "sha256": "0b0eea0844526f017ce46eed1de63cbf754145115b716193a74263bb3c93c9e3"
+    },
+    {
+      "bundledPath": "shared/tokenizer_config.json",
+      "sourceModel": "tiny-aya-global",
+      "sourcePath": "tokenizer_config.json",
+      "size": 3846,
+      "sha256": "94f0ef9258bbdb7c0b731e71036af816718c22a1a4f190a83b5028ebae4e040d"
+    },
+    {
+      "bundledPath": "tiny-aya-global/config.json",
+      "sourceModel": "tiny-aya-global",
+      "sourcePath": "config.json",
+      "size": 2318,
+      "sha256": "3da94717f60de9b404cca64311a3f0d50c6847974c5d7b61b178cc32f32cb621"
+    },
+    {
+      "bundledPath": "tiny-aya-global/generation_config.json",
+      "sourceModel": "tiny-aya-global",
+      "sourcePath": "generation_config.json",
+      "size": 136,
+      "sha256": "3a9136deba1bd98df479931c7dd92c141684994e65bfdfa97d9ddc7d9cab1319"
+    },
+    {
+      "bundledPath": "tiny-aya-regional/config.json",
+      "sourceModel": "tiny-aya-earth",
+      "sourcePath": "config.json",
+      "size": 2313,
+      "sha256": "d85da832ee269666e8c57e19f620f77cee34bb449cb6d8bcce7dfd3bd921adb0"
+    },
+    {
+      "bundledPath": "tiny-aya-regional/generation_config.json",
+      "sourceModel": "tiny-aya-earth",
+      "sourcePath": "generation_config.json",
+      "size": 131,
+      "sha256": "b4886e47fa2a2b0ef6f17019655625e0acb86b60536d08e62da007dc6326164d"
+    }
+  ]
+}

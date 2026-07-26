@@ -1,9 +1,10 @@
 {
   "manifest_version": 3,
-  "name": "Sophon — Private Cohere AI",
+  "name": "Sophon — Private Local AI",
   "short_name": "Sophon",
   "version": "0.1.0",
-  "description": "Run Cohere Labs Tiny Aya models privately with WebGPU in Chrome.",
+  "description": "Run Tiny Aya language models locally in Chrome with private, on-device WebGPU inference.",
+  "homepage_url": "https://sophon-coral.vercel.app",
   "minimum_chrome_version": "121",
   "permissions": [
     "unlimitedStorage"

@@ -48,6 +48,7 @@ npm run budget:bundle
 npm run check
 npm run build:extension
 npm run smoke:extension
+npm run audit:extension
 ```
 
 WebGPU works best in a recent browser with WebGPU enabled. Opening Sophon does not download model weights; each explicit Tiny Aya selection downloads and caches about 2.35 GB.
@@ -105,11 +106,11 @@ Tiny Aya is an open-weights research release governed by CC BY-NC 4.0 and the Co
 
 ## Model delivery and caching
 
-Selecting a model starts a pinned Hugging Face download inside the browser worker. Tiny Aya weights download in 64 MiB ranges through a bounded adaptive queue. Capable desktop Chromium devices warm up with six requests and can probe up to twelve; constrained Chromium devices start at four and cap at eight. Other desktop browsers start at four and can probe up to twelve, while phones start at two and cap at four to reduce memory and radio pressure. Chromium also verifies cached model segments with up to four workers on capable desktops. Every range is streamed directly into the Origin Private File System and simultaneously checked against a pinned segment SHA-256 digest. A corrupt response retries only its range, and a fresh download does not need a final OPFS reread. Resumed downloads retain the complete ordered SHA-256 path as a compatibility fallback and overlap it with remaining network work.
+Selecting a model starts a pinned Hugging Face download of external tensor weights inside the browser worker. The ONNX graph, model configuration, generation configuration, and tokenizer are packaged with Sophon, verified against their compiled size and SHA-256, and seeded into local Cache Storage. Tiny Aya weights download in 64 MiB ranges through a bounded adaptive queue. Capable desktop Chromium devices warm up with six requests and can probe up to twelve; constrained Chromium devices start at four and cap at eight. Other desktop browsers start at four and can probe up to twelve, while phones start at two and cap at four to reduce memory and radio pressure. Chromium also verifies cached model segments with up to four workers on capable desktops. Every range is streamed directly into the Origin Private File System and simultaneously checked against a pinned segment SHA-256 digest. A corrupt response retries only its range, and a fresh download does not need a final OPFS reread. Resumed downloads retain the complete ordered SHA-256 path as a compatibility fallback and overlap it with remaining network work.
 
 Completed ranges become resumable in batches of four or after one second, whichever comes first. Every checkpoint flushes OPFS before its strict IndexedDB commit, so a crash can cause bounded redundant downloading but cannot authorize bytes that were not durably written. A reload or model switch can therefore reuse durable ranges instead of restarting a multi-gigabyte file. Set `NEXT_PUBLIC_SOPHON_ADAPTIVE_DOWNLOADS=0` before building to disable upward probing while retaining the device tier's conservative starting point.
 
-Verified OPFS `File` objects are handed to Transformers.js as ONNX external data, so weights are not duplicated in CacheStorage. The graph, configuration, generation settings, and tokenizer files are also pinned by exact size and SHA-256, verified by Sophon, and then stored under Transformers.js-compatible CacheStorage keys. A cached artifact is rehashed once per browser-worker session before runtime use.
+Verified OPFS `File` objects are handed to Transformers.js as ONNX external data, so weights are not duplicated in CacheStorage. Packaged graph, configuration, generation settings, and tokenizer files are pinned by exact size and SHA-256, verified by Sophon, and stored under Transformers.js-compatible CacheStorage keys. They are never fetched from a remote model host. A cached artifact is rehashed once per browser-worker session before runtime use.
 
 Delivery fails closed when OPFS, synchronous worker access, CacheStorage, strong validators, or HTTP ranges are unavailable; there is no unverified multi-gigabyte fallback. Sophon checks the browser's available storage before starting and surfaces quota failures explicitly. Model selection also makes a best-effort persistent-storage request, while the browser retains final control over quota and eviction.
 

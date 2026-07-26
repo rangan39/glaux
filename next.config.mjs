@@ -16,6 +16,7 @@ const nextConfig = {
   output: chromeExtensionBuild ? "export" : "standalone",
   ...(chromeExtensionBuild ? {
     distDir: ".next-extension",
+    generateBuildId: async () => "sophon-extension",
     images: { unoptimized: true }
   } : {
     outputFileTracingRoot: rootDir

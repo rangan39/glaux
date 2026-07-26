@@ -7,10 +7,10 @@ register("./alias-loader.mjs", import.meta.url);
 
 const { ensureAuxiliaryArtifact, TRANSFORMERS_CACHE_NAME } = await import("../src/lib/model-delivery/auxiliary-cache.ts");
 
-test("rejects a corrupt cached auxiliary file and replaces it with pinned bytes", async () => {
+test("rejects a corrupt cached auxiliary file and replaces it with pinned packaged bytes", async () => {
   const expected = new TextEncoder().encode("verified tokenizer metadata");
   const corrupt = expected.map((value) => value ^ 0xff);
-  const artifact = { path: "tokenizer_config.json", size: expected.length, sha256: digest(expected) };
+  const artifact = { path: "tokenizer_config.json", bundledPath: "fixture/tokenizer_config.json", size: expected.length, sha256: digest(expected) };
   const model = {
     modelId: "fixture-model",
     repo: "fixture/repo",
@@ -32,7 +32,7 @@ test("rejects a corrupt cached auxiliary file and replaces it with pinned bytes"
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url) => {
     requests += 1;
-    assert.equal(String(url), key);
+    assert.equal(String(url), `/model-runtime/${artifact.bundledPath}`);
     return new Response(expected, { headers: { "content-length": String(expected.length), "content-type": "application/json" } });
   };
   const progress = [];
@@ -46,13 +46,13 @@ test("rejects a corrupt cached auxiliary file and replaces it with pinned bytes"
   assert.equal(requests, 1);
   assert.deepEqual(new Uint8Array(await (await cache.match(key)).arrayBuffer()), expected);
   assert.ok(progress.some(({ stage }) => stage === "verify"));
-  assert.ok(progress.some(({ stage }) => stage === "download"));
+  assert.ok(progress.every(({ networkBytes }) => networkBytes === 0));
   assert.equal(progress.at(-1)?.stage, "cache");
 });
 
 test("cancels both verification and the streamed cache write", async () => {
   const expected = Uint8Array.from({ length: 256 }, (_, index) => index);
-  const artifact = { path: "onnx/model_q4f16.onnx", size: expected.length, sha256: digest(expected) };
+  const artifact = { path: "onnx/model_q4f16.onnx", bundledPath: "fixture/model_q4f16.onnx", size: expected.length, sha256: digest(expected) };
   const model = {
     modelId: "cancel-model",
     repo: "fixture/repo",

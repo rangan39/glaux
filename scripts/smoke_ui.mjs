@@ -509,8 +509,12 @@ try {
   const interfaceModeToggle = activePage.getByTestId("interface-mode-toggle");
   await assertVisible(interfaceModeToggle, "interface-mode toggle");
   assert.equal(await interfaceModeToggle.getAttribute("data-mode"), "chat", "Chat mode must be the default.");
+  assert.equal(await interfaceModeToggle.getAttribute("aria-label"), "Switch to developer mode. Chat mode is active");
+  assert.equal((await interfaceModeToggle.textContent())?.trim(), "Developer", "Chat mode must offer Developer mode.");
   await interfaceModeToggle.click();
   assert.equal(await interfaceModeToggle.getAttribute("data-mode"), "developer", "The interface must switch to Developer mode.");
+  assert.equal(await interfaceModeToggle.getAttribute("aria-label"), "Switch to chat mode. Developer mode is active");
+  assert.equal((await interfaceModeToggle.textContent())?.trim(), "Chat", "Developer mode must offer Chat mode.");
   await assertVisible(assistantFixtureMessage.getByText("WebGPU · 2/3 → 2 tokens · 5.0 tokens/s · first token 120 ms · 1 earlier tokens omitted", { exact: true }), "plain-language response metrics");
   await userFixtureMessage.getByRole("button", { name: "Inspect 3 message tokens", exact: true }).click();
   await assistantFixtureMessage.getByRole("button", { name: "Inspect 2 message tokens", exact: true }).click();

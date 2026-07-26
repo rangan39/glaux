@@ -226,6 +226,8 @@ async function assertInterfaceModes(page, assistant, viewport) {
   const inspectors = page.locator('button[aria-label^="Inspect "][aria-label$=" message tokens"]');
   await assertVisible(modeToggle, `${viewport.name} interface-mode toggle`);
   assert.equal(await modeToggle.getAttribute("data-mode"), "chat", `${viewport.name} must default to Chat mode.`);
+  assert.equal(await modeToggle.getAttribute("aria-label"), "Switch to developer mode. Chat mode is active");
+  assert.equal((await modeToggle.textContent())?.trim(), "Developer", `${viewport.name} Chat mode must offer Developer mode.`);
   assert.equal(await inspectors.count(), 0, `${viewport.name} Chat mode must hide token inspection controls.`);
   assert.equal(await assistant.getByText(/8\.4 tokens\/s/).count(), 0, `${viewport.name} Chat mode must hide response metrics.`);
   await assertVisible(
@@ -235,6 +237,8 @@ async function assertInterfaceModes(page, assistant, viewport) {
 
   await modeToggle.click();
   assert.equal(await modeToggle.getAttribute("data-mode"), "developer", `${viewport.name} must switch to Developer mode.`);
+  assert.equal(await modeToggle.getAttribute("aria-label"), "Switch to chat mode. Developer mode is active");
+  assert.equal((await modeToggle.textContent())?.trim(), "Chat", `${viewport.name} Developer mode must offer Chat mode.`);
   assert.equal(await inspectors.count(), 2, `${viewport.name} Developer mode must expose both token inspectors.`);
   await assertVisible(assistant.getByText(/8\.4 tokens\/s/), `${viewport.name} Developer mode generation metrics`);
 

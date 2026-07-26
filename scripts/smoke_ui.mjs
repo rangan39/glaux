@@ -35,7 +35,7 @@ try {
   const modelRadios = modelLibrary.getByRole("radio");
   const sendButton = activePage.getByRole("button", { name: "Send message", exact: true });
   const resetButton = activePage.getByRole("button", { name: "Reset conversation", exact: true });
-  const attribution = modelLibrary.getByRole("button", { name: "Made in Toronto by Rangan39", exact: true });
+  const aboutTrigger = activePage.getByRole("button", { name: "About Sophon", exact: true });
   const storageStatus = activePage.getByTestId("browser-storage");
   await assertVisible(heading, "Sophon heading");
   const firstRunWelcome = activePage.getByTestId("first-run-welcome");
@@ -44,28 +44,35 @@ try {
   await assertVisible(firstRunWelcome.getByRole("heading", { name: "Private AI, right in your browser", exact: true }), "first-run heading");
   assert.equal(await textarea.count(), 0, "The composer must stay hidden until the user chooses a model.");
   await assertVisible(modelLibrary, "desktop model library");
-  await assertVisible(attribution, "Toronto attribution footer");
-  assert.match((await attribution.textContent()) ?? "", /Made in Toronto by Rangan39/i);
-  assert.equal(await attribution.getAttribute("aria-haspopup"), "dialog");
-  await attribution.click();
-  const acknowledgements = activePage.getByRole("dialog", { name: "Acknowledgements", exact: true });
-  await assertVisible(acknowledgements, "acknowledgements dialog");
+  await assertVisible(aboutTrigger, "stable About Sophon control");
+  assert.equal(await aboutTrigger.getAttribute("aria-haspopup"), "dialog");
+  await aboutTrigger.click();
+  const acknowledgements = activePage.getByRole("dialog", { name: "About Sophon", exact: true });
+  await assertVisible(acknowledgements, "About Sophon dialog");
   const acknowledgementsPanel = acknowledgements.getByTestId("acknowledgements-panel");
   assert.equal(await acknowledgementsPanel.evaluate((element) => getComputedStyle(element).animationName), "sophon-dialog-in", "Acknowledgements should enter with the restrained panel transition.");
   assert.equal(await acknowledgementsPanel.evaluate((element) => getComputedStyle(element).animationDuration), "0.12s", "Acknowledgements transition should remain snappy.");
+  const trustSupportLinks = acknowledgements.getByTestId("trust-support-links");
   const technicalAcknowledgements = acknowledgements.getByTestId("acknowledgements-technical");
   const communityAcknowledgements = acknowledgements.getByTestId("acknowledgements-community");
+  await assertVisible(acknowledgements.getByRole("heading", { name: "Privacy, licensing & support", exact: true }), "privacy, licensing, and support heading");
   await assertVisible(acknowledgements.getByRole("heading", { name: "Technical", exact: true }), "technical acknowledgements heading");
   await assertVisible(acknowledgements.getByRole("heading", { name: "Community", exact: true }), "community acknowledgements heading");
+  assert.equal(await trustSupportLinks.getByRole("link").count(), 4, "About Sophon must expose privacy, license, AUP, and support links.");
+  assert.equal(await trustSupportLinks.getByRole("link", { name: /Privacy policy.*Local data and network requests/ }).getAttribute("href"), "/privacy");
+  assert.equal(await trustSupportLinks.getByRole("link", { name: /CC BY-NC 4\.0.*opens in a new tab/ }).getAttribute("href"), "https://creativecommons.org/licenses/by-nc/4.0/");
+  assert.equal(await trustSupportLinks.getByRole("link", { name: /Cohere Labs AUP.*opens in a new tab/ }).getAttribute("href"), "https://docs.cohere.com/docs/cohere-labs-acceptable-use-policy");
+  assert.equal(await trustSupportLinks.getByRole("link", { name: /Project support.*opens in a new tab/ }).getAttribute("href"), "https://github.com/rangan39/sophon/issues");
+  assert.equal(await trustSupportLinks.locator('a[target="_blank"]').count(), 3, "Every external About link must open in a new tab.");
   assert.equal(await technicalAcknowledgements.locator("li").count(), 4, "Technical acknowledgements must include all four model/runtime credits.");
   assert.equal(await communityAcknowledgements.locator("li").count(), 3, "Community acknowledgements must include all three organizations.");
-  assert.equal(await communityAcknowledgements.getByRole("link", { name: "Radical Ventures", exact: true }).getAttribute("href"), "https://radical.vc/");
-  assert.equal(await communityAcknowledgements.getByRole("link", { name: "NEXT Canada", exact: true }).getAttribute("href"), "https://www.nextcanada.com/");
-  assert.equal(await communityAcknowledgements.getByRole("link", { name: "Trajectory Labs", exact: true }).getAttribute("href"), "https://www.trajectorylabs.org/");
-  assert.equal(await acknowledgements.getByRole("link", { name: "rangan39", exact: true }).getAttribute("href"), "https://github.com/rangan39");
+  assert.equal(await communityAcknowledgements.getByRole("link", { name: /Radical Ventures.*opens in a new tab/ }).getAttribute("href"), "https://radical.vc/");
+  assert.equal(await communityAcknowledgements.getByRole("link", { name: /NEXT Canada.*opens in a new tab/ }).getAttribute("href"), "https://www.nextcanada.com/");
+  assert.equal(await communityAcknowledgements.getByRole("link", { name: /Trajectory Labs.*opens in a new tab/ }).getAttribute("href"), "https://www.trajectorylabs.org/");
+  assert.equal(await acknowledgements.getByRole("link", { name: /rangan39.*opens in a new tab/ }).getAttribute("href"), "https://github.com/rangan39");
   await activePage.keyboard.press("Escape");
   await acknowledgements.waitFor({ state: "hidden", timeout: timeoutMs });
-  assert.equal(await attribution.evaluate((element) => document.activeElement === element), true, "Closing acknowledgements must restore trigger focus.");
+  assert.equal(await aboutTrigger.evaluate((element) => document.activeElement === element), true, "Closing About Sophon must restore trigger focus.");
   await activePage.waitForFunction(() => {
     const radios = document.querySelectorAll('[data-model-surface="desktop"] input[type="radio"]');
     return radios.length === 4 && [...radios].every((radio) => !/(Checking browser GPU|Downloading)/.test(radio.getAttribute("aria-label") ?? ""));
@@ -82,10 +89,68 @@ try {
   assert.ok(models.some((model) => !model.disabled), "At least one model must be compatible with the smoke-test browser.");
   assert.ok(models.every((model) => !model.checked), "No model should be selected before an explicit user choice.");
   await assertModelLibraryLayout(modelLibrary, { width: 1440, height: 900 }, "desktop");
+  await assertTypographyRoles(modelLibrary, "desktop model library");
+  const firstRunViewports = [
+    { width: 320, height: 568 },
+    { width: 390, height: 844 },
+    { width: 716, height: 987 },
+    { width: 768, height: 1024 },
+    { width: 1440, height: 900 }
+  ];
+  for (const viewport of firstRunViewports) {
+    const { width } = viewport;
+    await activePage.setViewportSize(viewport);
+    await assertFirstRunLayout(activePage, viewport);
+    await assertTypographyRoles(activePage, `${width}px first-run interface`);
+    const trustNav = activePage.getByTestId("first-run-trust-nav");
+    const privacyLink = trustNav.getByRole("link", { name: "Privacy", exact: true });
+    const aboutButton = trustNav.getByRole("button", { name: "About & licenses", exact: true });
+    const supportLink = trustNav.getByRole("link", { name: /Support.*opens in a new tab/ });
+    await assertVisible(trustNav, `${width}px first-run trust navigation`);
+    await privacyLink.scrollIntoViewIfNeeded();
+    await assertWithinViewport(privacyLink, width, `${width}px first-run privacy link`);
+    await assertWithinViewport(aboutButton, width, `${width}px first-run About and licenses control`);
+    await assertWithinViewport(supportLink, width, `${width}px first-run support link`);
+    assert.equal(await privacyLink.getAttribute("href"), "/privacy");
+    assert.equal(await supportLink.getAttribute("href"), "https://github.com/rangan39/sophon/issues");
+    assert.equal(await supportLink.getAttribute("target"), "_blank");
+    for (const [control, label] of [[privacyLink, "privacy"], [aboutButton, "About and licenses"], [supportLink, "support"]]) {
+      const box = await control.boundingBox();
+      assert.ok(box && box.width >= 24 && box.height >= 24, `${width}px first-run ${label} target is too small to operate: ${JSON.stringify(box)}`);
+      await control.focus();
+      assert.equal(await control.evaluate((element) => document.activeElement === element), true, `${width}px first-run ${label} control must accept keyboard focus.`);
+    }
+    await aboutButton.click();
+    const responsiveAbout = activePage.getByRole("dialog", { name: "About Sophon", exact: true });
+    await assertVisible(responsiveAbout, `${width}px About Sophon dialog`);
+    await assertWithinViewport(responsiveAbout.getByTestId("acknowledgements-panel"), width, `${width}px About Sophon panel`);
+    await responsiveAbout.getByTestId("acknowledgements-panel").evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)));
+    await assertTypographyRoles(responsiveAbout, `${width}px About Sophon dialog`);
+    await activePage.keyboard.press("Escape");
+    await responsiveAbout.waitFor({ state: "hidden", timeout: timeoutMs });
+    assert.equal(await aboutButton.evaluate((element) => document.activeElement === element), true, `${width}px About dialog must restore first-run trigger focus.`);
+    const responsiveWidths = await activePage.evaluate(() => ({
+      body: document.body.scrollWidth,
+      document: document.documentElement.scrollWidth,
+      viewport: window.innerWidth
+    }));
+    assert.ok(Math.max(responsiveWidths.body, responsiveWidths.document) <= responsiveWidths.viewport + 1, `${width}px first-run layout overflows horizontally: ${JSON.stringify(responsiveWidths)}`);
+  }
+  const hostedPrivacyPage = await desktopContext.newPage();
+  await hostedPrivacyPage.goto(new URL("/privacy", url).toString(), { waitUntil: "domcontentloaded" });
+  await hostedPrivacyPage.getByRole("heading", { name: "Privacy Policy", exact: true }).waitFor({ state: "visible", timeout: timeoutMs });
+  assert.equal(await hostedPrivacyPage.getByRole("link", { name: "← Back to Sophon", exact: true }).getAttribute("href"), "/");
+  assert.equal(await hostedPrivacyPage.getByRole("link", { name: /public support tracker.*opens in a new tab/ }).getAttribute("target"), "_blank");
+  await hostedPrivacyPage.close();
+  console.log("✓ First-run header, recommendation, CTA, and single-scroll reflow pass from 320px through desktop");
+  await activePage.setViewportSize({ width: 1440, height: 900 });
   await assertVisible(firstRunPrimary, "first-run recommended-model action");
   assert.equal(await firstRunPrimary.isEnabled(), true, "The recommended model action must enable on a compatible browser.");
   assert.match((await firstRunPrimary.textContent()) ?? "", /Download recommended model/);
   await firstRunPrimary.click();
+  const firstRunDownloadConfirmation = activePage.getByRole("dialog", { name: "Download Tiny Aya Global 3.35B?", exact: true });
+  await assertVisible(firstRunDownloadConfirmation, "first-run model download confirmation");
+  await firstRunDownloadConfirmation.getByRole("button", { name: "Download model", exact: true }).click();
   await assertVisible(textarea, "labeled prompt textarea");
   assert.equal(await textarea.getAttribute("placeholder"), "Write a prompt while the model gets ready...");
   await activePage.locator("#prompt-error").waitFor({ state: "visible", timeout: timeoutMs });
@@ -175,6 +240,7 @@ try {
   assert.equal(await mobileDialog.getByRole("radio").count(), 4, "Mobile sheet must expose the same four models.");
   await assertWithinViewport(activePage.getByTestId("mobile-model-sheet"), 320, "mobile model-library sheet");
   await assertModelLibraryLayout(mobileDialog, { width: 320, height: 568 }, "mobile");
+  await assertTypographyRoles(mobileDialog, "320px mobile model library");
   await activePage.setViewportSize({ width: 390, height: 844 });
   await assertModelLibraryLayout(mobileDialog, { width: 390, height: 844 }, "mobile");
   await activePage.setViewportSize({ width: 716, height: 900 });
@@ -191,20 +257,16 @@ try {
   assert.ok(mobileSpecsBox.width <= 281, `Mobile InfoHint must stay within its 280px maximum width: ${JSON.stringify(mobileSpecsBox)}`);
   await mobileSpecsHint.click();
   await mobileSpecsContent.waitFor({ state: "hidden", timeout: timeoutMs });
-  const mobileAttribution = mobileDialog.getByRole("button", { name: "Made in Toronto by Rangan39", exact: true });
-  await assertVisible(mobileAttribution, "mobile Toronto acknowledgement link");
-  await assertWithinViewport(mobileAttribution, 320, "mobile Toronto acknowledgement link");
-  await mobileAttribution.click();
-  await assertWithinViewport(activePage.getByTestId("acknowledgements-panel"), 320, "mobile acknowledgements dialog");
-  await activePage.keyboard.press("Escape");
-  await acknowledgements.waitFor({ state: "hidden", timeout: timeoutMs });
-  assert.equal(await mobileAttribution.evaluate((element) => document.activeElement === element), true, "Closing mobile acknowledgements must restore trigger focus.");
-  await assertVisible(mobileDialog, "mobile model-library sheet after acknowledgements");
-  assert.equal(await mobileTrigger.getAttribute("aria-expanded"), "true", "Closing acknowledgements must keep the mobile model library open.");
   await activePage.keyboard.press("Escape");
   await mobileDialog.waitFor({ state: "hidden", timeout: timeoutMs });
   assert.equal(await mobileTrigger.getAttribute("aria-expanded"), "false");
   assert.equal(await mobileTrigger.evaluate((element) => document.activeElement === element), true, "Closing the mobile sheet must restore trigger focus.");
+  await assertWithinViewport(aboutTrigger, 320, "mobile About Sophon control");
+  await aboutTrigger.click();
+  await assertWithinViewport(activePage.getByTestId("acknowledgements-panel"), 320, "mobile About Sophon dialog");
+  await activePage.keyboard.press("Escape");
+  await acknowledgements.waitFor({ state: "hidden", timeout: timeoutMs });
+  assert.equal(await aboutTrigger.evaluate((element) => document.activeElement === element), true, "Closing mobile About Sophon must restore trigger focus.");
   await assertWithinViewport(storageStatus, 320, "mobile browser storage status");
   const widths = await activePage.evaluate(() => ({
     body: document.body.scrollWidth,
@@ -281,11 +343,12 @@ try {
     return radios.some((radio) => radio.value === "tiny-aya-global" && radio.getAttribute("aria-label")?.endsWith("Ready to download.") && !radio.disabled) && radios.every((radio) => !radio.checked);
   }, undefined, { timeout: timeoutMs });
   await preloadGlobal.click();
+  await activePage.getByRole("dialog", { name: "Download Tiny Aya Global 3.35B?", exact: true }).getByRole("button", { name: "Download model", exact: true }).click();
   const requestedModelUrl = await Promise.race([modelRequest, new Promise((_, reject) => { modelRequestTimeout = setTimeout(() => reject(new Error("Tiny Aya preload did not request its pinned repository.")), timeoutMs); })]);
   clearTimeout(modelRequestTimeout);
   assert.match(requestedModelUrl, /7fff1be9627e40f0d89c33f406882bdafb56ec90/);
   const loadingSelection = await preloadGlobal.getByRole("radio").evaluate((radio) => ({ checked: radio.checked, label: radio.getAttribute("aria-label"), value: radio.value }));
-  assert.deepEqual(loadingSelection, { checked: true, label: "Tiny Aya Global 3.35B · non-commercial. ~2.35 GB download. Downloading.", value: "tiny-aya-global" });
+  assert.deepEqual(loadingSelection, { checked: true, label: "Choose Tiny Aya Global 3.35B · non-commercial. Best all-around · 70+ languages. ~2.35 GB download. Downloading.", value: "tiny-aya-global" });
   const progressBar = activePage.getByRole("progressbar", { name: "Loading Tiny Aya Global 3.35B · non-commercial", exact: true });
   await assertVisible(progressBar, "model download progress bar");
   assert.equal(await progressBar.getAttribute("aria-valuenow"), null, "Progress must remain indeterminate until byte totals arrive.");
@@ -386,6 +449,7 @@ try {
   await activePage.waitForFunction(() => document.querySelector('[data-model-surface="desktop"] input[value="tiny-aya-global"]')?.getAttribute("aria-label")?.endsWith("Ready to download."), undefined, { timeout: timeoutMs });
   assert.equal((await activePage.evaluate(() => window.__sophonWorkerRequests)).some((request) => request.type === "preload"), false, "Capability probing must not preload a model.");
   await progressGlobal.click();
+  await activePage.getByRole("dialog", { name: "Download Tiny Aya Global 3.35B?", exact: true }).getByRole("button", { name: "Download model", exact: true }).click();
   await activePage.waitForFunction(() => window.__storagePersistCalls === 1, undefined, { timeout: timeoutMs });
   await activePage.waitForFunction(() => window.__sophonWorkerRequests?.some((request) => request.type === "preload" && request.modelId === "tiny-aya-global"), undefined, { timeout: timeoutMs });
   const determinateProgress = activePage.getByRole("progressbar", { name: "Loading Tiny Aya Global 3.35B · non-commercial", exact: true });
@@ -393,27 +457,30 @@ try {
   assert.equal(await determinateProgress.getAttribute("aria-valuenow"), "25");
   assert.equal(await determinateProgress.getAttribute("aria-valuetext"), "25 B of 100 B loaded");
   await activePage.evaluate(() => window.__setDownloadProgress({ loaded: 50, total: 100, stage: "resume", resumedBytes: 25, networkBytes: 25, bytesPerSecond: 20, etaMs: 2500 }));
-  await activePage.waitForFunction(() => document.querySelector("#prompt-help")?.textContent?.trim() === "Resuming model · 50%", undefined, { timeout: timeoutMs });
+  await activePage.waitForFunction(() => document.querySelector('[role="progressbar"]')?.getAttribute("aria-valuenow") === "50", undefined, { timeout: timeoutMs });
+  assert.match((await activePage.locator("#prompt-help").textContent())?.trim() ?? "", /^Resuming model · /);
   assert.equal(await determinateProgress.getAttribute("aria-valuetext"), "50 B of 100 B loaded, including 25 B resumed");
   assert.match(await progressGlobal.getByRole("radio").getAttribute("aria-label") ?? "", /\. Resuming 50%\.$/);
   const pauseDownload = activePage.getByRole("button", { name: "Pause model download", exact: true });
   await assertVisible(pauseDownload, "model download pause control");
   await pauseDownload.click();
   await determinateProgress.waitFor({ state: "detached", timeout: timeoutMs });
-  await activePage.getByText("Tiny Aya Global 3.35B · non-commercial download paused. Verified chunks were kept and will resume when you select it again.", { exact: true }).waitFor({ state: "visible", timeout: timeoutMs });
+  await activePage.getByText("Model download paused", { exact: true }).waitFor({ state: "visible", timeout: timeoutMs });
   await activePage.waitForFunction(() => window.__sophonWorkerRequests?.some((request) => request.type === "cancel" && request.targetRequestId), undefined, { timeout: timeoutMs });
-  assert.equal(await progressGlobal.getByRole("radio").isChecked(), false, "Pausing must clear selection so choosing the model resumes it.");
+  assert.equal(await progressGlobal.getByRole("radio").isChecked(), true, "Pausing must retain the selected model and the user's draft.");
   const partialDelete = activePage.getByRole("button", { name: "Delete downloaded files for Tiny Aya Global 3.35B · non-commercial", exact: true });
   await assertVisible(partialDelete, "partial model deletion control");
   assert.match(await progressGlobal.getByRole("radio").getAttribute("aria-label") ?? "", /64 MB saved/);
-  await progressGlobal.click();
+  await activePage.getByRole("button", { name: "Resume model download", exact: true }).click();
   await activePage.waitForFunction(() => window.__sophonWorkerRequests?.filter((request) => request.type === "preload" && request.modelId === "tiny-aya-global").length === 2, undefined, { timeout: timeoutMs });
   await assertVisible(determinateProgress, "resumed model download progress bar");
   await activePage.evaluate(() => window.__setDownloadProgress({ loaded: 80, total: 100, stage: "verify" }));
-  await activePage.waitForFunction(() => document.querySelector("#prompt-help")?.textContent?.trim() === "Verifying model · 80%", undefined, { timeout: timeoutMs });
+  await activePage.waitForFunction(() => document.querySelector('[role="progressbar"]')?.getAttribute("aria-valuenow") === "80", undefined, { timeout: timeoutMs });
+  assert.match((await activePage.locator("#prompt-help").textContent())?.trim() ?? "", /^Verifying model · /);
   assert.equal(await determinateProgress.getAttribute("aria-valuetext"), "80 B of 100 B verified");
   await activePage.evaluate(() => window.__setDownloadProgress({ loaded: 100, total: 100, stage: "cache" }));
-  await activePage.waitForFunction(() => document.querySelector("#prompt-help")?.textContent?.trim() === "Loading downloaded model · 100%", undefined, { timeout: timeoutMs });
+  await activePage.waitForFunction(() => document.querySelector('[role="progressbar"]')?.getAttribute("aria-valuenow") === "100", undefined, { timeout: timeoutMs });
+  assert.match((await activePage.locator("#prompt-help").textContent())?.trim() ?? "", /^Loading downloaded model · /);
   assert.equal(await determinateProgress.getAttribute("aria-valuetext"), "100 B of 100 B loaded from browser storage");
   assert.equal((await activePage.evaluate(() => window.__sophonWorkerRequests)).some((request) => request.type === "generate"), false);
   await activePage.evaluate(() => window.__finishPreload());
@@ -482,6 +549,7 @@ try {
   await fallbackPrimary.waitFor({ state: "visible", timeout: timeoutMs });
   await activePage.waitForFunction(() => document.querySelector('[data-testid="first-run-primary"]')?.disabled === false, undefined, { timeout: timeoutMs });
   await fallbackPrimary.click();
+  await activePage.getByRole("dialog", { name: "Download Tiny Aya Global 3.35B?", exact: true }).getByRole("button", { name: "Download model", exact: true }).click();
   const fallbackStorage = activePage.getByTestId("browser-storage");
   await assertVisible(fallbackStorage, "unavailable browser storage status");
   await activePage.waitForFunction(() => document.querySelector('[data-testid="browser-storage"]')?.getAttribute("data-state") === "unavailable", undefined, { timeout: timeoutMs });
@@ -579,6 +647,154 @@ async function assertBoxWithinViewport(locator, viewport, label) {
     `${label} is outside the ${viewport.width}×${viewport.height}px viewport: ${JSON.stringify(box)}`
   );
   return box;
+}
+
+async function assertTypographyRoles(root, label) {
+  const roles = await root.locator('[data-typography-role]:visible').evaluateAll((elements) => elements.map((element) => {
+    const style = getComputedStyle(element);
+    const rgbaAlpha = style.color.match(/^rgba?\([^,]+,[^,]+,[^,]+(?:,\s*([0-9.]+))?\)$/)?.[1];
+    const modernAlpha = style.color.match(/\/\s*([0-9.]+)\s*\)$/)?.[1];
+    let effectiveOpacity = 1;
+    for (let current = element; current; current = current.parentElement) {
+      effectiveOpacity *= Number.parseFloat(getComputedStyle(current).opacity);
+    }
+    return {
+      color: style.color,
+      colorAlpha: Number(rgbaAlpha ?? modernAlpha ?? 1),
+      effectiveOpacity,
+      fontSize: Number.parseFloat(style.fontSize),
+      role: element.getAttribute("data-typography-role"),
+      text: element.innerText.trim().slice(0, 100)
+    };
+  }));
+  assert.ok(roles.length > 0, `${label} must expose semantic typography roles.`);
+  for (const role of roles) {
+    const minimum = role.role === "decorative" ? 11 : role.role === "body" ? 14 : 12;
+    assert.ok(role.fontSize >= minimum, `${label} ${role.role} copy is ${role.fontSize}px, below its ${minimum}px floor: ${JSON.stringify(role)}`);
+    assert.equal(role.colorAlpha, 1, `${label} ${role.role} copy uses a translucent foreground: ${JSON.stringify(role)}`);
+    assert.equal(role.effectiveOpacity, 1, `${label} ${role.role} copy is dimmed by component opacity: ${JSON.stringify(role)}`);
+  }
+}
+
+async function assertFirstRunLayout(page, viewport) {
+  const layout = await page.evaluate(() => {
+    const measure = (element) => {
+      if (!element) return null;
+      const box = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return {
+        bottom: box.bottom,
+        clientHeight: element.clientHeight,
+        clientWidth: element.clientWidth,
+        display: style.display,
+        height: box.height,
+        left: box.left,
+        overflowY: style.overflowY,
+        right: box.right,
+        scrollHeight: element.scrollHeight,
+        scrollWidth: element.scrollWidth,
+        top: box.top,
+        visibility: style.visibility,
+        width: box.width
+      };
+    };
+    const select = (selector) => document.querySelector(selector);
+    const header = select('[data-testid="workbench-header"]');
+    const brand = select('[data-testid="workbench-brand"]');
+    const actions = select('[data-testid="workbench-actions"]');
+    const status = select('[data-testid="workbench-status"]');
+    const about = select('button[aria-label="About Sophon"]');
+    const models = select('[data-testid="open-model-library"]');
+    const recommended = select('[data-testid="first-run-recommended"]');
+    const icon = select('[data-testid="first-run-recommended-icon"]');
+    const details = select('[data-testid="first-run-recommended-details"]');
+    const primary = select('[data-testid="first-run-primary"]');
+    const conversationScroll = select('[data-testid="conversation-scroll"]');
+    const footer = select('[data-testid="first-run-trust-nav"]');
+    const scrollableAncestors = [];
+    for (let ancestor = footer?.parentElement; ancestor && ancestor !== document.body; ancestor = ancestor.parentElement) {
+      const overflowY = getComputedStyle(ancestor).overflowY;
+      if ((overflowY === "auto" || overflowY === "scroll") && ancestor.scrollHeight > ancestor.clientHeight + 1) {
+        scrollableAncestors.push({
+          className: typeof ancestor.className === "string" ? ancestor.className : "",
+          clientHeight: ancestor.clientHeight,
+          scrollHeight: ancestor.scrollHeight
+        });
+      }
+    }
+    return {
+      about: measure(about),
+      actions: measure(actions),
+      brand: measure(brand),
+      conversationScroll: measure(conversationScroll),
+      details: measure(details),
+      document: {
+        clientHeight: document.documentElement.clientHeight,
+        clientWidth: document.documentElement.clientWidth,
+        scrollHeight: document.documentElement.scrollHeight,
+        scrollWidth: document.documentElement.scrollWidth
+      },
+      footer: measure(footer),
+      header: measure(header),
+      icon: measure(icon),
+      main: measure(document.querySelector("main")),
+      models: measure(models),
+      modelsText: models?.innerText.trim() ?? "",
+      primary: measure(primary),
+      primaryAccessibleName: primary?.getAttribute("aria-label") ?? "",
+      recommended: measure(recommended),
+      scrollableAncestors,
+      status: measure(status),
+      statusText: status?.innerText.trim() ?? ""
+    };
+  });
+
+  const isRendered = (box) => box && box.display !== "none" && box.visibility !== "hidden" && box.width > 0 && box.height > 0;
+  const isInsideHorizontally = (inner, outer) => inner.left >= outer.left - 1 && inner.right <= outer.right + 1;
+  const overlaps = (a, b) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > 1
+    && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1;
+  const label = `${viewport.width}×${viewport.height}`;
+
+  assert.ok(isRendered(layout.header), `${label} workbench header must render.`);
+  assert.ok(isRendered(layout.brand), `${label} branding must render.`);
+  assert.ok(isRendered(layout.actions), `${label} header actions must render.`);
+  assert.ok(isRendered(layout.status), `${label} runtime status must render.`);
+  assert.ok(isRendered(layout.about), `${label} About control must render.`);
+  assert.ok(isInsideHorizontally(layout.brand, layout.header), `${label} branding leaves the header: ${JSON.stringify(layout.brand)}`);
+  assert.ok(isInsideHorizontally(layout.actions, layout.header), `${label} actions leave the header: ${JSON.stringify(layout.actions)}`);
+  assert.ok(isInsideHorizontally(layout.status, layout.header), `${label} status leaves the header: ${JSON.stringify(layout.status)}`);
+  assert.ok(isInsideHorizontally(layout.about, layout.header), `${label} About control leaves the header: ${JSON.stringify(layout.about)}`);
+  assert.equal(overlaps(layout.brand, layout.actions), false, `${label} branding and actions overlap: ${JSON.stringify({ brand: layout.brand, actions: layout.actions })}`);
+  assert.notEqual(layout.statusText, "", `${label} runtime status must remain understandable.`);
+
+  if (viewport.width < 1024) {
+    assert.ok(isRendered(layout.models), `${label} Models control must render.`);
+    assert.ok(isInsideHorizontally(layout.models, layout.header), `${label} Models control leaves the header: ${JSON.stringify(layout.models)}`);
+    assert.equal(layout.modelsText, "Models", `${label} Models control must keep a visible text label.`);
+    assert.equal(overlaps(layout.about, layout.models), false, `${label} About and Models controls overlap.`);
+  } else {
+    assert.equal(layout.models?.display, "none", `${label} mobile Models control should yield to the desktop model library.`);
+  }
+
+  assert.ok(isRendered(layout.recommended) && isRendered(layout.icon) && isRendered(layout.details) && isRendered(layout.primary), `${label} recommended-model content must render.`);
+  for (const [name, box] of [["icon", layout.icon], ["details", layout.details], ["primary CTA", layout.primary]]) {
+    assert.ok(isInsideHorizontally(box, layout.recommended), `${label} recommended-model ${name} leaves its container: ${JSON.stringify({ box, recommended: layout.recommended })}`);
+  }
+  assert.ok(layout.icon.width >= 43 && layout.icon.height >= 43, `${label} recommended-model icon was squeezed: ${JSON.stringify(layout.icon)}`);
+  assert.equal(overlaps(layout.icon, layout.details), false, `${label} recommended icon overlaps its details.`);
+  assert.equal(overlaps(layout.icon, layout.primary), false, `${label} recommended icon overlaps its CTA.`);
+  assert.equal(overlaps(layout.details, layout.primary), false, `${label} recommended details overlap its CTA.`);
+  assert.ok(layout.primary.scrollWidth <= layout.primary.clientWidth + 1 && layout.primary.scrollHeight <= layout.primary.clientHeight + 1, `${label} primary CTA label is clipped: ${JSON.stringify(layout.primary)}`);
+  assert.equal(layout.primaryAccessibleName, "Download recommended model", `${label} responsive CTA copy must preserve the full accessible name.`);
+
+  assert.equal(layout.conversationScroll?.overflowY, "visible", `${label} first-run onboarding must not use an internal conversation scroller.`);
+  assert.deepEqual(layout.scrollableAncestors, [], `${label} first-run content has a nested vertical scroll trap: ${JSON.stringify(layout.scrollableAncestors)}`);
+  assert.ok(layout.footer?.bottom <= layout.document.scrollHeight + 1, `${label} first-run footer is not reachable through document scrolling: ${JSON.stringify({ footer: layout.footer, document: layout.document })}`);
+  assert.ok(layout.document.scrollWidth <= layout.document.clientWidth + 1, `${label} page requires horizontal scrolling: ${JSON.stringify(layout.document)}`);
+  if (viewport.height <= 844) {
+    assert.ok(layout.document.scrollHeight > layout.document.clientHeight, `${label} overflowing first-run content must expose the document scroll path.`);
+    assert.ok(layout.main?.height >= layout.document.scrollHeight - 1, `${label} the page shell clips first-run content: ${JSON.stringify({ main: layout.main, document: layout.document })}`);
+  }
 }
 
 async function assertModelLibraryLayout(library, viewport, surface) {

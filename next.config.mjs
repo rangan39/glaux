@@ -3,6 +3,9 @@ import { fileURLToPath } from "node:url";
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
 const chromeExtensionBuild = process.env.SOPHON_CHROME_EXTENSION === "1";
+const productTestingBuild = process.env.NODE_ENV === "development"
+  && process.env.SOPHON_PRODUCT_TESTING === "1"
+  && !chromeExtensionBuild;
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "DENY" },
@@ -13,12 +16,16 @@ const securityHeaders = [
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   devIndicators: false,
+  env: {
+    NEXT_PUBLIC_SOPHON_PRODUCT_TESTING: productTestingBuild ? "1" : "0"
+  },
   output: chromeExtensionBuild ? "export" : "standalone",
   ...(chromeExtensionBuild ? {
     distDir: ".next-extension",
     generateBuildId: async () => "sophon-extension",
     images: { unoptimized: true }
   } : {
+    ...(productTestingBuild ? { distDir: ".next-product-test" } : {}),
     outputFileTracingRoot: rootDir
   }),
   poweredByHeader: false,

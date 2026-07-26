@@ -121,7 +121,7 @@ export default function SophonAcknowledgementsDialog({ onDismiss, triggerRef }: 
         <header className="flex shrink-0 items-start gap-3 border-b border-white/10 p-4 sm:p-5">
           <span aria-hidden="true" className="sophon-glass-tile hidden size-10 shrink-0 place-items-center rounded-xl font-serif text-lg text-sophon-signal-soft min-[400px]:grid">Σ</span>
           <span className="min-w-0 flex-1">
-            <span className="block font-mono text-[10px] uppercase tracking-[0.16em] text-sophon-signal-soft">Trust, terms & credits</span>
+            <span className="sophon-type-decorative block font-mono uppercase tracking-[0.12em] text-sophon-signal-soft" data-typography-role="decorative">Trust, terms & credits</span>
             <h2 className="mt-1 text-base font-semibold text-white sm:text-lg" id="about-sophon-title">About Sophon</h2>
           </span>
           <Button aria-label="Close About Sophon" className="size-11 shrink-0 rounded-xl sm:size-9" onClick={closeDialog} size="icon" type="button" variant="sophon"><X aria-hidden="true" /></Button>
@@ -131,44 +131,44 @@ export default function SophonAcknowledgementsDialog({ onDismiss, triggerRef }: 
           <div className="space-y-5">
             <section aria-labelledby="trust-support-title">
               <div className="mb-2 px-1">
-                <h3 className="font-mono text-[10px] uppercase tracking-[0.15em] text-sophon-signal-soft" id="trust-support-title">Privacy, licensing & support</h3>
-                <p className="mt-0.5 text-[11px] leading-4 text-white/45">Essential information for using Sophon and Tiny Aya.</p>
+                <h3 className="sophon-type-decorative font-mono uppercase tracking-[0.12em] text-sophon-signal-soft" data-typography-role="decorative" id="trust-support-title">Privacy, licensing & support</h3>
+                <p className="sophon-type-metadata mt-0.5 text-sophon-copy-metadata" data-typography-role="metadata">Essential information for using Sophon and Tiny Aya.</p>
               </div>
               <nav aria-label="Privacy, licensing, and support">
                 <ul className="grid gap-2 sm:grid-cols-2" data-testid="trust-support-links">
                   <li>
-                    <a className="sophon-glass-tile flex h-full min-h-16 items-center gap-3 rounded-xl px-3.5 py-3 text-white/90 transition-colors hover:border-white/15 hover:bg-white/[0.045] hover:text-sophon-signal-bright focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-warning" href={PRIVACY_PATH}>
+                    <a className="sophon-glass-tile flex min-h-16 h-full items-center gap-3 rounded-xl px-3.5 py-3 text-white/90 transition-colors hover:border-white/15 hover:bg-white/[0.045] hover:text-sophon-signal-bright focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-warning" href={PRIVACY_PATH}>
                       <ShieldCheck aria-hidden="true" className="size-4 shrink-0 text-sophon-verified" />
                       <span>
                         <span className="block text-sm font-medium">Privacy policy</span>
-                        <span className="mt-0.5 block text-[11px] leading-4 text-white/45">Local data and network requests</span>
+                        <span className="sophon-type-metadata mt-0.5 block text-sophon-copy-metadata" data-typography-role="metadata">Local data and network requests</span>
                       </span>
                     </a>
                   </li>
                   <li>
-                    <a className="sophon-glass-tile flex h-full min-h-16 items-center gap-3 rounded-xl px-3.5 py-3 text-white/90 transition-colors hover:border-white/15 hover:bg-white/[0.045] hover:text-sophon-signal-bright focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-warning" href={TINY_AYA_LICENSE_URL} rel="noreferrer" target="_blank">
+                    <a className="sophon-glass-tile flex min-h-16 h-full items-center gap-3 rounded-xl px-3.5 py-3 text-white/90 transition-colors hover:border-white/15 hover:bg-white/[0.045] hover:text-sophon-signal-bright focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-warning" href={TINY_AYA_LICENSE_URL} rel="noreferrer" target="_blank">
                       <Scale aria-hidden="true" className="size-4 shrink-0 text-sophon-signal-soft" />
                       <span>
                         <span className="flex items-center gap-1.5 text-sm font-medium">CC BY-NC 4.0 <ExternalLinkIndicator /></span>
-                        <span className="mt-0.5 block text-[11px] leading-4 text-white/45">Tiny Aya non-commercial license</span>
+                        <span className="sophon-type-metadata mt-0.5 block text-sophon-copy-metadata" data-typography-role="metadata">Tiny Aya non-commercial license</span>
                       </span>
                     </a>
                   </li>
                   <li>
-                    <a className="sophon-glass-tile flex h-full min-h-16 items-center gap-3 rounded-xl px-3.5 py-3 text-white/90 transition-colors hover:border-white/15 hover:bg-white/[0.045] hover:text-sophon-signal-bright focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-warning" href={COHERE_LABS_AUP_URL} rel="noreferrer" target="_blank">
+                    <a className="sophon-glass-tile flex min-h-16 h-full items-center gap-3 rounded-xl px-3.5 py-3 text-white/90 transition-colors hover:border-white/15 hover:bg-white/[0.045] hover:text-sophon-signal-bright focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-warning" href={COHERE_LABS_AUP_URL} rel="noreferrer" target="_blank">
                       <FileText aria-hidden="true" className="size-4 shrink-0 text-sophon-signal-soft" />
                       <span>
                         <span className="flex items-center gap-1.5 text-sm font-medium">Cohere Labs AUP <ExternalLinkIndicator /></span>
-                        <span className="mt-0.5 block text-[11px] leading-4 text-white/45">Required acceptable-use terms</span>
+                        <span className="sophon-type-metadata mt-0.5 block text-sophon-copy-metadata" data-typography-role="metadata">Required acceptable-use terms</span>
                       </span>
                     </a>
                   </li>
                   <li>
-                    <a className="sophon-glass-tile flex h-full min-h-16 items-center gap-3 rounded-xl px-3.5 py-3 text-white/90 transition-colors hover:border-white/15 hover:bg-white/[0.045] hover:text-sophon-signal-bright focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-warning" href={PROJECT_SUPPORT_URL} rel="noreferrer" target="_blank">
+                    <a className="sophon-glass-tile flex min-h-16 h-full items-center gap-3 rounded-xl px-3.5 py-3 text-white/90 transition-colors hover:border-white/15 hover:bg-white/[0.045] hover:text-sophon-signal-bright focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-warning" href={PROJECT_SUPPORT_URL} rel="noreferrer" target="_blank">
                       <HeartHandshake aria-hidden="true" className="size-4 shrink-0 text-sophon-signal-soft" />
                       <span>
                         <span className="flex items-center gap-1.5 text-sm font-medium">Project support <ExternalLinkIndicator /></span>
-                        <span className="mt-0.5 block text-[11px] leading-4 text-white/45">Questions and issue reports</span>
+                        <span className="sophon-type-metadata mt-0.5 block text-sophon-copy-metadata" data-typography-role="metadata">Questions and issue reports</span>
                       </span>
                     </a>
                   </li>
@@ -183,10 +183,10 @@ export default function SophonAcknowledgementsDialog({ onDismiss, triggerRef }: 
               <section aria-labelledby={`acknowledgements-${section.id}-title`} key={section.id}>
                 <div className="mb-2 flex items-end justify-between gap-4 px-1">
                   <span>
-                    <h3 className="font-mono text-[10px] uppercase tracking-[0.15em] text-sophon-signal-soft" id={`acknowledgements-${section.id}-title`}>{section.title}</h3>
-                    <span className="mt-0.5 block text-[11px] leading-4 text-white/45">{section.description}</span>
+                    <h3 className="sophon-type-decorative font-mono uppercase tracking-[0.12em] text-sophon-signal-soft" data-typography-role="decorative" id={`acknowledgements-${section.id}-title`}>{section.title}</h3>
+                    <span className="sophon-type-metadata mt-0.5 block text-sophon-copy-metadata" data-typography-role="metadata">{section.description}</span>
                   </span>
-                  <span aria-hidden="true" className="font-mono text-[9px] uppercase tracking-[0.12em] text-white/35">{section.items.length} credits</span>
+                  <span aria-hidden="true" className="sophon-type-decorative font-mono uppercase tracking-[0.1em] text-sophon-copy-decorative" data-typography-role="decorative">{section.items.length} credits</span>
                 </div>
 
                 <ul className="space-y-2" data-testid={`acknowledgements-${section.id}`}>
@@ -194,11 +194,11 @@ export default function SophonAcknowledgementsDialog({ onDismiss, triggerRef }: 
                     <li className="sophon-glass-tile rounded-xl px-3.5 py-3 transition-colors hover:border-white/15 hover:bg-white/[0.045]" key={credit.name}>
                       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
                         <a className="break-words text-sm font-medium text-white/90 transition-colors hover:text-sophon-signal-bright focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-warning" href={credit.href} rel="noreferrer" target="_blank">
-                          <span className="inline-flex items-center gap-1.5">{credit.name}<ExternalLinkIndicator className="text-white/45" /></span>
+                          <span className="inline-flex items-center gap-1.5">{credit.name}<ExternalLinkIndicator className="text-sophon-copy-metadata" /></span>
                         </a>
-                        <span className="rounded-md border border-white/10 bg-black/10 px-2 py-1 font-mono text-[9px] uppercase leading-none tracking-[0.08em] text-white/50">{credit.label}</span>
+                        <span className="sophon-type-decorative rounded-md border border-white/10 bg-black/10 px-2 py-1 font-mono uppercase tracking-[0.06em] text-sophon-copy-decorative" data-typography-role="decorative">{credit.label}</span>
                       </div>
-                      <p className="mt-1.5 text-[11px] leading-4 text-white/50">{credit.description}</p>
+                      <p className="sophon-type-metadata mt-1.5 text-sophon-copy-metadata" data-typography-role="metadata">{credit.description}</p>
                     </li>
                   ))}
                 </ul>
@@ -206,9 +206,9 @@ export default function SophonAcknowledgementsDialog({ onDismiss, triggerRef }: 
             ))}
           </div>
 
-          <div className="mt-4 border-t border-white/10 pt-4 text-xs leading-5 text-white/50">
+          <div className="sophon-type-metadata mt-4 border-t border-white/10 pt-4 text-sophon-copy-metadata" data-typography-role="metadata">
             <p>Tiny Aya weights use CC BY-NC 4.0 and the Cohere Labs Acceptable Use Policy. Sophon is independent.</p>
-            <p className="mt-3 text-white/65">Designed and built in Toronto, Canada by <a className="inline-flex items-center gap-1 text-white underline decoration-white/25 underline-offset-4 transition-colors hover:text-sophon-signal-bright focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-warning" href="https://github.com/rangan39" rel="noreferrer" target="_blank">rangan39 <ExternalLinkIndicator className="text-white/45" /></a>.</p>
+            <p className="mt-3 text-sophon-copy-body">Designed and built in Toronto, Canada by <a className="inline-flex items-center gap-1 text-white underline decoration-white/25 underline-offset-4 transition-colors hover:text-sophon-signal-bright focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-warning" href="https://github.com/rangan39" rel="noreferrer" target="_blank">rangan39 <ExternalLinkIndicator className="text-sophon-copy-metadata" /></a>.</p>
           </div>
         </div>
       </section>

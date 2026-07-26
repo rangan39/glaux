@@ -46,10 +46,12 @@ try {
   page.on("console", (message) => {
     if (message.type() === "error") runtimeErrors.push(`console: ${message.text()}`);
   });
-  await page.goto(`chrome-extension://${extensionId}/index.html`, { waitUntil: "domcontentloaded" });
+  await page.goto(`chrome-extension://${extensionId}/index.html?sophon-product-test=ready`, { waitUntil: "domcontentloaded" });
   assert.equal(new URL(page.url()).protocol, "chrome-extension:");
   await page.getByRole("heading", { name: "SOPHON", exact: true }).waitFor({ state: "visible", timeout: 30_000 });
   await page.getByTestId("first-run-welcome").waitFor({ state: "visible", timeout: 30_000 });
+  assert.equal(await page.locator("[data-product-test-state]").count(), 0, "The packaged extension must ignore product-test query parameters.");
+  assert.equal(await page.getByText("Recommendation", { exact: true }).count(), 0, "Fixture transcript content must not activate in the packaged extension.");
   const privacyLink = page.getByRole("link", { name: "Privacy", exact: true });
   assert.equal(await privacyLink.count(), 1);
   assert.equal(await privacyLink.getAttribute("href"), "/privacy.html");
@@ -108,6 +110,7 @@ try {
   assert.match(requestedModelUrl, /onnx-community\/tiny-aya-global-ONNX\/resolve\/7fff1be9627e40f0d89c33f406882bdafb56ec90\/onnx\/model_q4f16\.onnx_data(?:_1)?$/);
   console.log(`✓ Manifest V3 extension loaded at chrome-extension://${extensionId}/`);
   console.log("✓ Packaged privacy, licensing, support, and extension-safe navigation rendered");
+  console.log("✓ Packaged extension ignored the development-only product-test query");
   console.log("✓ WebGPU capability detection and the four-model Cohere library rendered");
   console.log("✓ Model selection required an explicit size and licensing confirmation");
   console.log("✓ Extension worker reached the pinned Tiny Aya runtime on selection");

@@ -36,6 +36,11 @@
   --color-sophon-glass-tile: var(--sophon-glass-tile);
   --color-sophon-glass-border: var(--sophon-glass-border);
   --color-sophon-glass-highlight: var(--sophon-glass-highlight);
+  --color-sophon-copy-primary: var(--sophon-copy-primary);
+  --color-sophon-copy-body: var(--sophon-copy-body);
+  --color-sophon-copy-metadata: var(--sophon-copy-metadata);
+  --color-sophon-copy-decorative: var(--sophon-copy-decorative);
+  --color-sophon-copy-disabled: var(--sophon-copy-disabled);
   --font-serif: var(--font-cormorant), Cormorant Garamond, EB Garamond, Georgia, ui-serif, serif;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -84,6 +89,12 @@
   --sophon-glass-strong-fallback: #0d0f15;
   --sophon-glass-tile-fallback: #191c23;
   --sophon-coral-glow: rgb(255 77 46 / 0.24);
+  /* Opaque role colors stay WCAG AA against #25272c, the lightest default interactive surface. */
+  --sophon-copy-primary: #f4f0e9;
+  --sophon-copy-body: #d8d4cd;
+  --sophon-copy-metadata: #c2c0bc;
+  --sophon-copy-decorative: #aaa9a7;
+  --sophon-copy-disabled: #aaa9a7;
 }
 
 * {
@@ -104,6 +115,29 @@ body {
   color: var(--foreground);
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+/* Type roles: 11px is reserved for decoration; essential interface copy starts at 12px. */
+.sophon-type-decorative {
+  font-size: 0.6875rem;
+  line-height: 1rem;
+}
+
+.sophon-type-metadata,
+.sophon-type-status,
+.sophon-type-action {
+  font-size: 0.75rem;
+  line-height: 1.125rem;
+}
+
+.sophon-type-status,
+.sophon-type-action {
+  font-weight: 600;
+}
+
+.sophon-type-body {
+  font-size: 0.875rem;
+  line-height: 1.5rem;
 }
 
 .privacy-copy h2 {

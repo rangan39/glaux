@@ -85,7 +85,7 @@ export function InfoHint({ className, concept, portalContainer }: InfoHintProps)
   const tooltip = openReason && typeof document !== "undefined"
     ? createPortal(
       <span
-        className="fixed z-[70] w-max rounded-lg border border-white/15 bg-[#111319]/95 px-3 py-2.5 text-left text-[11px] font-normal leading-[1.45] tracking-normal text-white/70 shadow-[0_18px_52px_rgb(0_0_0/.48),inset_0_1px_0_rgb(255_255_255/.08)] outline-none backdrop-blur-xl"
+        className="sophon-type-metadata fixed z-[70] w-max rounded-lg border border-white/15 bg-[#111319]/95 px-3 py-2.5 text-left font-normal tracking-normal text-sophon-copy-body shadow-[0_18px_52px_rgb(0_0_0/.48),inset_0_1px_0_rgb(255_255_255/.08)] outline-none backdrop-blur-xl"
         data-help-id={concept}
         data-slot="tooltip-content"
         id={tooltipId}
@@ -104,7 +104,7 @@ export function InfoHint({ className, concept, portalContainer }: InfoHintProps)
         aria-describedby={tooltipId}
         aria-label={hint.label}
         className={cn(
-          "inline-grid size-7 shrink-0 place-items-center rounded-md text-white/35 transition-colors hover:bg-white/[.07] hover:text-sophon-signal-bright focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-warning",
+          "inline-grid size-7 shrink-0 place-items-center rounded-md text-sophon-copy-decorative transition-colors hover:bg-white/[.07] hover:text-sophon-signal-bright focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-warning",
           openReason && "bg-white/[.07] text-sophon-signal-bright",
           className
         )}

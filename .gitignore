@@ -1,5 +1,6 @@
 .next/
 .next-extension/
+.next-product-test/
 out/
 node_modules/
 .npm-cache/

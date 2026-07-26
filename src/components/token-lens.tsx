@@ -154,18 +154,19 @@ function TokenModeControl({ expanded, mode, onChange, onClose, onOpen, tokenCoun
       <button
         aria-expanded={false}
         aria-label={`Inspect ${tokenCount} message tokens`}
-        className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-md border border-white/[.16] bg-black/25 px-3 font-mono text-[10px] uppercase tracking-[0.1em] text-[#aab4c3] transition-colors hover:bg-white/[.07] hover:text-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-warning sm:min-h-9"
+        className="sophon-type-action inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-md border border-white/[.16] bg-black/25 px-3 font-mono uppercase tracking-[0.06em] text-sophon-copy-metadata transition-colors hover:bg-white/[.07] hover:text-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-warning sm:min-h-9"
+        data-typography-role="action"
         onClick={onOpen}
         type="button"
       >
         <span aria-hidden="true" className="font-serif text-sm normal-case text-sophon-signal-soft">τ</span>
         Inspect
-        <span aria-hidden="true" className="tabular-nums text-white/40">{tokenCount}</span>
+        <span aria-hidden="true" className="tabular-nums text-sophon-copy-decorative">{tokenCount}</span>
       </button>
     );
   }
   return (
-    <div aria-label="Message display granularity" className="flex max-w-full shrink-0 flex-wrap items-center rounded-md border border-white/[.16] bg-black/25 p-0.5 font-mono text-[10px] uppercase tracking-[0.1em] text-[#aab4c3]" role="group">
+    <div aria-label="Message display granularity" className="sophon-type-action flex max-w-full shrink-0 flex-wrap items-center rounded-md border border-white/[.16] bg-black/25 p-0.5 font-mono uppercase tracking-[0.06em] text-sophon-copy-metadata" data-typography-role="action" role="group">
       <InfoHint className="text-sophon-signal-soft" concept="tokenLens" />
       {(["text", "tokens", "words"] as const).map((option) => (
         <button
@@ -180,7 +181,7 @@ function TokenModeControl({ expanded, mode, onChange, onClose, onOpen, tokenCoun
       ))}
       <button
         aria-label="Close token inspector"
-        className="min-h-11 rounded px-2.5 py-1 text-white/55 transition-colors hover:bg-white/[.07] hover:text-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-warning sm:min-h-9"
+        className="min-h-11 rounded px-2.5 py-1 text-sophon-copy-metadata transition-colors hover:bg-white/[.07] hover:text-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-warning sm:min-h-9"
         onClick={onClose}
         type="button"
       >
@@ -251,7 +252,7 @@ function TokenInspector({ role, selection, tokenCount }: {
 }) {
   const details = selectionDetails(selection, role);
   return (
-    <div className="flex max-w-full flex-wrap items-center gap-2 rounded-md border border-white/[.14] bg-sophon-panel-deep/90 px-2.5 py-2 font-mono text-[10px] uppercase tracking-[0.08em] text-[#aab4c3]">
+    <div className="sophon-type-metadata flex max-w-full flex-wrap items-center gap-2 rounded-md border border-white/[.14] bg-sophon-panel-deep/90 px-2.5 py-2 font-mono uppercase tracking-[0.06em] text-sophon-copy-metadata" data-typography-role="metadata">
       {details ? (
         <>
           <span className="text-sophon-signal-soft">{details.index}</span>

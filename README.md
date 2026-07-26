@@ -53,6 +53,37 @@ npm run audit:extension
 
 WebGPU works best in a recent browser with WebGPU enabled. Opening Sophon does not download model weights; each explicit Tiny Aya selection downloads and caches about 2.35 GB.
 
+### Product-test states
+
+Start the development-only product fixture workflow with one command:
+
+```bash
+npm run product:ui
+```
+
+The root page opens the deterministic `checking` state. Use these URLs to review the complete lifecycle at the desktop `1440×900` and mobile `320×800` breakpoints:
+
+| State | URL |
+| --- | --- |
+| Browser/cache check | [checking](http://localhost:3000/?sophon-product-test=checking) |
+| Download confirmation | [confirmation](http://localhost:3000/?sophon-product-test=confirmation) |
+| Download progress | [downloading](http://localhost:3000/?sophon-product-test=downloading) |
+| Paused download | [paused](http://localhost:3000/?sophon-product-test=paused) |
+| Integrity verification | [verifying](http://localhost:3000/?sophon-product-test=verifying) |
+| Ready transcript, metrics, tokens, and long Markdown | [ready](http://localhost:3000/?sophon-product-test=ready) |
+| Streaming generation | [generating](http://localhost:3000/?sophon-product-test=generating) |
+| Stopped generation recovery | [stopped](http://localhost:3000/?sophon-product-test=stopped) |
+| Recoverable runtime error | [error](http://localhost:3000/?sophon-product-test=error) |
+| Reset confirmation | [reset](http://localhost:3000/?sophon-product-test=reset) |
+
+Fixture mode replaces runtime capabilities, storage inventory, delivery progress, and generation data in memory. It does not create the model worker, contact model hosts, inspect offline packs, or write model bytes. The query parameter is ignored by normal development, production, and Chrome-extension builds; activation requires both `next dev` and the explicit opt-in set by `npm run product:ui`.
+
+With that server running, validate every state at both breakpoints with:
+
+```bash
+npm run smoke:product-ui
+```
+
 ### Chrome extension
 
 `npm run build:extension` creates a self-contained Manifest V3 extension in `dist/chrome-extension`. Its toolbar action opens Sophon in a full extension tab, where `unlimitedStorage` protects the multi-gigabyte OPFS, IndexedDB, and Cache Storage model cache. The build externalizes Next.js hydration scripts so the result complies with Chrome's extension-page CSP while retaining local WebAssembly support. Load the output folder from `chrome://extensions` with Developer mode enabled.

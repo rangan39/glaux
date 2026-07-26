@@ -81,6 +81,7 @@ try {
   assert.ok(models.every((model) => /non-commercial/.test(model.label)), "Every Tiny Aya model must disclose its non-commercial license.");
   assert.ok(models.some((model) => !model.disabled), "At least one model must be compatible with the smoke-test browser.");
   assert.ok(models.every((model) => !model.checked), "No model should be selected before an explicit user choice.");
+  await assertModelLibraryLayout(modelLibrary, { width: 1440, height: 900 }, "desktop");
   await assertVisible(firstRunPrimary, "first-run recommended-model action");
   assert.equal(await firstRunPrimary.isEnabled(), true, "The recommended model action must enable on a compatible browser.");
   assert.match((await firstRunPrimary.textContent()) ?? "", /Download recommended model/);
@@ -160,7 +161,7 @@ try {
   assert.equal(await modelLibrary.getAttribute("data-state"), "expanded");
   console.log("✓ Desktop semantics and composer gating pass");
 
-  await activePage.setViewportSize({ width: 320, height: 800 });
+  await activePage.setViewportSize({ width: 320, height: 568 });
   await assertVisible(textarea, "mobile prompt textarea");
   await textarea.fill("Mobile reset check");
   await assertVisible(resetButton, "mobile conversation reset control");
@@ -173,6 +174,12 @@ try {
   assert.equal(await mobileTrigger.getAttribute("aria-expanded"), "true");
   assert.equal(await mobileDialog.getByRole("radio").count(), 4, "Mobile sheet must expose the same four models.");
   await assertWithinViewport(activePage.getByTestId("mobile-model-sheet"), 320, "mobile model-library sheet");
+  await assertModelLibraryLayout(mobileDialog, { width: 320, height: 568 }, "mobile");
+  await activePage.setViewportSize({ width: 390, height: 844 });
+  await assertModelLibraryLayout(mobileDialog, { width: 390, height: 844 }, "mobile");
+  await activePage.setViewportSize({ width: 716, height: 900 });
+  await assertModelLibraryLayout(mobileDialog, { width: 716, height: 900 }, "mobile");
+  await activePage.setViewportSize({ width: 320, height: 800 });
   const mobileSpecsHint = mobileDialog.locator('[data-info-hint-trigger][aria-label="About model specifications"]');
   await assertInfoHintTrigger(mobileSpecsHint, "modelSpecs", "mobile model specifications InfoHint");
   await mobileSpecsHint.hover();
@@ -572,6 +579,79 @@ async function assertBoxWithinViewport(locator, viewport, label) {
     `${label} is outside the ${viewport.width}×${viewport.height}px viewport: ${JSON.stringify(box)}`
   );
   return box;
+}
+
+async function assertModelLibraryLayout(library, viewport, surface) {
+  const list = library.getByTestId(surface === "desktop" ? "desktop-model-list" : "mobile-model-list");
+  await assertVisible(list, `${viewport.width}px ${surface} model list`);
+  const cards = library.locator(`[data-model-surface="${surface}"]`);
+  const actions = library.locator('button[aria-label^="Install "][aria-label$=" from an offline file"]');
+  assert.equal(await cards.count(), 4, `${viewport.width}px ${surface} model list must render four cards.`);
+  assert.equal(await actions.count(), 4, `${viewport.width}px ${surface} model list must render four offline-file actions.`);
+
+  const contentGeometry = await library.locator("[data-model-card]").evaluateAll((nodes) => nodes.map((card) => {
+    const cardBox = card.getBoundingClientRect();
+    const fields = ["[data-model-name]", "[data-model-recommendation]", "[data-model-description]", "[data-model-status]"]
+      .map((selector) => card.querySelector(selector))
+      .filter(Boolean)
+      .map((element) => {
+        const box = element.getBoundingClientRect();
+        return {
+          selector: element.hasAttribute("data-model-name")
+            ? "name"
+            : element.hasAttribute("data-model-recommendation")
+              ? "recommendation"
+              : element.hasAttribute("data-model-description")
+                ? "description"
+                : "status",
+          clipped: element.scrollWidth > element.clientWidth + 1 || element.scrollHeight > element.clientHeight + 1,
+          insideCard: box.left >= cardBox.left - 1 && box.right <= cardBox.right + 1
+        };
+      });
+    return { fields };
+  }));
+  assert.equal(contentGeometry.length, 4, `${viewport.width}px ${surface} model list must expose four measurable cards.`);
+  assert.equal(contentGeometry.flatMap(({ fields }) => fields).filter(({ clipped, insideCard }) => clipped || !insideCard).length, 0, `${viewport.width}px ${surface} model text or badges are clipped: ${JSON.stringify(contentGeometry)}`);
+
+  const actionLocators = await actions.all();
+  for (const action of actionLocators) {
+    await action.scrollIntoViewIfNeeded();
+    const [actionBox, listBox, label] = await Promise.all([action.boundingBox(), list.boundingBox(), action.getAttribute("aria-label")]);
+    assert.ok(actionBox && listBox, `Expected measurable ${label ?? "offline-file action"} geometry at ${viewport.width}px.`);
+    assert.ok(
+      actionBox.x >= listBox.x - 1
+        && actionBox.x + actionBox.width <= listBox.x + listBox.width + 1
+        && actionBox.y >= listBox.y - 1
+        && actionBox.y + actionBox.height <= listBox.y + listBox.height + 1,
+      `${label ?? "Offline-file action"} is outside the ${viewport.width}px model-list viewport: ${JSON.stringify({ actionBox, listBox })}`
+    );
+    assert.ok(actionBox.width >= 24 && actionBox.height >= 24, `${label ?? "Offline-file action"} is too small to operate: ${JSON.stringify(actionBox)}`);
+    assert.equal(await action.isEnabled(), true, `${label ?? "Offline-file action"} must be operable.`);
+    await action.focus();
+    assert.equal(await action.evaluate((element) => document.activeElement === element), true, `${label ?? "Offline-file action"} must accept keyboard focus.`);
+  }
+
+  const overflow = await library.evaluate((element) => {
+    const listElement = element.querySelector('[data-testid$="-model-list"]');
+    const clippedInteractiveContainers = [element, ...element.querySelectorAll("*")]
+      .filter((candidate) => candidate.querySelector("button, input"))
+      .filter((candidate) => {
+        const overflowX = getComputedStyle(candidate).overflowX;
+        return (overflowX === "hidden" || overflowX === "clip") && candidate.scrollWidth > candidate.clientWidth + 1;
+      })
+      .map((candidate) => ({
+        className: typeof candidate.className === "string" ? candidate.className : "",
+        clientWidth: candidate.clientWidth,
+        scrollWidth: candidate.scrollWidth
+      }));
+    return {
+      listClientWidth: listElement?.clientWidth ?? 0,
+      listScrollWidth: listElement?.scrollWidth ?? 0,
+      clippedInteractiveContainers
+    };
+  });
+  assert.ok(overflow.listClientWidth > 0 && overflow.listScrollWidth <= overflow.listClientWidth + 1, `${viewport.width}px ${surface} model list overflows horizontally: ${JSON.stringify(overflow)}`);
+  assert.deepEqual(overflow.clippedInteractiveContainers, [], `${viewport.width}px ${surface} model controls are hidden by horizontal clipping.`);
 }
 
 function captureRuntimeErrors(page) {

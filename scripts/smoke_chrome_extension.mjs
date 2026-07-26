@@ -53,6 +53,16 @@ try {
   const privacyLink = page.getByRole("link", { name: "Privacy", exact: true });
   assert.equal(await privacyLink.count(), 1);
   assert.equal(await privacyLink.getAttribute("href"), "/privacy.html");
+  const firstRunTrustNav = page.getByTestId("first-run-trust-nav");
+  await firstRunTrustNav.getByRole("button", { name: "About & licenses", exact: true }).click();
+  const aboutDialog = page.getByRole("dialog", { name: "About Sophon", exact: true });
+  await aboutDialog.waitFor({ state: "visible" });
+  assert.equal(await aboutDialog.getByRole("link", { name: /Privacy policy.*Local data and network requests/ }).getAttribute("href"), "/privacy.html");
+  assert.equal(await aboutDialog.getByRole("link", { name: /CC BY-NC 4\.0.*opens in a new tab/ }).getAttribute("href"), "https://creativecommons.org/licenses/by-nc/4.0/");
+  assert.equal(await aboutDialog.getByRole("link", { name: /Cohere Labs AUP.*opens in a new tab/ }).getAttribute("href"), "https://docs.cohere.com/docs/cohere-labs-acceptable-use-policy");
+  assert.equal(await aboutDialog.getByRole("link", { name: /Project support.*opens in a new tab/ }).getAttribute("href"), "https://github.com/rangan39/sophon/issues");
+  await page.keyboard.press("Escape");
+  await aboutDialog.waitFor({ state: "hidden" });
   const privacyPage = await context.newPage();
   privacyPage.on("pageerror", (error) => runtimeErrors.push(`privacy pageerror: ${error.message}`));
   privacyPage.on("console", (message) => {
@@ -97,7 +107,7 @@ try {
   ]).finally(() => clearTimeout(modelRequestTimeout));
   assert.match(requestedModelUrl, /onnx-community\/tiny-aya-global-ONNX\/resolve\/7fff1be9627e40f0d89c33f406882bdafb56ec90\/onnx\/model_q4f16\.onnx_data(?:_1)?$/);
   console.log(`✓ Manifest V3 extension loaded at chrome-extension://${extensionId}/`);
-  console.log("✓ Packaged privacy policy and extension-safe navigation rendered");
+  console.log("✓ Packaged privacy, licensing, support, and extension-safe navigation rendered");
   console.log("✓ WebGPU capability detection and the four-model Cohere library rendered");
   console.log("✓ Model selection required an explicit size and licensing confirmation");
   console.log("✓ Extension worker reached the pinned Tiny Aya runtime on selection");

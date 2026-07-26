@@ -2,6 +2,7 @@
 
 import { type FormEvent, type KeyboardEvent, useEffect, useId, useRef, useState } from "react";
 import { Check, CircleUserRound, Copy, Download, Languages, LoaderCircle, LockKeyhole, PanelLeft, Pencil, RotateCcw, SendHorizontal, Sparkles, Square, Trash2 } from "lucide-react";
+import { ExternalLinkIndicator } from "@/components/external-link-indicator";
 import { SophonAcknowledgements } from "@/components/sophon-acknowledgements";
 import { SophonModelSidebar } from "@/components/sophon-model-sidebar";
 import { InspectableMessage, type InspectableToken } from "@/components/token-lens";
@@ -24,6 +25,7 @@ import {
 } from "@/lib/interp-client";
 import { getModelRuntimeProfile, MODEL_REGISTRY, RECOMMENDED_MODEL_ID, resolveModelProvider, type ModelManifest } from "@/lib/onnx-models";
 import type { GenerationTelemetryEvent, ModelCacheSummary, ModelPackInspection, OnnxLogEvent, RuntimeCapabilities } from "@/lib/onnx-types";
+import { PRIVACY_PATH, PROJECT_SUPPORT_URL } from "@/lib/trust-navigation";
 import { cn } from "@/lib/utils";
 
 type ChatMessage = {
@@ -65,8 +67,6 @@ const STARTER_MESSAGES: ChatMessage[] = [
     meta: "Cohere open weights · local by design · no server inference"
   }
 ];
-const PRIVACY_PATH = process.env.NEXT_PUBLIC_SOPHON_CHROME_EXTENSION === "1" ? "/privacy.html" : "/privacy";
-
 export function SophonWorkbench() {
   const [messages, setMessages] = useState(STARTER_MESSAGES);
   const [prompt, setPrompt] = useState("");
@@ -1014,8 +1014,16 @@ function FirstRunWelcome({ cacheState, compatibility, mobileProfile, model, noti
           <div className="mt-4 flex flex-col gap-3 border-t border-white/10 pt-4 text-xs text-white/50 sm:flex-row sm:items-center sm:justify-between">
             <span>Open weights · {model.licenseLabel} · Downloads can be paused and resumed</span>
             <Button className="h-11 self-start rounded-xl sm:h-8 lg:hidden" onClick={onOpenModels} size="sm" type="button" variant="sophon">Compare all {MODEL_REGISTRY.length} models</Button>
-            <span className="hidden items-center gap-3 lg:flex"><span>More multilingual models are available in the library.</span><a className="text-white/65 underline decoration-white/20 underline-offset-4 hover:text-sophon-signal-bright" href={PRIVACY_PATH}>Privacy</a></span>
+            <span className="hidden items-center gap-3 lg:flex">More multilingual models are available in the library.</span>
           </div>
+          <nav aria-label="First-run privacy, licensing, and support" className="mt-4 border-t border-white/10 pt-4" data-testid="first-run-trust-nav">
+            <p className="mb-2 font-mono text-[9px] font-semibold uppercase tracking-[0.14em] text-white/45">Privacy, terms & support</p>
+            <div className="flex flex-wrap gap-2">
+              <a className="inline-flex min-h-11 items-center rounded-xl border border-white/10 bg-white/[.035] px-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-white/65 transition-colors hover:text-sophon-signal-bright focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-warning" href={PRIVACY_PATH}>Privacy</a>
+              <SophonAcknowledgements compact label="About & licenses" />
+              <a className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-white/10 bg-white/[.035] px-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-white/65 transition-colors hover:text-sophon-signal-bright focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-warning" href={PROJECT_SUPPORT_URL} rel="noreferrer" target="_blank">Support <ExternalLinkIndicator /></a>
+            </div>
+          </nav>
         </div>
       </div>
     </section>
@@ -1070,8 +1078,8 @@ function OfflinePackDialog({ accepted, inspection, model, onAcceptedChange, onCa
           <p className="font-medium text-white/85">CC BY-NC 4.0 · non-commercial use only</p>
           <p className="mt-1">{inspection.license.attribution}</p>
           <p className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
-            <a className="text-sophon-signal-soft underline underline-offset-2" href={inspection.license.modelCardUrl} rel="noreferrer" target="_blank">Model card</a>
-            <a className="text-sophon-signal-soft underline underline-offset-2" href={inspection.license.acceptableUsePolicyUrl} rel="noreferrer" target="_blank">Cohere Labs AUP</a>
+            <a className="inline-flex items-center gap-1 text-sophon-signal-soft underline underline-offset-2" href={inspection.license.modelCardUrl} rel="noreferrer" target="_blank">Model card <ExternalLinkIndicator /></a>
+            <a className="inline-flex items-center gap-1 text-sophon-signal-soft underline underline-offset-2" href={inspection.license.acceptableUsePolicyUrl} rel="noreferrer" target="_blank">Cohere Labs AUP <ExternalLinkIndicator /></a>
           </p>
         </div>
         <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-white/10 bg-white/[.035] p-3 text-sm leading-5 text-white/75">

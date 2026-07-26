@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
+import { ExternalLinkIndicator } from "@/components/external-link-indicator";
+import { HOME_PATH, PROJECT_SUPPORT_URL } from "@/lib/trust-navigation";
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
   description: "How Sophon handles prompts, model files, browser storage, and network requests."
 };
-
-const HOME_PATH = process.env.NEXT_PUBLIC_SOPHON_CHROME_EXTENSION === "1" ? "/index.html" : "/";
 
 export default function PrivacyPolicy() {
   return (
@@ -63,7 +63,7 @@ export default function PrivacyPolicy() {
 
           <section>
             <h2>Changes and contact</h2>
-            <p>Material changes will be posted on this page with a new effective date. Questions or privacy requests can be filed through the project&apos;s <a href="https://github.com/rangan39/sophon/issues" rel="noreferrer" target="_blank">public support tracker</a>. Because Sophon does not operate accounts or receive conversation data, the developer generally has no user record to retrieve or delete.</p>
+            <p>Material changes will be posted on this page with a new effective date. Questions or privacy requests can be filed through the project&apos;s <a className="inline-flex items-center gap-1" href={PROJECT_SUPPORT_URL} rel="noreferrer" target="_blank">public support tracker <ExternalLinkIndicator /></a>. Because Sophon does not operate accounts or receive conversation data, the developer generally has no user record to retrieve or delete.</p>
           </section>
 
           <p className="border-t border-white/10 pt-6 text-xs text-white/45">Sophon is an independent project and is not affiliated with, sponsored by, or endorsed by Cohere or Hugging Face.</p>

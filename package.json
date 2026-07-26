@@ -21,6 +21,7 @@
     "test": "node --experimental-strip-types --test tests/*.test.mjs",
     "test:metrics": "node --experimental-strip-types --test tests/generation-metrics.test.mjs",
     "smoke:ui": "node scripts/smoke_ui.mjs",
+    "smoke:trust": "node scripts/smoke_trust_navigation.mjs",
     "smoke:extension": "node scripts/smoke_chrome_extension.mjs",
     "smoke:prompt": "node scripts/smoke_prompt.mjs",
     "start": "next start",

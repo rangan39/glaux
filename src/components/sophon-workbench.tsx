@@ -703,36 +703,38 @@ export function SophonWorkbench() {
       <div aria-hidden="true" className="sophon-noise pointer-events-none absolute inset-0" />
       <div aria-hidden="true" className="sophon-grid pointer-events-none absolute inset-0 opacity-45" />
       <div className={cn("relative flex w-full flex-col bg-transparent", selectedModel ? "h-svh" : "min-h-svh")}>
-        <header className="sophon-glass-strong relative z-20 flex h-[calc(106px+env(safe-area-inset-top))] shrink-0 items-center justify-between border-x-0 border-t-0 px-3 pb-8 pt-[env(safe-area-inset-top)] sm:h-[calc(74px+env(safe-area-inset-top))] sm:px-7 sm:pb-0" data-testid="workbench-header">
-          <div className="flex min-w-0 items-center gap-2 sm:gap-3" data-testid="workbench-brand">
+        <header className={cn("sophon-glass-strong relative z-20 shrink-0 items-center border-x-0 border-t-0", selectedModel ? "grid h-[calc(106px+env(safe-area-inset-top))] grid-cols-[minmax(0,1fr)_auto] grid-rows-[28px_44px] gap-x-2 gap-y-2 px-3 pb-[10px] pt-[calc(8px+env(safe-area-inset-top))] sm:h-[calc(120px+env(safe-area-inset-top))] sm:grid-rows-[40px_36px] sm:px-7 sm:pb-3 sm:pt-[calc(12px+env(safe-area-inset-top))] lg:flex lg:h-[calc(74px+env(safe-area-inset-top))] lg:justify-between lg:gap-0 lg:px-7 lg:pb-0 lg:pt-[env(safe-area-inset-top)]" : "flex h-[calc(106px+env(safe-area-inset-top))] justify-between px-3 pb-8 pt-[env(safe-area-inset-top)] sm:h-[calc(74px+env(safe-area-inset-top))] sm:px-7 sm:pb-0")} data-testid="workbench-header">
+          <div className={cn("min-w-0 items-center gap-2 sm:flex sm:gap-3", selectedModel ? "hidden" : "flex")} data-testid="workbench-brand">
             <div className="sophon-accent-surface relative grid size-10 shrink-0 place-items-center rounded-xl border border-sophon-signal-bright/60">
               <GreekGlyph className="text-lg font-semibold">Σ</GreekGlyph>
             </div>
             <div className={cn("min-w-0", selectedModel && "max-[359px]:hidden")}>
               <div className="flex items-center gap-2">
                 <h1 className="font-mono text-sm font-semibold tracking-[0.12em] text-sophon-copy-primary">SOPHON</h1>
-                <span className="sophon-type-decorative hidden items-center rounded-md border border-sophon-signal-bright/40 bg-sophon-signal/10 px-2 py-0.5 font-mono font-medium uppercase tracking-[0.12em] text-sophon-signal-soft sm:inline-flex" data-typography-role="decorative">Local AI</span>
+                <span className="sophon-type-decorative hidden items-center rounded-md border border-sophon-signal-bright/40 bg-sophon-signal/10 px-2 py-0.5 font-mono font-medium uppercase tracking-[0.12em] text-sophon-signal-soft xl:inline-flex" data-typography-role="decorative">Local AI</span>
               </div>
-              <p className="sophon-type-metadata hidden font-mono uppercase tracking-[0.12em] text-sophon-copy-metadata md:block" data-typography-role="metadata">Private AI in your browser</p>
+              <p className="sophon-type-metadata hidden whitespace-nowrap font-mono uppercase tracking-[0.12em] text-sophon-copy-metadata xl:block" data-typography-role="metadata">Private AI in your browser</p>
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-1.5 sm:gap-3" data-testid="workbench-actions">
-            <div className={cn("sophon-glass-tile sophon-type-status absolute inset-x-3 bottom-2 flex min-w-0 items-center justify-center gap-2 rounded-full px-3 py-1 font-mono uppercase tracking-[0.08em] sm:static sm:inset-auto sm:shrink-0 sm:py-1.5", runtimeStatus.className)} data-testid="workbench-status" data-typography-role="status">
-              <span aria-hidden="true" className={cn("size-1.5 shrink-0 rounded-full", runtimeStatus.dotClassName)} />
-              <span className="truncate">{runtimeStatus.label}{downloadPercentLabel ? ` · ${downloadPercentLabel}` : null}</span>
-            </div>
-            {generation.status === "loading" ? <Button aria-label={modelLoadCancelLabel} className="h-11 rounded-xl sm:h-9" onClick={cancelModelLoad} size="sm" title={modelLoadCancelLabel} type="button" variant="sophon"><Square aria-hidden="true" className="size-3 fill-current" /><span className="hidden sm:inline">{modelLoadCancelText}</span></Button> : null}
-            {modelLoadPaused && selectedModel ? <Button aria-label="Resume model download" className="hidden h-11 rounded-xl sm:inline-flex sm:h-9" onClick={resumeModelLoad} size="sm" title="Resume model download" type="button" variant="sophon"><Download aria-hidden="true" /><span>Resume</span></Button> : null}
+          <div className={cn("sophon-glass-tile sophon-type-status flex min-w-0 items-center justify-center gap-2 rounded-full px-3 py-1 font-mono uppercase tracking-[0.08em] sm:py-1.5", selectedModel ? "col-span-2 sm:col-span-1 sm:justify-self-end lg:static lg:inset-auto lg:shrink-0" : "absolute inset-x-3 bottom-2 sm:static sm:inset-auto sm:shrink-0", runtimeStatus.className)} data-testid="workbench-status" data-typography-role="status">
+            <span aria-hidden="true" className={cn("size-1.5 shrink-0 rounded-full", runtimeStatus.dotClassName)} />
+            <span className="truncate">{runtimeStatus.label}{downloadPercentLabel ? ` · ${downloadPercentLabel}` : null}</span>
+          </div>
+
+          <div className={cn("items-center", selectedModel ? "col-span-2 grid w-full grid-flow-col auto-cols-fr gap-1 [&_button]:gap-1 max-[399px]:[&_svg]:hidden sm:gap-2 lg:col-span-1 lg:flex lg:w-auto lg:shrink-0 lg:gap-3 lg:[&_button]:gap-2" : "flex shrink-0 gap-1.5 sm:gap-3")} data-testid="workbench-actions">
+            {generation.status === "loading" ? <Button aria-label={modelLoadCancelLabel} className="h-11 min-w-0 rounded-xl px-1.5 text-[11px] sm:h-9 sm:px-3 sm:text-xs" onClick={cancelModelLoad} size="sm" title={modelLoadCancelLabel} type="button" variant="sophon"><Square aria-hidden="true" className="size-3 fill-current" /><span>{modelLoadCancelText}</span></Button> : null}
+            {modelLoadPaused && selectedModel ? <Button aria-label="Resume model download" className="h-11 min-w-0 rounded-xl px-1.5 text-[11px] sm:h-9 sm:px-3 sm:text-xs" onClick={resumeModelLoad} size="sm" title="Resume model download" type="button" variant="sophon"><Download aria-hidden="true" /><span>Resume</span></Button> : null}
             {canResetConversation && !isBusy ? (
-              <Button aria-label="Reset conversation" className="size-11 rounded-xl text-sophon-copy-metadata hover:text-sophon-signal-bright sm:size-9" disabled={isBusy} onClick={requestResetConversation} ref={resetTriggerRef} size="icon" title="Reset conversation" type="button" variant="sophon">
+              <Button aria-label="Reset conversation" className="h-11 min-w-0 rounded-xl px-1.5 text-[11px] text-destructive hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive sm:h-9 sm:px-3 sm:text-xs" disabled={isBusy} onClick={requestResetConversation} ref={resetTriggerRef} size="sm" title="Reset conversation" type="button" variant="sophon">
                 <Trash2 aria-hidden="true" />
+                <span>Reset</span>
               </Button>
             ) : null}
             {selectedModel ? (
               <Button
                 aria-label={`Switch to ${developerMode ? "chat" : "developer"} mode. ${developerMode ? "Developer" : "Chat"} mode is active`}
-                className="size-11 rounded-xl p-0 sm:h-9 sm:w-auto sm:px-3"
+                className="h-11 min-w-0 rounded-xl px-1.5 text-[11px] sm:h-9 sm:px-3 sm:text-xs"
                 data-mode={interfaceMode}
                 data-testid="interface-mode-toggle"
                 onClick={() => setInterfaceMode(developerMode ? "chat" : "developer")}
@@ -741,11 +743,11 @@ export function SophonWorkbench() {
                 variant="sophon"
               >
                 {developerMode ? <MessageCircle aria-hidden="true" /> : <Code2 aria-hidden="true" />}
-                <span className="hidden lg:inline">{developerMode ? "Chat" : "Developer"}</span>
+                <span>{developerMode ? "Chat" : "Developer"}</span>
               </Button>
             ) : null}
-            <SophonAcknowledgements compact />
-            <Button aria-controls="model-library-mobile" aria-expanded={modelSidebarOpen} aria-label="Open model library" className="h-11 rounded-xl px-2 sm:h-8 sm:px-3 lg:hidden" data-testid="open-model-library" onClick={() => setModelSidebarOpen(true)} size="sm" type="button" variant="sophon"><PanelLeft aria-hidden="true" /><span>Models</span></Button>
+            <SophonAcknowledgements className="h-11 min-w-0 px-1.5 text-[11px] sm:h-9 sm:min-h-0 sm:px-3 sm:text-xs" compact label="About" />
+            <Button aria-controls="model-library-mobile" aria-expanded={modelSidebarOpen} aria-label="Open model library" className="h-11 min-w-0 rounded-xl px-1.5 text-[11px] sm:h-9 sm:px-3 sm:text-xs lg:hidden" data-testid="open-model-library" onClick={() => setModelSidebarOpen(true)} size="sm" type="button" variant="sophon"><PanelLeft aria-hidden="true" /><span>Models</span></Button>
           </div>
           {isModelLoading && loadingModel ? <span aria-label={`Loading ${loadingModel.label}`} aria-valuemax={100} aria-valuemin={0} aria-valuenow={downloadPercent} aria-valuetext={downloadProgress ? formatDownloadAriaText(downloadProgress) : "Preparing model delivery"} className="absolute inset-x-0 bottom-0 h-1 overflow-hidden bg-sophon-panel-deep" role="progressbar"><span className={cn("block h-full bg-gradient-to-r from-sophon-signal to-sophon-signal-bright shadow-[0_0_12px_var(--sophon-signal-bright)] transition-[width] duration-200 motion-reduce:transition-none", downloadPercent === undefined && "w-1/3 animate-pulse motion-reduce:animate-none")} style={downloadPercent === undefined ? undefined : { width: `${downloadPercent}%` }} /></span> : null}
         </header>
@@ -852,15 +854,17 @@ export function SophonWorkbench() {
                     <Button aria-label="Resume download" className="h-11 shrink-0 rounded-xl px-3 sm:h-9" onClick={resumeModelLoad} type="button" variant="sophon"><Download aria-hidden="true" /><span className="sm:hidden">Resume</span><span className="hidden sm:inline">Resume download</span></Button>
                   </div>
                 ) : failedTurn ? (
-                  <div className="sophon-glass-tile mb-2 flex items-center gap-2 rounded-xl border-destructive/35 px-3 py-2 text-sm text-destructive sm:mb-3 sm:gap-3 sm:px-4 sm:py-3" id="prompt-error" role="alert">
+                  <div className="sophon-glass-tile mb-2 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 rounded-xl border-destructive/35 px-3 py-2 text-sm text-destructive sm:mb-3 sm:flex sm:gap-3 sm:px-4 sm:py-3" id="prompt-error" role="alert">
                     <span className="min-w-0 flex-1">
                       <span className="block font-medium leading-5">{getFailedTurnStatus(failedTurn)}</span>
                       <span className="hidden sm:mt-0.5 sm:block">{failedTurn.reason}</span>
-                      <span className="sr-only sm:hidden">{failedTurn.reason}</span>
                     </span>
                     <span className="flex shrink-0 gap-1.5 sm:gap-2">
                       <Button className="h-11 rounded-xl px-2.5 sm:h-8" disabled={modelCompatibility !== "compatible"} onClick={retryFailedTurn} size="sm" type="button" variant="sophon"><RotateCcw aria-hidden="true" /> Retry</Button>
                       <Button className="h-11 rounded-xl px-2.5 sm:h-8" onClick={editFailedTurn} size="sm" type="button" variant="sophon"><Pencil aria-hidden="true" /> Edit</Button>
+                    </span>
+                    <span className="sophon-type-metadata col-span-2 block leading-4 sm:hidden" data-testid="failed-turn-mobile-reason" data-typography-role="metadata">
+                      {failedTurn.reason}
                     </span>
                   </div>
                 ) : error ? (

@@ -46,10 +46,14 @@ Build and validate the production bundle:
 npm run build
 npm run budget:bundle
 npm run check
+npm run audit:production
 npm run build:extension
 npm run smoke:extension
 npm run audit:extension
 ```
+
+See [`docs/security/dependency-audit.md`](docs/security/dependency-audit.md) for
+the production audit gate and the bounded development-only ESLint advisory.
 
 WebGPU works best in a recent browser with WebGPU enabled. Opening Sophon does not download model weights; each explicit Tiny Aya selection downloads and caches about 2.35 GB.
 

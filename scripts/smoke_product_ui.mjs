@@ -19,6 +19,8 @@ const states = [
 ];
 const viewports = [
   { name: "desktop", width: 1440, height: 900 },
+  { name: "tablet", width: 768, height: 900 },
+  { name: "narrow-tablet", width: 716, height: 900 },
   { name: "compact-mobile", width: 320, height: 568 },
   { name: "mobile", width: 375, height: 812 }
 ];
@@ -73,6 +75,7 @@ try {
       await main.waitFor({ state: "visible", timeout: timeoutMs });
       await assertState(page, state, viewport);
       await assertNoHorizontalOverflow(page, viewport, state);
+      if (viewport.width <= 768) await assertResponsiveHeader(page, viewport, state);
       if (viewport.width <= 375 && ["ready", "downloading", "paused", "error"].includes(state)) {
         await assertCompleteComposerMetadata(page, state);
       }
@@ -206,6 +209,16 @@ async function assertState(page, state, viewport) {
     await assertVisible(alert, `${state} recovery alert`);
     await assertVisible(alert.getByRole("button", { name: "Retry", exact: true }), `${state} retry action`);
     await assertVisible(alert.getByRole("button", { name: "Edit", exact: true }), `${state} edit action`);
+    if (viewport.width <= 375) {
+      const recoveryReason = alert.getByTestId("failed-turn-mobile-reason");
+      await assertVisible(recoveryReason, `${state} mobile recovery reason`);
+      assert.equal(
+        (await recoveryReason.textContent() ?? "").trim(),
+        state === "stopped"
+          ? "Generation stopped. Your message is ready to retry or edit."
+          : "The local WebGPU session was interrupted. Retry to rebuild it without losing your message."
+      );
+    }
     await assertHeaderStatus(
       page,
       state === "stopped" ? "Generation stopped" : "Session interrupted",
@@ -377,6 +390,55 @@ async function assertHeaderStatus(page, label, semanticClass) {
   await assertVisible(status, `${label} header status`);
   assert.equal((await status.textContent() ?? "").trim(), label);
   assert.match(await status.getAttribute("class") ?? "", new RegExp(`(?:^|\\s)${semanticClass}(?:\\s|$)`));
+}
+
+async function assertResponsiveHeader(page, viewport, state) {
+  const header = page.getByTestId("workbench-header");
+  const geometry = await header.evaluate((element) => {
+    const headerBox = element.getBoundingClientRect();
+    const measured = ["workbench-brand", "workbench-status", "workbench-actions"].flatMap((testId) => {
+      const child = element.querySelector(`[data-testid="${testId}"]`);
+      if (!child || getComputedStyle(child).display === "none") return [];
+      const box = child.getBoundingClientRect();
+      return [{
+        bottom: box.bottom,
+        clientWidth: child.clientWidth,
+        left: box.left,
+        right: box.right,
+        scrollWidth: child.scrollWidth,
+        testId,
+        top: box.top
+      }];
+    });
+    return { children: measured, header: headerBox.toJSON() };
+  });
+
+  for (const child of geometry.children) {
+    assert.ok(
+      child.left >= geometry.header.left - 1
+        && child.right <= geometry.header.right + 1
+        && child.top >= geometry.header.top - 1
+        && child.bottom <= geometry.header.bottom + 1,
+      `${viewport.name} ${state} ${child.testId} clips outside the header: ${JSON.stringify(geometry)}`
+    );
+    assert.ok(
+      child.scrollWidth <= child.clientWidth + 1,
+      `${viewport.name} ${state} ${child.testId} overflows its layout slot: ${JSON.stringify(child)}`
+    );
+  }
+
+  if (state !== "ready") return;
+  for (const [name, visibleText] of [
+    ["Reset conversation", "Reset"],
+    [/Switch to developer mode/, "Developer"],
+    ["About", "About"],
+    ["Open model library", "Models"]
+  ]) {
+    const action = page.getByRole("button", { name, exact: typeof name === "string" });
+    await assertVisible(action, `${viewport.name} ${visibleText} header action`);
+    assert.equal((await action.textContent() ?? "").trim(), visibleText, `${viewport.name} must show the ${visibleText} action name.`);
+    if (viewport.width <= 375) await assertTouchTarget(action, `${viewport.name} ${visibleText}`);
+  }
 }
 
 async function assertCompleteComposerMetadata(page, state) {

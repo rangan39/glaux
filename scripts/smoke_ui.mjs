@@ -35,7 +35,7 @@ try {
   const modelRadios = modelLibrary.getByRole("radio");
   const sendButton = activePage.getByRole("button", { name: "Send message", exact: true });
   const resetButton = activePage.getByRole("button", { name: "Reset conversation", exact: true });
-  const aboutTrigger = activePage.getByRole("button", { name: "About Sophon", exact: true });
+  const aboutTrigger = activePage.getByRole("button", { name: "About", exact: true });
   const storageStatus = activePage.getByTestId("browser-storage");
   await assertVisible(heading, "Sophon heading");
   const firstRunWelcome = activePage.getByTestId("first-run-welcome");
@@ -217,7 +217,7 @@ try {
   assert.equal(await sendButton.isDisabled(), true, "Send must be disabled for an empty prompt.");
   await assertVisible(resetButton, "conversation reset control");
   assert.equal(await resetButton.getAttribute("title"), "Reset conversation");
-  assert.equal((await resetButton.textContent())?.trim(), "", "Reset control must remain icon-only.");
+  assert.equal((await resetButton.textContent())?.trim(), "Reset", "Reset control must expose a visible action name.");
   assert.equal(await textarea.isDisabled(), true, "A failed model download must leave the prompt locked.");
   assert.equal(await textarea.inputValue(), "", "The locked prompt must not accept a draft.");
   assert.equal(await resetButton.isEnabled(), true, "Reset must recover the composer after a failed model preload.");
@@ -729,7 +729,7 @@ async function assertFirstRunLayout(page, viewport) {
     const brand = select('[data-testid="workbench-brand"]');
     const actions = select('[data-testid="workbench-actions"]');
     const status = select('[data-testid="workbench-status"]');
-    const about = select('button[aria-label="About Sophon"]');
+    const about = header?.querySelector('button[aria-haspopup="dialog"]');
     const models = select('[data-testid="open-model-library"]');
     const recommended = select('[data-testid="first-run-recommended"]');
     const icon = select('[data-testid="first-run-recommended-icon"]');

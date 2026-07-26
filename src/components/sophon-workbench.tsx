@@ -731,20 +731,17 @@ export function SophonWorkbench() {
             ) : null}
             {selectedModel ? (
               <Button
-                aria-label={`${developerMode ? "Developer" : "Chat"} mode. Switch to ${developerMode ? "chat" : "developer"} mode`}
-                className={cn(
-                  "size-11 rounded-xl p-0 sm:h-9 sm:w-auto sm:px-3",
-                  developerMode && "border-sophon-signal-bright/55 bg-sophon-signal/10 text-sophon-signal-soft"
-                )}
+                aria-label={`Switch to ${developerMode ? "chat" : "developer"} mode. ${developerMode ? "Developer" : "Chat"} mode is active`}
+                className="size-11 rounded-xl p-0 sm:h-9 sm:w-auto sm:px-3"
                 data-mode={interfaceMode}
                 data-testid="interface-mode-toggle"
                 onClick={() => setInterfaceMode(developerMode ? "chat" : "developer")}
-                title={`${developerMode ? "Developer" : "Chat"} mode`}
+                title={`Switch to ${developerMode ? "Chat" : "Developer"} mode`}
                 type="button"
                 variant="sophon"
               >
-                {developerMode ? <Code2 aria-hidden="true" /> : <MessageCircle aria-hidden="true" />}
-                <span className="hidden lg:inline">{developerMode ? "Developer" : "Chat"}</span>
+                {developerMode ? <MessageCircle aria-hidden="true" /> : <Code2 aria-hidden="true" />}
+                <span className="hidden lg:inline">{developerMode ? "Chat" : "Developer"}</span>
               </Button>
             ) : null}
             <SophonAcknowledgements compact />

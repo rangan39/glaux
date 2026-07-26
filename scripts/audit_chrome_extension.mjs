@@ -58,7 +58,7 @@ export async function auditChromeExtension(extensionDir, { reportPath } = {}) {
   assert.deepEqual(inlineExecutableScripts, [], "Executable inline scripts remain in extension HTML.");
   assert.deepEqual(remoteExecutableUrls, [], "Remote JavaScript or WebAssembly references remain in the package.");
 
-  const packagedManifestPath = path.join(extensionDir, "model-runtime", "manifest.json");
+  const packagedManifestPath = path.join(extensionDir, "model-runtime", "artifacts.json");
   const packagedManifest = JSON.parse(await readFile(packagedManifestPath, "utf8"));
   const sourceManifest = JSON.parse(await readFile(path.join(rootDir, "models", "model-artifacts.seed.json"), "utf8"));
   assert.equal(packagedManifest.schemaVersion, 1);

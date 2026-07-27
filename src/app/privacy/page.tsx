@@ -28,7 +28,7 @@ export default function PrivacyPolicy() {
             <ul>
               <li><strong>Prompts and responses:</strong> kept in memory for the current page session so Sophon can maintain conversation context. They are not saved to browser storage. Resetting, reloading, or closing the page removes them.</li>
               <li><strong>Selected model:</strong> the identifier of the last model that became ready is stored in local browser storage so Sophon can restore it later.</li>
-              <li><strong>Model data:</strong> downloaded tensor weights, integrity checkpoints, resumable-download state, and verified packaged model files are stored in browser-private OPFS, IndexedDB, and Cache Storage.</li>
+              <li><strong>Model data:</strong> the selected model&apos;s downloaded tensor weights, integrity checkpoints, resumable-download state, and verified packaged model files are stored in browser-private OPFS, IndexedDB, and Cache Storage.</li>
               <li><strong>Runtime measurements:</strong> token counts and performance measurements such as time to first token are calculated and displayed locally. They are not transmitted.</li>
             </ul>
           </section>
@@ -47,12 +47,12 @@ export default function PrivacyPolicy() {
           <section>
             <h2>Retention and deletion</h2>
             <p>Conversation content lasts only for the current page session. Use <strong>Reset conversation</strong> to remove it immediately.</p>
-            <p>Downloaded or partially downloaded model data remains in browser-private storage until you delete it, the browser evicts it, you clear the extension&apos;s site data, or you uninstall the extension. Open <strong>Models</strong> and choose the delete control beside a model to remove that model&apos;s weights, checkpoints, and cached runtime files. To remove all Sophon data, delete each saved model, reset the conversation, and uninstall Sophon from <code>chrome://extensions</code> or clear its stored data through Chrome&apos;s site-data controls.</p>
+            <p>Downloaded or partially downloaded data for the selected model remains in browser-private storage until you switch models, delete it, the browser evicts it, you clear the extension&apos;s site data, or you uninstall the extension. Switching models removes all saved model files before starting the new download from scratch. Open <strong>Models</strong> and use the delete control to remove the current model&apos;s weights, checkpoints, and cached runtime files. To remove all Sophon data, delete the saved model, reset the conversation, and uninstall Sophon from <code>chrome://extensions</code> or clear its stored data through Chrome&apos;s site-data controls.</p>
           </section>
 
           <section>
             <h2>Permissions</h2>
-            <p>The extension uses <code>unlimitedStorage</code> so user-selected multi-gigabyte model data can remain available locally. Its host access is limited to Hugging Face and related CDN hosts used for model-weight downloads. Sophon does not request browsing history, active-tab, page-content, clipboard, identity, location, camera, or microphone access.</p>
+            <p>The extension uses <code>unlimitedStorage</code> so the user-selected multi-gigabyte model can remain available locally. Its host access is limited to Hugging Face and related CDN hosts used for model-weight downloads. Sophon does not request browsing history, active-tab, page-content, clipboard, identity, location, camera, or microphone access.</p>
           </section>
 
           <section>

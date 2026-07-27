@@ -11,6 +11,8 @@ export const PRODUCT_TEST_MODEL_IDS = [
 export const PRODUCT_TEST_STATES = [
   "checking",
   "confirmation",
+  "replacement-confirmation",
+  "replacement-deleting",
   "downloading",
   "paused",
   "verifying",
@@ -54,6 +56,7 @@ export type ProductTestSnapshot = {
   loadedModelId: string | null;
   modelId: string;
   modelLoadPaused: boolean;
+  modelReplacementPhase: "stopping" | "deleting" | "starting" | null;
   pendingModelDownloadId: string | null;
   resetConfirmationOpen: boolean;
   capabilities: ProductTestCapabilities | null;
@@ -237,6 +240,18 @@ export function createProductTestSnapshot(state: ProductTestState, activeModelId
     };
   }
 
+  if (state === "replacement-confirmation" || state === "replacement-deleting") {
+    return {
+      ...snapshot,
+      modelId: MODEL_ID,
+      loadedModelId: MODEL_ID,
+      messages: cloneMessages(BASE_MESSAGES),
+      modelReplacementPhase: state === "replacement-deleting" ? "deleting" : null,
+      pendingModelDownloadId: "tiny-aya-earth",
+      cacheSummaries: cacheSummaries("cached", MODEL_BYTES, MODEL_BYTES, MODEL_ID)
+    };
+  }
+
   if (state === "downloading") {
     const loaded = 872 * MIB;
     return {
@@ -399,6 +414,7 @@ function baseSnapshot(state: ProductTestState): ProductTestSnapshot {
     loadedModelId: null,
     modelId: "",
     modelLoadPaused: false,
+    modelReplacementPhase: null,
     pendingModelDownloadId: null,
     resetConfirmationOpen: false,
     capabilities: { ...FIXTURE_CAPABILITIES },

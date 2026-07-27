@@ -78,7 +78,13 @@ export async function ensureAuxiliaryArtifact(
     "content-type": response.headers.get("content-type") ?? "application/octet-stream"
   };
   const caching = cache.put(key, new Response(guardedCacheBody, { headers })).catch((error) => {
-    throw toModelStorageError(error, "The browser ran out of storage while caching verified model files.");
+    if (signal?.aborted) {
+      throw signal.reason instanceof Error ? signal.reason : new DOMException("The model download was cancelled.", "AbortError");
+    }
+    throw toModelStorageError(
+      error,
+      `The browser ran out of storage while caching ${artifact.path}.`
+    );
   });
   try {
     const downloadedSha256 = await readAndHash(new Response(verificationBody), artifact.size, (loaded) => {

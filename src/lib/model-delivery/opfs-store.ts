@@ -1,7 +1,10 @@
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
 import type { ModelDeliveryArtifact, ModelDeliveryManifest } from "@/lib/model-delivery/manifest";
 import type { ArtifactDownloadState, ArtifactStateStore, PositionedFile } from "@/lib/model-delivery/range-downloader";
-import { ModelDeliveryUnavailableError, toModelStorageError } from "@/lib/model-delivery/errors";
+import {
+  ModelDeliveryUnavailableError,
+  toModelStorageOperationError
+} from "@/lib/model-delivery/errors";
 
 interface DeliveryDatabase extends DBSchema {
   artifacts: { key: string; value: ArtifactDownloadState };
@@ -63,15 +66,29 @@ export async function deleteModelStorage(model: ModelDeliveryManifest) {
       const version = await app.getDirectoryHandle("v1");
       await version.removeEntry(model.modelId, { recursive: true });
     } catch (error) {
-      if (!(error instanceof DOMException && error.name === "NotFoundError")) throw toModelStorageError(error);
+      if (!(error instanceof DOMException && error.name === "NotFoundError")) {
+        throw toModelStorageOperationError(
+          error,
+          "The browser could not remove old model files from private storage.",
+          "opfs-delete"
+        );
+      }
     }
   }
-  const database = await getDatabase();
-  const transaction = database.transaction("artifacts", "readwrite", { durability: "strict" });
-  for (const key of await transaction.store.getAllKeys()) {
-    if (key.startsWith(`${model.modelId}:`)) await transaction.store.delete(key);
+  try {
+    const database = await getDatabase();
+    const transaction = database.transaction("artifacts", "readwrite", { durability: "strict" });
+    for (const key of await transaction.store.getAllKeys()) {
+      if (key.startsWith(`${model.modelId}:`)) await transaction.store.delete(key);
+    }
+    await transaction.done;
+  } catch (error) {
+    throw toModelStorageOperationError(
+      error,
+      "The browser could not remove old model checkpoints.",
+      "indexeddb-checkpoint"
+    );
   }
-  await transaction.done;
 }
 
 export function createArtifactStateStore(): ArtifactStateStore {
@@ -80,22 +97,46 @@ export function createArtifactStateStore(): ArtifactStateStore {
       return (await getDatabase()).get("artifacts", key);
     },
     async put(state) {
-      const transaction = (await getDatabase()).transaction("artifacts", "readwrite", { durability: "strict" });
-      await transaction.store.put(state);
-      await transaction.done;
+      try {
+        const transaction = (await getDatabase()).transaction("artifacts", "readwrite", { durability: "strict" });
+        await transaction.store.put(state);
+        await transaction.done;
+      } catch (error) {
+        throw toModelStorageOperationError(
+          error,
+          "The browser could not save resumable model-download checkpoints.",
+          "indexeddb-checkpoint"
+        );
+      }
     },
     async delete(key) {
-      const transaction = (await getDatabase()).transaction("artifacts", "readwrite", { durability: "strict" });
-      await transaction.store.delete(key);
-      await transaction.done;
+      try {
+        const transaction = (await getDatabase()).transaction("artifacts", "readwrite", { durability: "strict" });
+        await transaction.store.delete(key);
+        await transaction.done;
+      } catch (error) {
+        throw toModelStorageOperationError(
+          error,
+          "The browser could not update resumable model-download checkpoints.",
+          "indexeddb-checkpoint"
+        );
+      }
     }
   };
 }
 
 export async function commitArtifactStates(states: readonly ArtifactDownloadState[]) {
-  const transaction = (await getDatabase()).transaction("artifacts", "readwrite", { durability: "strict" });
-  for (const state of states) await transaction.store.put(state);
-  await transaction.done;
+  try {
+    const transaction = (await getDatabase()).transaction("artifacts", "readwrite", { durability: "strict" });
+    for (const state of states) await transaction.store.put(state);
+    await transaction.done;
+  } catch (error) {
+    throw toModelStorageOperationError(
+      error,
+      "The browser could not save resumable model-download checkpoints.",
+      "indexeddb-checkpoint"
+    );
+  }
 }
 
 export async function openArtifactFile(model: ModelDeliveryManifest, artifact: ModelDeliveryArtifact): Promise<OpenArtifactFile> {
@@ -119,10 +160,40 @@ export async function openArtifactFile(model: ModelDeliveryManifest, artifact: M
     return {
       file: {
         getSize: () => access.getSize(),
-        truncate: (size) => access.truncate(size),
+        truncate: (size) => {
+          try {
+            return access.truncate(size);
+          } catch (error) {
+            throw toModelStorageOperationError(
+              error,
+              "The browser rejected a model-file resize in private storage.",
+              "opfs-resize"
+            );
+          }
+        },
         read: (data, offset) => access.read(data, { at: offset }),
-        write: (data, offset) => access.write(data, { at: offset }),
-        flush: () => access.flush(),
+        write: (data, offset) => {
+          try {
+            return access.write(data, { at: offset });
+          } catch (error) {
+            throw toModelStorageOperationError(
+              error,
+              "The browser rejected a model-file write in private storage.",
+              "opfs-write"
+            );
+          }
+        },
+        flush: () => {
+          try {
+            return access.flush();
+          } catch (error) {
+            throw toModelStorageOperationError(
+              error,
+              "The browser could not flush model files to private storage.",
+              "opfs-flush"
+            );
+          }
+        },
         getFile: () => handle.getFile()
       },
       close: () => {
@@ -133,7 +204,11 @@ export async function openArtifactFile(model: ModelDeliveryManifest, artifact: M
     };
   } catch (error) {
     if (error instanceof ModelDeliveryUnavailableError) throw error;
-    const storageError = toModelStorageError(error);
+    const storageError = toModelStorageOperationError(
+      error,
+      "The browser could not open private model storage.",
+      "opfs-open"
+    );
     if (storageError !== error) throw storageError;
     throw new ModelDeliveryUnavailableError("Persistent model storage could not be opened.", { cause: error });
   }

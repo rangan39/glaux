@@ -10,6 +10,8 @@ export const PRODUCT_TEST_MODEL_IDS = [
 ] as const;
 export const PRODUCT_TEST_STATES = [
   "checking",
+  "legacy-cleanup",
+  "legacy-cleanup-error",
   "confirmation",
   "replacement-confirmation",
   "replacement-deleting",
@@ -57,6 +59,7 @@ export type ProductTestSnapshot = {
   modelId: string;
   modelLoadPaused: boolean;
   modelReplacementPhase: "stopping" | "deleting" | "starting" | null;
+  startupCleanupStatus: "idle" | "cleaning" | "failed";
   pendingModelDownloadId: string | null;
   resetConfirmationOpen: boolean;
   capabilities: ProductTestCapabilities | null;
@@ -229,6 +232,24 @@ export function createProductTestSnapshot(state: ProductTestState, activeModelId
       ...snapshot,
       capabilities: null,
       browserStorage: undefined,
+      cacheInventoryResolved: false
+    };
+  }
+
+  if (state === "legacy-cleanup" || state === "legacy-cleanup-error") {
+    const legacyCaches = cacheSummaries("cached", MODEL_BYTES, MODEL_BYTES, MODEL_ID).map((summary) => (
+      summary.modelId === "tiny-aya-earth"
+        ? { ...summary, state: "cached" as const, resumableBytes: MODEL_BYTES, verifiedBytes: MODEL_BYTES }
+        : summary
+    ));
+    return {
+      ...snapshot,
+      error: state === "legacy-cleanup-error"
+        ? "The browser could not remove old model files from private storage."
+        : null,
+      startupCleanupStatus: state === "legacy-cleanup-error" ? "failed" : "cleaning",
+      modelReplacementPhase: state === "legacy-cleanup" ? "deleting" : null,
+      cacheSummaries: legacyCaches,
       cacheInventoryResolved: false
     };
   }
@@ -415,6 +436,7 @@ function baseSnapshot(state: ProductTestState): ProductTestSnapshot {
     modelId: "",
     modelLoadPaused: false,
     modelReplacementPhase: null,
+    startupCleanupStatus: "idle",
     pendingModelDownloadId: null,
     resetConfirmationOpen: false,
     capabilities: { ...FIXTURE_CAPABILITIES },

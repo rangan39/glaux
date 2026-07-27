@@ -7,6 +7,8 @@ const timeoutMs = Number(process.env.SOPHON_SMOKE_TIMEOUT_MS ?? 30_000);
 const states = [
   "checking",
   "confirmation",
+  "replacement-confirmation",
+  "replacement-deleting",
   "downloading",
   "paused",
   "verifying",
@@ -82,9 +84,9 @@ try {
       if (viewport.width === 375 && ["ready", "paused", "error"].includes(state)) {
         await assertMobileComposerGeometry(page, viewport, state);
       }
-      if (state === "confirmation") {
-        await assertDocumentScrollLock(page, viewport);
-        await assertModelChoiceFlow(page, viewport);
+      if (state === "confirmation" || state === "replacement-confirmation" || state === "replacement-deleting") {
+        await assertDocumentScrollLock(page, viewport, state);
+        if (state === "confirmation") await assertModelChoiceFlow(page, viewport);
       }
       assert.equal(
         await page.evaluate(() => window.__sophonProductTestWorkerCount),
@@ -157,6 +159,23 @@ async function assertState(page, state, viewport) {
     await assertVisible(dialog.getByRole("button", { name: "Download model", exact: true }), "download confirmation action");
     assert.match(await dialog.textContent() ?? "", /non-commercial use under CC BY-NC 4\.0/);
     await assertHeaderStatus(page, "Choose model", "text-sophon-copy-metadata");
+    return;
+  }
+  if (state === "replacement-confirmation") {
+    const dialog = page.getByRole("dialog", { name: "Replace Tiny Aya Global 3.35B with Tiny Aya Earth 3.35B?", exact: true });
+    await assertVisible(dialog, "model replacement confirmation");
+    await assertVisible(dialog.getByRole("button", { name: "Keep Tiny Aya Global 3.35B", exact: true }), "keep installed model action");
+    await assertVisible(dialog.getByRole("button", { name: "Replace & download", exact: true }), "replace and download action");
+    assert.match(await dialog.textContent() ?? "", /keeps one model on this device at a time/i);
+    assert.match(await dialog.textContent() ?? "", /Switching back will require another download/i);
+    return;
+  }
+  if (state === "replacement-deleting") {
+    const dialog = page.getByRole("dialog", { name: "Replace Tiny Aya Global 3.35B with Tiny Aya Earth 3.35B?", exact: true });
+    await assertVisible(dialog, "model replacement deletion progress");
+    const removing = dialog.getByRole("button", { name: "Removing Tiny Aya Global 3.35B…", exact: true });
+    await assertVisible(removing, "model replacement busy state");
+    assert.equal(await removing.isDisabled(), true, "Replacement progress must not be actionable.");
     return;
   }
   if (state === "downloading") {
@@ -523,9 +542,8 @@ async function assertTouchTarget(locator, label) {
   assert.ok(box && box.width >= 44 && box.height >= 44, `${label} must remain at least 44×44px: ${JSON.stringify(box)}`);
 }
 
-async function assertDocumentScrollLock(page, viewport) {
-  const dialog = page.getByRole("dialog", { name: "Download Tiny Aya Global 3.35B?", exact: true });
-  await assertDocumentScrollLocked(page, `${viewport.name} download confirmation`);
+async function assertDocumentScrollLock(page, viewport, state) {
+  await assertDocumentScrollLocked(page, `${viewport.name} ${state}`);
   const lockedScroll = await page.evaluate(() => ({ x: window.scrollX, y: window.scrollY }));
   await page.mouse.wheel(0, 500);
   await page.keyboard.press("PageDown");
@@ -534,7 +552,9 @@ async function assertDocumentScrollLock(page, viewport) {
     lockedScroll,
     `${viewport.name} initially open fixture allowed background scrolling.`
   );
+  if (state !== "confirmation") return;
 
+  const dialog = page.getByRole("dialog", { name: "Download Tiny Aya Global 3.35B?", exact: true });
   await dialog.getByRole("button", { name: "Not now", exact: true }).click();
   await dialog.waitFor({ state: "hidden", timeout: timeoutMs });
 

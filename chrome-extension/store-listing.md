@@ -18,11 +18,12 @@ Use an open-source web tool to run multilingual Tiny Aya models locally in Chrom
 
 Sophon is an open-source web tool for private, multilingual AI chat in desktop Chrome. Select a Tiny Aya model, download its weights once, and run prompts locally with WebGPU. Prompts and generated responses stay in the browser and are never sent to an inference service.
 
-Choose from Tiny Aya Global, Earth, Fire, and Water for different language-region strengths. Sophon shows model status and generation performance, supports resumable downloads, accepts verified offline model packs, and lets you delete each saved model from the model library.
+Choose from Tiny Aya Global, Earth, Fire, and Water for different language-region strengths. Sophon shows model status and generation performance, supports pausing and resuming the current download, accepts verified offline model packs, and keeps one model download at a time. Choosing another model removes all saved model files before a fresh download begins.
 
 Before downloading:
 
 - Each selected model downloads approximately 2.35 GB and may take several minutes.
+- Switching models deletes the previously downloaded model; switching back requires another download.
 - A recent desktop Chromium browser, WebGPU-capable GPU, sufficient memory, and available browser storage are required.
 - Tiny Aya weights are licensed under CC BY-NC 4.0 for non-commercial use and remain subject to the Cohere Labs Acceptable Use Policy.
 - Sophon’s application code is MIT licensed. The Tiny Aya model-weights licence is separate and remains non-commercial.

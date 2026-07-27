@@ -56,7 +56,7 @@ npm run audit:extension
 See [`docs/security/dependency-audit.md`](docs/security/dependency-audit.md) for
 the production audit gate and the bounded development-only ESLint advisory.
 
-WebGPU works best in a recent browser with WebGPU enabled. Opening Sophon does not download model weights; each explicit Tiny Aya selection downloads and caches about 2.35 GB.
+WebGPU works best in a recent browser with WebGPU enabled. Opening Sophon does not download model weights; an explicit Tiny Aya selection downloads and caches about 2.35 GB. Sophon stores one model at a time, so choosing another model removes all saved model files—including partial downloads—before starting the new download from scratch.
 
 ### Product-test states
 
@@ -138,7 +138,7 @@ The current registry includes:
 
 The four Tiny Aya entries are 3.35B-parameter q4f16 ONNX conversions. They use an 8K context and 48-token default on desktop, then switch to a 2K context and 24-token default on mobile hardware. Every model is WebGPU-only, pinned to an immutable repository revision, and marked `experimental` until Sophon certifies each tokenizer, graph, and browser combination. Chromium browsers request the high-performance GPU adapter and load the model with full ONNX graph optimization; Transformers.js keeps Tiny Aya's KV-cache outputs on the GPU.
 
-Tiny Aya is an open-weights research release governed by CC BY-NC 4.0 and the Cohere Labs Acceptable Use Policy; commercial use is not permitted under that license. Each variant has a separate browser cache key, so caching all four models can consume roughly 9.4 GB.
+Tiny Aya is an open-weights research release governed by CC BY-NC 4.0 and the Cohere Labs Acceptable Use Policy; commercial use is not permitted under that license. Each variant has a separate browser cache key, but Sophon keeps only one model download at a time to bound normal model storage near 2.35 GB.
 
 ## Model delivery and caching
 
@@ -150,7 +150,7 @@ Verified OPFS `File` objects are handed to Transformers.js as ONNX external data
 
 Delivery fails closed when OPFS, synchronous worker access, CacheStorage, strong validators, or HTTP ranges are unavailable; there is no unverified multi-gigabyte fallback. Sophon checks the browser's available storage before starting and surfaces quota failures explicitly. Model selection also makes a best-effort persistent-storage request, while the browser retains final control over quota and eviction.
 
-Switching models or pressing Pause aborts active network reads without discarding flushed 64 MiB checkpoints. The model library distinguishes partial and fully cached models, and provides per-model deletion that disposes any live pipeline before removing OPFS, IndexedDB, and CacheStorage data. The UI also reports approximate site usage and quota through the Storage API.
+Pressing Pause aborts active network reads without discarding flushed 64 MiB checkpoints, so the same model can resume. Switching models first stops the live pipeline, removes all saved model files—including old partial data for the selected model—from OPFS, IndexedDB, and CacheStorage, verifies that cleanup, and only then starts a fresh download. Returning to the previous model also requires a fresh download. The model library distinguishes partial and fully cached models, provides explicit deletion, and reports approximate site usage and quota through the Storage API.
 
 ## Repacking model artifacts
 

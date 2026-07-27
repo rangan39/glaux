@@ -12,6 +12,13 @@ export class ModelStorageQuotaError extends Error {
   }
 }
 
+export class ModelStorageWriteError extends Error {
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "ModelStorageWriteError";
+  }
+}
+
 export class InsufficientModelStorageError extends Error {
   readonly availableBytes: number;
   readonly requiredBytes: number;
@@ -28,10 +35,23 @@ export function isStorageQuotaError(error: unknown) {
   return error instanceof DOMException && error.name === "QuotaExceededError";
 }
 
-export function toModelStorageError(error: unknown, message = "The browser ran out of storage while saving this model.") {
-  return isStorageQuotaError(error)
-    ? new ModelStorageQuotaError(message, { cause: error })
-    : error;
+export function isCacheStorageWriteError(error: unknown) {
+  return error instanceof Error
+    && /Cache\.put\(\) encountered a network error/i.test(error.message);
+}
+
+export function toModelStorageError(
+  error: unknown,
+  message = "The browser ran out of storage while saving this model."
+) {
+  if (isStorageQuotaError(error)) return new ModelStorageQuotaError(message, { cause: error });
+  if (isCacheStorageWriteError(error)) {
+    return new ModelStorageWriteError(
+      "Sophon could not save the model files in browser storage. Free some device space, remove the partial model download, and retry.",
+      { cause: error }
+    );
+  }
+  return error;
 }
 
 function formatBytes(bytes: number) {

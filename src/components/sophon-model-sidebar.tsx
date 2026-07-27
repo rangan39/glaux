@@ -73,15 +73,19 @@ function ModelPanel({ activeModelId, cacheSummaries = [], capabilities, deleting
           const cache = cacheSummaries.find((entry) => entry.modelId === model.id);
           const hasStoredData = cache?.state === "cached" || cache?.state === "partial";
           const availableLocally = cache?.state === "cached";
+          const replacesStoredModel = cacheSummaries.some((entry) => (
+            entry.modelId !== model.id && entry.state !== "missing"
+          ));
           const active = loading && activeModelId === model.id;
           const deleteLabel = cache?.state === "partial" ? "Delete saved progress" : "Delete download";
+          const primaryAction = replacesStoredModel ? "Replace" : cache?.state === "partial" ? "Resume" : "Download";
           const subtitle = `${mobileProfile && model.family === "cohere" ? "2K mobile · " : ""}${model.format.sizeLabel} · ${ui.bestFor}`;
           const status = active
             ? `${loadingLabel}${downloadPercentLabel ? ` ${downloadPercentLabel}` : ""}`
             : loadedModelId === model.id
-              ? "Ready"
+              ? "Installed · active"
               : availableLocally
-                ? `Available locally · ${formatBytes(cache.totalBytes)}`
+                ? `Installed · ${formatBytes(cache.totalBytes)}`
                 : cache?.state === "partial"
                   ? `${formatSavedBytes(cache.resumableBytes)} saved`
                   : modelAvailability(capabilities, model);
@@ -102,7 +106,7 @@ function ModelPanel({ activeModelId, cacheSummaries = [], capabilities, deleting
               {active ? <span aria-hidden="true" className="absolute inset-x-0 bottom-0 h-0.5 bg-sophon-panel-deep"><span className={cn("block h-full bg-sophon-signal-bright", downloadPercent === undefined && "w-1/3 animate-pulse motion-reduce:animate-none")} style={downloadPercent === undefined ? undefined : { width: `${downloadPercent}%` }} /></span> : null}
             </label>
             {expanded && !active && (selected || hasStoredData) ? <div className={cn("flex min-w-0 items-center gap-1 border-t border-sophon-glass-border", mobile ? "flex-wrap p-1.5" : "flex-wrap p-1")} data-model-actions>
-              {selected && !availableLocally ? <Button aria-label={`${cache?.state === "partial" ? "Resume" : "Download"} ${ui.name} · ${model.format.sizeLabel}`} className={cn("sophon-accent-surface sophon-type-action min-w-0 flex-1 gap-1 rounded-lg px-2 font-mono uppercase tracking-[0.04em]", mobile ? cn("h-11", hasStoredData && "basis-full") : "h-8 basis-full")} data-model-download data-typography-role="action" disabled={capabilities === null || unavailable} onClick={() => onDownload(model.id)} title={`${cache?.state === "partial" ? "Resume" : "Download"} ${ui.name} from the network`} type="button"><Download aria-hidden="true" /><span className="truncate">{cache?.state === "partial" ? "Resume" : "Download"} {ui.name} · {model.format.sizeLabel}</span></Button> : null}
+              {selected && !availableLocally ? <Button aria-label={`${primaryAction} ${ui.name} · ${model.format.sizeLabel}`} className={cn("sophon-accent-surface sophon-type-action min-w-0 flex-1 gap-1 rounded-lg px-2 font-mono uppercase tracking-[0.04em]", mobile ? cn("h-11", hasStoredData && "basis-full") : "h-8 basis-full")} data-model-download data-typography-role="action" disabled={capabilities === null || unavailable} onClick={() => onDownload(model.id)} title={replacesStoredModel ? `Replace the saved model with ${ui.name}` : `${primaryAction} ${ui.name} from the network`} type="button"><Download aria-hidden="true" /><span className="truncate">{primaryAction} {ui.name} · {model.format.sizeLabel}</span></Button> : null}
               {hasStoredData ? <Button aria-label={`${deleteLabel} for ${model.label}`} className={cn("sophon-type-action min-w-0 shrink-0 gap-1 border-0 bg-transparent font-mono uppercase tracking-[0.04em] text-sophon-copy-decorative shadow-none hover:border-transparent hover:bg-destructive/10 hover:text-destructive", mobile ? "h-11 flex-1 rounded-xl px-3" : "h-8 px-2")} data-model-delete data-typography-role="action" disabled={deletingModelId !== null} onClick={() => onDelete(model.id)} title={`${deleteLabel} for ${ui.name}`} type="button" variant="sophon"><Trash2 aria-hidden="true" className="stroke-[1.5]" /><span>{deleteLabel}</span></Button> : null}
             </div> : null}
           </div>;
@@ -125,7 +129,7 @@ function ModelPanel({ activeModelId, cacheSummaries = [], capabilities, deleting
             <InfoHint concept="modelLicense" portalContainer={portalContainer} />
           </div>
         </div>
-        <p className="sophon-type-metadata mt-2 normal-case tracking-normal text-sophon-copy-metadata">Choose Global for broad coverage, or a regional model when most of your conversations use those languages.</p>
+        <p className="sophon-type-metadata mt-2 normal-case tracking-normal text-sophon-copy-metadata">Sophon keeps one model on this device at a time. Choosing another model replaces the saved download.</p>
       </footer>
     ) : null}
   </>;

@@ -6,6 +6,8 @@ const baseUrl = process.env.SOPHON_SMOKE_URL ?? "http://localhost:3000";
 const timeoutMs = Number(process.env.SOPHON_SMOKE_TIMEOUT_MS ?? 30_000);
 const states = [
   "checking",
+  "legacy-cleanup",
+  "legacy-cleanup-error",
   "confirmation",
   "replacement-confirmation",
   "replacement-deleting",
@@ -151,6 +153,17 @@ async function assertModelThemes(browser) {
 async function assertState(page, state, viewport) {
   if (state === "checking") {
     await assertVisible(page.getByRole("status").filter({ hasText: "Checking this browser" }), "checking state");
+    return;
+  }
+  if (state === "legacy-cleanup") {
+    await assertVisible(page.getByRole("status").filter({ hasText: "Cleaning up old model files" }), "legacy model cleanup");
+    await assertHeaderStatus(page, "Choose model", "text-sophon-copy-metadata");
+    return;
+  }
+  if (state === "legacy-cleanup-error") {
+    const alert = page.getByRole("alert").filter({ hasText: "Old model files could not be removed" });
+    await assertVisible(alert, "legacy model cleanup error");
+    await assertVisible(alert.getByRole("button", { name: "Retry cleanup", exact: true }), "legacy cleanup retry");
     return;
   }
   if (state === "confirmation") {

@@ -4,7 +4,12 @@ import test from "node:test";
 
 register("./alias-loader.mjs", import.meta.url);
 
-const { createModelReplacementPlan, runModelReplacement } = await import("../src/lib/model-replacement.ts");
+const {
+  createModelReplacementPlan,
+  createStartupModelCleanupPlan,
+  runModelReplacement,
+  runStartupModelCleanup
+} = await import("../src/lib/model-replacement.ts");
 
 function summary(modelId, state, resumableBytes = 0, totalBytes = 2_350_000_000) {
   return {
@@ -25,6 +30,7 @@ test("downloads a missing model directly when no other model is stored", () => {
     {
       action: "download",
       bytesToRemove: 0,
+      modelIdsToDelete: [],
       requiresReplacement: false,
       sourceModelIds: [],
       targetModelId: "earth",
@@ -42,6 +48,7 @@ test("replaces the installed model before downloading another model", () => {
   assert.equal(plan.action, "download");
   assert.equal(plan.requiresReplacement, true);
   assert.deepEqual(plan.sourceModelIds, ["global"]);
+  assert.deepEqual(plan.modelIdsToDelete, ["global", "earth"]);
   assert.equal(plan.bytesToRemove, 2_350_000_000);
 });
 
@@ -53,6 +60,7 @@ test("deletes target partial data when switching so the download starts from scr
 
   assert.equal(plan.action, "download");
   assert.deepEqual(plan.sourceModelIds, ["global", "earth"]);
+  assert.deepEqual(plan.modelIdsToDelete, ["global", "earth"]);
   assert.equal(plan.bytesToRemove, 2_990_000_000);
 });
 
@@ -66,6 +74,7 @@ test("cleans every non-target model from a legacy multi-model installation", () 
 
   assert.equal(plan.action, "download");
   assert.deepEqual(plan.sourceModelIds, ["global", "earth", "fire"]);
+  assert.deepEqual(plan.modelIdsToDelete, ["global", "earth", "fire", "water"]);
   assert.equal(plan.bytesToRemove, 4_828_000_000);
 });
 
@@ -78,6 +87,31 @@ test("still resumes a paused download when the user stays on the same model", ()
   assert.equal(plan.action, "resume");
   assert.equal(plan.requiresReplacement, false);
   assert.deepEqual(plan.sourceModelIds, []);
+  assert.deepEqual(plan.modelIdsToDelete, []);
+});
+
+test("startup preserves a single stored model", () => {
+  const plan = createStartupModelCleanupPlan([
+    summary("global", "cached"),
+    summary("earth", "missing")
+  ]);
+
+  assert.equal(plan.requiresCleanup, false);
+  assert.deepEqual(plan.storedModelIds, ["global"]);
+  assert.deepEqual(plan.modelIdsToDelete, []);
+});
+
+test("startup schedules every registered model for idempotent legacy cleanup", () => {
+  const plan = createStartupModelCleanupPlan([
+    summary("global", "cached"),
+    summary("earth", "cached"),
+    summary("fire", "missing")
+  ]);
+
+  assert.equal(plan.requiresCleanup, true);
+  assert.deepEqual(plan.storedModelIds, ["global", "earth"]);
+  assert.deepEqual(plan.modelIdsToDelete, ["global", "earth", "fire"]);
+  assert.equal(plan.bytesToRemove, 4_700_000_000);
 });
 
 test("stops the runtime and deletes old models before starting the target model", async () => {
@@ -113,6 +147,7 @@ test("stops the runtime and deletes old models before starting the target model"
     "stop",
     "phase:deleting",
     "delete:global",
+    "delete:earth",
     "delete:fire",
     "refresh",
     "phase:starting"
@@ -138,6 +173,28 @@ test("does not start the target when old model files remain", async () => {
       stopActiveModel: async () => {}
     }),
     /could not finish removing/
+  );
+  assert.deepEqual(phases, ["stopping", "deleting"]);
+});
+
+test("startup cleanup is fail-closed when any model remains", async () => {
+  const phases = [];
+  const plan = createStartupModelCleanupPlan([
+    summary("global", "cached"),
+    summary("earth", "partial", 128_000_000)
+  ]);
+
+  await assert.rejects(
+    runStartupModelCleanup(plan, {
+      deleteStoredModel: async () => {},
+      onPhaseChange: (phase) => phases.push(phase),
+      readCacheSummaries: async () => [
+        summary("global", "missing"),
+        summary("earth", "partial", 128_000_000)
+      ],
+      stopActiveModel: async () => {}
+    }),
+    /tiny|earth|saved model files/
   );
   assert.deepEqual(phases, ["stopping", "deleting"]);
 });

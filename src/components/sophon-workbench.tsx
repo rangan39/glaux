@@ -24,7 +24,9 @@ import { getModelRuntimeProfile, MODEL_REGISTRY, RECOMMENDED_MODEL_ID, resolveMo
 import type { GenerationTelemetryEvent, ModelCacheSummary, OnnxLogEvent, RuntimeCapabilities } from "@/lib/onnx-types";
 import {
   createModelReplacementPlan,
+  createStartupModelCleanupPlan,
   runModelReplacement,
+  runStartupModelCleanup,
   type ModelReplacementPhase,
   type ModelReplacementPlan
 } from "@/lib/model-replacement";
@@ -60,6 +62,7 @@ type FailedTurn = {
   reason: string;
   text: string;
 };
+type StartupCleanupStatus = "idle" | "cleaning" | "failed";
 type InterfaceMode = "chat" | "developer";
 type ModelTheme = "earth" | "fire" | "global" | "water";
 
@@ -113,6 +116,8 @@ export function SophonWorkbench() {
   const [browserStorage, setBrowserStorage] = useState<BrowserStorage | null>();
   const [cacheSummaries, setCacheSummaries] = useState<ModelCacheSummary[]>([]);
   const [cacheInventoryResolved, setCacheInventoryResolved] = useState(false);
+  const [startupCleanupStatus, setStartupCleanupStatus] = useState<StartupCleanupStatus>("idle");
+  const [startupCleanupRetryRevision, setStartupCleanupRetryRevision] = useState(0);
   const [deletingModelId, setDeletingModelId] = useState<string | null>(null);
   const [storageRevision, setStorageRevision] = useState(0);
   const [autoRestoreEnabled, setAutoRestoreEnabled] = useState(true);
@@ -163,7 +168,10 @@ export function SophonWorkbench() {
   const storageLabel = browserStorage === undefined ? "Checking…" : browserStorage === null ? "Unavailable" : `${formatStorageBytes(browserStorage.usage)} / ${formatStorageBytes(browserStorage.quota)} · ${browserStorage.persistent ? "Persistent" : "Best effort"}`;
   const promptDisabled = !modelReady || modelCompatibility !== "compatible";
   const canSend = modelReady && prompt.trim().length > 0 && !isBusy && modelCompatibility === "compatible";
-  const canResetConversation = messages.length > STARTER_MESSAGES.length || prompt.length > 0 || error !== null || failedTurn !== null;
+  const canResetConversation = messages.length > STARTER_MESSAGES.length
+    || prompt.length > 0
+    || (error !== null && startupCleanupStatus !== "failed")
+    || failedTurn !== null;
   const displayedMessages = messages.map((message) => message.id === "assistant-welcome"
     ? getWelcomeMessage(message, selectedModel, modelReady, isModelLoading, modelLoadPaused)
     : message);
@@ -185,6 +193,7 @@ export function SophonWorkbench() {
     || pendingModelDownload !== null
     || pendingDeleteModel !== null;
   const replacingModel = modelReplacementPhase !== null;
+  const storageReconciliationBlocked = startupCleanupStatus === "cleaning" || startupCleanupStatus === "failed";
 
   useDocumentScrollLock(blockingDialogOpen);
 
@@ -223,6 +232,7 @@ export function SophonWorkbench() {
       setBrowserStorage(snapshot.browserStorage);
       setCacheSummaries(snapshot.cacheSummaries);
       setCacheInventoryResolved(snapshot.cacheInventoryResolved);
+      setStartupCleanupStatus(snapshot.startupCleanupStatus);
       setDeletingModelId(null);
       setAutoRestoreEnabled(false);
     });
@@ -257,29 +267,74 @@ export function SophonWorkbench() {
   useEffect(() => {
     if (productTestState !== null) return;
     let active = true;
-    void getCachedModels()
-      .then((models) => {
+    void (async () => {
+      let models = await getCachedModels();
+      if (!active) return;
+      setStartupCleanupStatus("idle");
+      const cleanupPlan = createStartupModelCleanupPlan(models);
+      if (cleanupPlan.requiresCleanup) {
         if (!active) return;
-        setCacheSummaries(models);
-        const rememberedModelId = readRememberedModelId();
-        const restorableModelId = models.some((model) => model.modelId === rememberedModelId && model.state === "cached")
-          ? rememberedModelId
-          : null;
-        setModelId((current) => {
-          if (current || !autoRestoreEnabled) return current;
-          return restorableModelId ?? current;
-        });
-        if (autoRestoreEnabled && restorableModelId) setLibraryModelId((current) => current || restorableModelId);
-        setCacheInventoryResolved(true);
-      })
-      .catch(() => {
-        if (active) {
-          setCacheSummaries([]);
-          setCacheInventoryResolved(true);
+        setStartupCleanupStatus("cleaning");
+        setError(null);
+        setNotice(null);
+        generationIdRef.current += 1;
+        try {
+          models = await runStartupModelCleanup(cleanupPlan, {
+            deleteStoredModel: async (modelToDelete) => {
+              setDeletingModelId(modelToDelete);
+              await deleteCachedModel(modelToDelete);
+              forgetRememberedModelId(modelToDelete);
+            },
+            onPhaseChange: setModelReplacementPhase,
+            readCacheSummaries: getCachedModels,
+            stopActiveModel: async () => {
+              await cancelModelPreload().catch(() => terminateRuntimeWorker());
+              setModelId("");
+              setLoadedModelId(null);
+              setModelLoadPaused(false);
+              setGeneration({ status: "idle" });
+            }
+          });
+          if (!active) return;
+          setStorageRevision((value) => value + 1);
+          setNotice("Old model files were removed. Choose a model to download.");
+          setStartupCleanupStatus("idle");
+        } catch (caught) {
+          if (!active) return;
+          const refreshed = await getCachedModels().catch(() => models);
+          setCacheSummaries(refreshed);
+          setStartupCleanupStatus("failed");
+          setError(caught instanceof Error
+            ? caught.message
+            : "Sophon could not remove old model files.");
+          return;
+        } finally {
+          if (active) {
+            setDeletingModelId(null);
+            setModelReplacementPhase(null);
+          }
         }
+      }
+      if (!active) return;
+      setCacheSummaries(models);
+      const rememberedModelId = readRememberedModelId();
+      const restorableModelId = models.some((model) => model.modelId === rememberedModelId && model.state === "cached")
+        ? rememberedModelId
+        : null;
+      setModelId((current) => {
+        if (current || !autoRestoreEnabled) return current;
+        return restorableModelId ?? current;
+      });
+      if (autoRestoreEnabled && restorableModelId) setLibraryModelId((current) => current || restorableModelId);
+      setCacheInventoryResolved(true);
+    })()
+      .catch(() => {
+        if (!active) return;
+        setCacheSummaries([]);
+        setCacheInventoryResolved(true);
       });
     return () => { active = false; };
-  }, [autoRestoreEnabled, productTestState, storageRevision]);
+  }, [autoRestoreEnabled, productTestState, startupCleanupRetryRevision, storageRevision]);
 
   useEffect(() => {
     if (productTestState !== null) return;
@@ -838,7 +893,7 @@ export function SophonWorkbench() {
         <div aria-atomic="true" aria-live="polite" className="sr-only" role="status">{runtimeStatus.label}</div>
 
         <div className={cn("flex flex-1", selectedModel ? "min-h-0" : "min-h-fit")}>
-          <SophonModelSidebar activeModelId={modelId} cacheSummaries={cacheSummaries} capabilities={capabilities} deletingModelId={deletingModelId} disabled={isRunning || replacingModel} downloadPercent={downloadPercent} downloadPercentLabel={downloadPercentLabel} loadedModelId={loadedModelId} loading={isModelLoading} loadingLabel={downloadStatus} mobileOpen={modelSidebarOpen} modelId={libraryModelId} onDelete={requestDeleteModelDownload} onDownload={requestModelDownload} onMobileOpenChange={setModelSidebarOpen} onSelect={chooseLibraryModel} recommendedModelId={RECOMMENDED_MODEL_ID} />
+          <SophonModelSidebar activeModelId={modelId} cacheSummaries={cacheSummaries} capabilities={capabilities} deletingModelId={deletingModelId} disabled={isRunning || replacingModel || storageReconciliationBlocked} downloadPercent={downloadPercent} downloadPercentLabel={downloadPercentLabel} loadedModelId={loadedModelId} loading={isModelLoading} loadingLabel={downloadStatus} mobileOpen={modelSidebarOpen} modelId={libraryModelId} onDelete={requestDeleteModelDownload} onDownload={requestModelDownload} onMobileOpenChange={setModelSidebarOpen} onSelect={chooseLibraryModel} recommendedModelId={RECOMMENDED_MODEL_ID} />
           <section aria-busy={isBusy} aria-label="Conversation" className={cn("relative flex min-w-0 flex-1 flex-col", selectedModel && "h-full min-h-0")}>
             <div className={cn("flex-1", selectedModel ? "min-h-0 overflow-y-auto overscroll-contain" : "overflow-visible")} data-testid="conversation-scroll">
               <div className="mx-auto flex min-w-0 w-full max-w-6xl flex-col px-4 py-6 sm:px-12 sm:py-9">
@@ -856,7 +911,14 @@ export function SophonWorkbench() {
                         onSelectRecommended={() => requestModelDownload(RECOMMENDED_MODEL_ID)}
                       />
                     ) : (
-                      <FirstRunCheck />
+                      <FirstRunCheck
+                        error={startupCleanupStatus === "failed" ? error : null}
+                        onRetry={() => {
+                          setError(null);
+                          setStartupCleanupRetryRevision((value) => value + 1);
+                        }}
+                        status={startupCleanupStatus}
+                      />
                     )
                   ) : displayedMessages.map((message, index) => (
                     <Message align={message.role === "user" ? "end" : "start"} aria-label={message.role === "user" ? "Message from you" : "Message from Sophon"} key={message.id} role="article">
@@ -1046,14 +1108,27 @@ export function SophonWorkbench() {
   );
 }
 
-function FirstRunCheck() {
+function FirstRunCheck({ error, onRetry, status }: {
+  error: string | null;
+  onRetry: () => void;
+  status: StartupCleanupStatus;
+}) {
+  const cleaning = status === "cleaning";
+  const failed = status === "failed";
   return (
-    <div className="sophon-glass-tile mx-auto flex w-full max-w-xl items-center gap-3 rounded-2xl px-5 py-4" role="status">
-      <LoaderCircle aria-hidden="true" className="size-5 shrink-0 animate-spin text-sophon-signal-soft motion-reduce:animate-none" />
-      <span>
-        <span className="block text-sm font-medium text-sophon-copy-primary">Checking this browser</span>
-        <span className="sophon-type-metadata mt-0.5 block text-sophon-copy-metadata" data-typography-role="metadata">Looking for a model you have already downloaded…</span>
+    <div className="sophon-glass-tile mx-auto flex w-full max-w-xl flex-wrap items-center gap-3 rounded-2xl px-5 py-4" role={failed ? "alert" : "status"}>
+      {failed
+        ? <Trash2 aria-hidden="true" className="size-5 shrink-0 text-destructive" />
+        : <LoaderCircle aria-hidden="true" className="size-5 shrink-0 animate-spin text-sophon-signal-soft motion-reduce:animate-none" />}
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-medium text-sophon-copy-primary">
+          {failed ? "Old model files could not be removed" : cleaning ? "Cleaning up old model files" : "Checking this browser"}
+        </span>
+        <span className="sophon-type-metadata mt-0.5 block text-sophon-copy-metadata" data-typography-role="metadata">
+          {failed ? error : cleaning ? "Removing legacy downloads before Sophon starts…" : "Looking for a model you have already downloaded…"}
+        </span>
       </span>
+      {failed ? <Button className="ml-auto h-11 shrink-0 rounded-xl max-[359px]:basis-full sm:h-8" onClick={onRetry} size="sm" type="button" variant="sophon">Retry cleanup</Button> : null}
     </div>
   );
 }

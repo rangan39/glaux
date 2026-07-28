@@ -194,6 +194,9 @@ export async function ensureStorageHeadroom(model: ModelDeliveryManifest, totalB
 }
 
 function createAggregateProgress(model: ModelDeliveryManifest, publish: (progress: DeliveryProgress) => void) {
+  const minimumPublishBytes = 2 * 1024 * 1024;
+  const minimumPublishIntervalMs = 100;
+  const maximumPublishIntervalMs = 500;
   const artifacts = [...model.externalData, ...model.auxiliary];
   const entries = new Map<string, DeliveryProgress>(artifacts.map((artifact) => [artifact.path, {
     loaded: 0,
@@ -203,7 +206,7 @@ function createAggregateProgress(model: ModelDeliveryManifest, publish: (progres
     networkBytes: 0
   }]));
   const startedAt = now();
-  let lastPercent = -1;
+  let lastPublishedLoaded = 0;
   let lastStage = "";
   let lastPublishedAt = 0;
   const emit = (force = false) => {
@@ -221,10 +224,14 @@ function createAggregateProgress(model: ModelDeliveryManifest, publish: (progres
           : "cache";
     const elapsedSeconds = Math.max(0, now() - startedAt) / 1000;
     const bytesPerSecond = elapsedSeconds > 0 && networkBytes > 0 ? networkBytes / elapsedSeconds : undefined;
-    const percent = Math.floor(loaded / total * 100);
     const observedAt = now();
-    if (!force && percent === lastPercent && stage === lastStage && observedAt - lastPublishedAt < 200) return;
-    lastPercent = percent;
+    const elapsedSincePublish = observedAt - lastPublishedAt;
+    const newlyVisibleBytes = Math.max(0, loaded - lastPublishedLoaded);
+    if (!force
+      && stage === lastStage
+      && elapsedSincePublish < maximumPublishIntervalMs
+      && (elapsedSincePublish < minimumPublishIntervalMs || newlyVisibleBytes < minimumPublishBytes)) return;
+    lastPublishedLoaded = loaded;
     lastStage = stage;
     lastPublishedAt = observedAt;
     publish({

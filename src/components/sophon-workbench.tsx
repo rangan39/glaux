@@ -134,7 +134,9 @@ export function SophonWorkbench() {
   const runtimeActivity = generation.status === "idle" ? null : generation.activity;
   const isModelLoading = generation.status === "loading" || runtimeActivity?.phase === "download";
   const downloadProgress = isModelLoading ? runtimeActivity?.progress : undefined;
-  const downloadPercent = downloadProgress ? Math.floor(downloadProgress.loaded / downloadProgress.total * 100) : undefined;
+  const downloadPercent = downloadProgress
+    ? Math.floor(downloadProgress.loaded / downloadProgress.total * 1_000) / 10
+    : undefined;
   const downloadPercentLabel = formatDownloadPercent(downloadProgress);
   const downloadStatus = getDownloadStageLabel(downloadProgress?.stage, true);
   const isNetworkDownload = downloadProgress?.stage === "download" || downloadProgress?.stage === "resume";
@@ -400,19 +402,24 @@ export function SophonWorkbench() {
     if (isRunning && !productTestState) {
       void cancelGeneration().catch(() => terminateRuntimeWorker());
     }
+    clearConversationState();
+    setResetConfirmationOpen(false);
+    window.requestAnimationFrame(() => promptRef.current?.focus());
+  }
+
+  function clearConversationState() {
     setMessages(STARTER_MESSAGES);
     setPrompt("");
     setError(null);
     setNotice(null);
     setFailedTurn(null);
     setGeneration({ status: "idle" });
-    setResetConfirmationOpen(false);
-    window.requestAnimationFrame(() => promptRef.current?.focus());
   }
 
   function selectModel(nextModelId: string) {
     setLibraryModelId(nextModelId);
     if (nextModelId === modelId && !modelLoadPaused) return;
+    clearConversationState();
     if (!productTestState) {
       void navigator.storage?.persist?.()
         .then((persistent) => setBrowserStorage((current) => current ? { ...current, persistent } : current))
@@ -609,7 +616,7 @@ export function SophonWorkbench() {
 
   async function deleteModelDownload(targetModelId: string) {
     const target = MODEL_REGISTRY.find((model) => model.id === targetModelId);
-    if (!target) return;
+    if (!target) return false;
     setDeletingModelId(targetModelId);
     setError(null);
     setNotice(null);
@@ -626,7 +633,7 @@ export function SophonWorkbench() {
         ? { ...summary, state: "missing", resumableBytes: 0, verifiedBytes: 0 }
         : summary));
       setDeletingModelId(null);
-      return;
+      return true;
     }
     try {
       await deleteCachedModel(targetModelId);
@@ -634,8 +641,10 @@ export function SophonWorkbench() {
       const next = await getCachedModels();
       setCacheSummaries(next);
       setStorageRevision((value) => value + 1);
+      return true;
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : `${target.label} could not be deleted.`);
+      return false;
     } finally {
       setDeletingModelId(null);
     }
@@ -1548,8 +1557,8 @@ function formatDownloadAriaText(progress: NonNullable<OnnxLogEvent["progress"]>)
 
 function formatDownloadPercent(progress?: NonNullable<OnnxLogEvent["progress"]>) {
   if (!progress || progress.total <= 0) return undefined;
-  const percent = Math.floor(progress.loaded / progress.total * 100);
-  return progress.loaded > 0 && percent === 0 ? "<1%" : `${percent}%`;
+  const percent = Math.floor(progress.loaded / progress.total * 1_000) / 10;
+  return progress.loaded > 0 && percent === 0 ? "<0.1%" : `${percent.toFixed(1)}%`;
 }
 
 function getModelActionLabel(plan: ModelReplacementPlan | null) {

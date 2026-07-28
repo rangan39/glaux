@@ -44,10 +44,10 @@ test("warms Chromium downloads faster while respecting constrained devices", () 
     hardwareConcurrency: 8
   }), {
     minimum: 2,
-    initial: 6,
+    initial: 8,
     maximum: 12,
     step: 2,
-    epochBytes: 256 * 1024 * 1024
+    epochBytes: 128 * 1024 * 1024
   });
   assert.equal(getCachedVerificationConcurrency(chromium, 0, {
     deviceMemoryGb: 8,
@@ -59,10 +59,10 @@ test("warms Chromium downloads faster while respecting constrained devices", () 
     hardwareConcurrency: 4
   }), {
     minimum: 2,
-    initial: 4,
-    maximum: 8,
+    initial: 6,
+    maximum: 10,
     step: 2,
-    epochBytes: 192 * 1024 * 1024
+    epochBytes: 128 * 1024 * 1024
   });
   assert.equal(getCachedVerificationConcurrency(chromium, 0, {
     deviceMemoryGb: 4,

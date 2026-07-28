@@ -10,7 +10,11 @@ export const PRODUCT_TEST_MODEL_IDS = [
 ] as const;
 export const PRODUCT_TEST_STATES = [
   "checking",
+  "legacy-cleanup",
+  "legacy-cleanup-error",
   "confirmation",
+  "replacement-confirmation",
+  "replacement-deleting",
   "downloading",
   "paused",
   "verifying",
@@ -54,6 +58,8 @@ export type ProductTestSnapshot = {
   loadedModelId: string | null;
   modelId: string;
   modelLoadPaused: boolean;
+  modelReplacementPhase: "stopping" | "deleting" | "starting" | null;
+  startupCleanupStatus: "idle" | "cleaning" | "failed";
   pendingModelDownloadId: string | null;
   resetConfirmationOpen: boolean;
   capabilities: ProductTestCapabilities | null;
@@ -149,8 +155,8 @@ const BASE_MESSAGES: ProductTestMessage[] = [
   {
     id: "assistant-welcome",
     role: "assistant",
-    content: "Hi — I’m Sophon. Choose a Tiny Aya model to download, then your prompts will run privately in this browser.",
-    meta: "Cohere open weights · local by design · no server inference"
+    content: "Hi — I’m Sophon. Choose a multilingual Tiny Aya model to download, then chat locally in this browser.",
+    meta: "Open-source web tool · local inference · no server inference"
   },
   {
     id: "fixture-user-complete",
@@ -230,10 +236,40 @@ export function createProductTestSnapshot(state: ProductTestState, activeModelId
     };
   }
 
+  if (state === "legacy-cleanup" || state === "legacy-cleanup-error") {
+    const legacyCaches = cacheSummaries("cached", MODEL_BYTES, MODEL_BYTES, MODEL_ID).map((summary) => (
+      summary.modelId === "tiny-aya-earth"
+        ? { ...summary, state: "cached" as const, resumableBytes: MODEL_BYTES, verifiedBytes: MODEL_BYTES }
+        : summary
+    ));
+    return {
+      ...snapshot,
+      error: state === "legacy-cleanup-error"
+        ? "The browser could not remove old model files from private storage."
+        : null,
+      startupCleanupStatus: state === "legacy-cleanup-error" ? "failed" : "cleaning",
+      modelReplacementPhase: state === "legacy-cleanup" ? "deleting" : null,
+      cacheSummaries: legacyCaches,
+      cacheInventoryResolved: false
+    };
+  }
+
   if (state === "confirmation") {
     return {
       ...snapshot,
       pendingModelDownloadId: activeModelId
+    };
+  }
+
+  if (state === "replacement-confirmation" || state === "replacement-deleting") {
+    return {
+      ...snapshot,
+      modelId: MODEL_ID,
+      loadedModelId: MODEL_ID,
+      messages: cloneMessages(BASE_MESSAGES),
+      modelReplacementPhase: state === "replacement-deleting" ? "deleting" : null,
+      pendingModelDownloadId: "tiny-aya-earth",
+      cacheSummaries: cacheSummaries("cached", MODEL_BYTES, MODEL_BYTES, MODEL_ID)
     };
   }
 
@@ -399,6 +435,8 @@ function baseSnapshot(state: ProductTestState): ProductTestSnapshot {
     loadedModelId: null,
     modelId: "",
     modelLoadPaused: false,
+    modelReplacementPhase: null,
+    startupCleanupStatus: "idle",
     pendingModelDownloadId: null,
     resetConfirmationOpen: false,
     capabilities: { ...FIXTURE_CAPABILITIES },

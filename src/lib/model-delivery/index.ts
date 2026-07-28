@@ -28,6 +28,7 @@ import {
 } from "@/lib/model-delivery/range-downloader";
 import { deleteAuxiliaryArtifacts, ensureAuxiliaryArtifact } from "@/lib/model-delivery/auxiliary-cache";
 import {
+  addModelStorageEstimate,
   InsufficientModelStorageError,
   ModelDeliveryUnavailableError,
   toModelStorageError
@@ -125,7 +126,7 @@ export async function prepareModelDelivery(
       aggregate.complete();
       return { externalData: files, totalBytes };
     } catch (error) {
-      throw toModelStorageError(error);
+      throw await addModelStorageEstimate(toModelStorageError(error));
     } finally {
       signal?.removeEventListener("abort", abort);
     }
@@ -135,11 +136,15 @@ export async function prepareModelDelivery(
 export async function deleteModelCache(modelId: string, signal?: AbortSignal) {
   const model = getModelDeliveryManifest(modelId);
   if (!model) throw new Error(`Unknown model identifier: ${modelId}`);
-  await withModelLock(model.modelId, "exclusive", async () => {
-    throwIfAborted(signal);
-    await deleteAuxiliaryArtifacts(model);
-    await deleteModelStorage(model);
-  }, signal);
+  try {
+    await withModelLock(model.modelId, "exclusive", async () => {
+      throwIfAborted(signal);
+      await deleteAuxiliaryArtifacts(model);
+      await deleteModelStorage(model);
+    }, signal);
+  } catch (error) {
+    throw await addModelStorageEstimate(error);
+  }
   return { modelId, deleted: true as const };
 }
 

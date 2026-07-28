@@ -7,7 +7,10 @@ import {
   type ModelDeliveryManifest
 } from "@/lib/model-delivery/manifest";
 import type { DeliveryProgress } from "@/lib/model-delivery/range-downloader";
-import { ModelDeliveryUnavailableError, toModelStorageError } from "@/lib/model-delivery/errors";
+import {
+  ModelDeliveryUnavailableError,
+  toModelStorageOperationError
+} from "@/lib/model-delivery/errors";
 
 export const TRANSFORMERS_CACHE_NAME = "transformers-cache";
 
@@ -31,7 +34,11 @@ export async function putVerifiedAuxiliaryArtifact(
     }));
   } catch (error) {
     await cache.delete(key).catch(() => undefined);
-    throw toModelStorageError(error, "The browser ran out of storage while caching verified model files.");
+    throw toModelStorageOperationError(
+      error,
+      "The browser ran out of storage while caching verified model files.",
+      "cache-write"
+    );
   }
   verifiedThisSession.add(getArtifactKey(model, artifact));
 }
@@ -78,7 +85,14 @@ export async function ensureAuxiliaryArtifact(
     "content-type": response.headers.get("content-type") ?? "application/octet-stream"
   };
   const caching = cache.put(key, new Response(guardedCacheBody, { headers })).catch((error) => {
-    throw toModelStorageError(error, "The browser ran out of storage while caching verified model files.");
+    if (signal?.aborted) {
+      throw signal.reason instanceof Error ? signal.reason : new DOMException("The model download was cancelled.", "AbortError");
+    }
+    throw toModelStorageOperationError(
+      error,
+      `The browser ran out of storage while caching ${artifact.path}.`,
+      "cache-write"
+    );
   });
   try {
     const downloadedSha256 = await readAndHash(new Response(verificationBody), artifact.size, (loaded) => {
@@ -101,10 +115,18 @@ export async function ensureAuxiliaryArtifact(
 export async function deleteAuxiliaryArtifacts(model: ModelDeliveryManifest) {
   if (typeof caches === "undefined") return;
   const cache = await caches.open(TRANSFORMERS_CACHE_NAME);
-  await Promise.all(model.auxiliary.map(async (artifact) => {
-    await cache.delete(getArtifactUrl(model, artifact));
-    verifiedThisSession.delete(getArtifactKey(model, artifact));
-  }));
+  try {
+    await Promise.all(model.auxiliary.map(async (artifact) => {
+      await cache.delete(getArtifactUrl(model, artifact));
+      verifiedThisSession.delete(getArtifactKey(model, artifact));
+    }));
+  } catch (error) {
+    throw toModelStorageOperationError(
+      error,
+      "The browser could not remove cached model runtime files.",
+      "cache-write"
+    );
+  }
 }
 
 async function readAndHash(

@@ -7,20 +7,17 @@ import { fileURLToPath } from "node:url";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const source = readFileSync(join(root, "src/components/sophon-workbench.tsx"), "utf8");
 
-test("replacing a model clears chat and deletes the previous cache before activation", () => {
-  const replacement = source.match(/async function replaceActiveModel[\s\S]*?\n  \}/u)?.[0] ?? "";
-  assert.match(replacement, /clearConversationState\(\)/);
-  assert.match(replacement, /await deleteModelDownload\(previousModelId\)/);
-  assert.match(replacement, /selectModel\(nextModelId\)/);
+test("selecting a different model clears chat before activation", () => {
+  const selection = source.match(/function selectModel[\s\S]*?\n  \}/u)?.[0] ?? "";
+  assert.match(selection, /clearConversationState\(\)/);
+  assert.match(selection, /setModelId\(nextModelId\)/);
   assert.ok(
-    replacement.indexOf("clearConversationState()") < replacement.indexOf("deleteModelDownload(previousModelId)")
-  );
-  assert.ok(
-    replacement.indexOf("deleteModelDownload(previousModelId)") < replacement.indexOf("selectModel(nextModelId)")
+    selection.indexOf("clearConversationState()") < selection.indexOf("setModelId(nextModelId)")
   );
 });
 
 test("model download confirmation explains destructive replacement behavior", () => {
-  assert.match(source, /Switching will clear this conversation and remove the saved/);
+  assert.match(source, /Sophon keeps one model on this device at a time/);
+  assert.match(source, /saved model files will be removed first/);
   assert.match(source, /onConfirm=\{\(\) => void confirmModelDownload\(\)\}/);
 });

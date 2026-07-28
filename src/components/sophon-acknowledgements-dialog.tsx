@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState, type RefObject } from "react";
-import { FileText, HeartHandshake, Scale, ShieldCheck, X } from "lucide-react";
+import { CodeXml, FileText, HeartHandshake, Scale, ShieldCheck, X } from "lucide-react";
 import { ExternalLinkIndicator } from "@/components/external-link-indicator";
 import { Button } from "@/components/ui/button";
 import {
   COHERE_LABS_AUP_URL,
   PRIVACY_PATH,
+  PROJECT_REPOSITORY_URL,
   PROJECT_SUPPORT_URL,
   TINY_AYA_LICENSE_URL
 } from "@/lib/trust-navigation";
@@ -15,7 +16,7 @@ const ACKNOWLEDGEMENT_SECTIONS = [
   {
     id: "technical",
     title: "Technical",
-    description: "Open model and local inference stack.",
+    description: "Open-source tooling and local inference stack.",
     items: [
       {
         label: "Models",
@@ -132,7 +133,7 @@ export default function SophonAcknowledgementsDialog({ onDismiss, triggerRef }: 
             <section aria-labelledby="trust-support-title">
               <div className="mb-2 px-1">
                 <h3 className="sophon-type-decorative font-mono uppercase tracking-[0.12em] text-sophon-signal-soft" data-typography-role="decorative" id="trust-support-title">Privacy, licensing & support</h3>
-                <p className="sophon-type-metadata mt-0.5 text-sophon-copy-metadata" data-typography-role="metadata">Essential information for using Sophon and Tiny Aya.</p>
+                <p className="sophon-type-metadata mt-0.5 text-sophon-copy-metadata" data-typography-role="metadata">Source, privacy, and model terms for Sophon and Tiny Aya.</p>
               </div>
               <nav aria-label="Privacy, licensing, and support">
                 <ul className="grid gap-2 sm:grid-cols-2" data-testid="trust-support-links">
@@ -142,6 +143,15 @@ export default function SophonAcknowledgementsDialog({ onDismiss, triggerRef }: 
                       <span>
                         <span className="block text-sm font-medium">Privacy policy</span>
                         <span className="sophon-type-metadata mt-0.5 block text-sophon-copy-metadata" data-typography-role="metadata">Local data and network requests</span>
+                      </span>
+                    </a>
+                  </li>
+                  <li>
+                    <a className="sophon-glass-tile flex min-h-16 h-full items-center gap-3 rounded-xl px-3.5 py-3 text-sophon-copy-primary transition-colors hover:border-sophon-signal-bright/55 hover:bg-sophon-glass-strong hover:text-sophon-signal-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-signal" href={PROJECT_REPOSITORY_URL} rel="noreferrer" target="_blank">
+                      <CodeXml aria-hidden="true" className="size-4 shrink-0 text-sophon-signal-soft" />
+                      <span>
+                        <span className="flex items-center gap-1.5 text-sm font-medium">Source code <ExternalLinkIndicator /></span>
+                        <span className="sophon-type-metadata mt-0.5 block text-sophon-copy-metadata" data-typography-role="metadata">Sophon is released under the MIT License</span>
                       </span>
                     </a>
                   </li>
@@ -207,7 +217,7 @@ export default function SophonAcknowledgementsDialog({ onDismiss, triggerRef }: 
           </div>
 
           <div className="sophon-type-metadata mt-4 border-t border-sophon-glass-border pt-4 text-sophon-copy-metadata" data-typography-role="metadata">
-            <p>Tiny Aya weights use CC BY-NC 4.0 and the Cohere Labs Acceptable Use Policy. Sophon is independent.</p>
+            <p>Sophon’s code is MIT licensed. Tiny Aya weights are open weights under CC BY-NC 4.0 and the Cohere Labs Acceptable Use Policy; they are for non-commercial use.</p>
             <p className="mt-3 text-sophon-copy-body">Designed and built in Toronto, Canada by <a className="inline-flex items-center gap-1 text-sophon-copy-primary underline decoration-sophon-signal/30 underline-offset-4 transition-colors hover:text-sophon-signal-soft focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-signal" href="https://github.com/rangan39" rel="noreferrer" target="_blank">rangan39 <ExternalLinkIndicator className="text-sophon-copy-metadata" /></a>.</p>
           </div>
         </div>

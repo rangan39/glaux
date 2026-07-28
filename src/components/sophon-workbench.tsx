@@ -23,6 +23,14 @@ import {
 import { getModelRuntimeProfile, MODEL_REGISTRY, RECOMMENDED_MODEL_ID, resolveModelProvider, type ModelManifest } from "@/lib/onnx-models";
 import type { GenerationTelemetryEvent, ModelCacheSummary, OnnxLogEvent, RuntimeCapabilities } from "@/lib/onnx-types";
 import {
+  createModelReplacementPlan,
+  createStartupModelCleanupPlan,
+  runModelReplacement,
+  runStartupModelCleanup,
+  type ModelReplacementPhase,
+  type ModelReplacementPlan
+} from "@/lib/model-replacement";
+import {
   createFixtureAssistantDraft,
   createFixtureDownloadActivity,
   createFixtureGenerationActivity,
@@ -34,7 +42,7 @@ import {
   type ProductTestState
 } from "@/lib/product-test-fixtures";
 import { cn } from "@/lib/utils";
-import { PRIVACY_PATH, PROJECT_SUPPORT_URL } from "@/lib/trust-navigation";
+import { PRIVACY_PATH, PROJECT_REPOSITORY_URL, PROJECT_SUPPORT_URL } from "@/lib/trust-navigation";
 
 type ChatMessage = {
   id: string;
@@ -54,6 +62,7 @@ type FailedTurn = {
   reason: string;
   text: string;
 };
+type StartupCleanupStatus = "idle" | "cleaning" | "failed";
 type InterfaceMode = "chat" | "developer";
 type ModelTheme = "earth" | "fire" | "global" | "water";
 
@@ -75,8 +84,8 @@ const STARTER_MESSAGES: ChatMessage[] = [
   {
     id: "assistant-welcome",
     role: "assistant",
-    content: "Hi — I’m Sophon. Choose a Tiny Aya model to download, then your prompts will run privately in this browser.",
-    meta: "Cohere open weights · local by design · no server inference"
+    content: "Hi — I’m Sophon. Choose a multilingual Tiny Aya model to download, then chat locally in this browser.",
+    meta: "Open-source web tool · local inference · no server inference"
   }
 ];
 export function SophonWorkbench() {
@@ -100,12 +109,15 @@ export function SophonWorkbench() {
   const [modelSidebarOpen, setModelSidebarOpen] = useState(false);
   const [modelLoadPaused, setModelLoadPaused] = useState(false);
   const [pendingModelDownloadId, setPendingModelDownloadId] = useState<string | null>(null);
+  const [modelReplacementPhase, setModelReplacementPhase] = useState<ModelReplacementPhase | null>(null);
   const [pendingDeleteModelId, setPendingDeleteModelId] = useState<string | null>(null);
   const [resetConfirmationOpen, setResetConfirmationOpen] = useState(false);
   const [capabilities, setCapabilities] = useState<RuntimeCapabilities | null>(null);
   const [browserStorage, setBrowserStorage] = useState<BrowserStorage | null>();
   const [cacheSummaries, setCacheSummaries] = useState<ModelCacheSummary[]>([]);
   const [cacheInventoryResolved, setCacheInventoryResolved] = useState(false);
+  const [startupCleanupStatus, setStartupCleanupStatus] = useState<StartupCleanupStatus>("idle");
+  const [startupCleanupRetryRevision, setStartupCleanupRetryRevision] = useState(0);
   const [deletingModelId, setDeletingModelId] = useState<string | null>(null);
   const [storageRevision, setStorageRevision] = useState(0);
   const [autoRestoreEnabled, setAutoRestoreEnabled] = useState(true);
@@ -138,9 +150,13 @@ export function SophonWorkbench() {
   const recommendedCompatibility = getModelCompatibility(capabilities, recommendedModel);
   const pendingModelDownload = MODEL_REGISTRY.find((model) => model.id === pendingModelDownloadId) ?? null;
   const pendingModelDownloadCache = cacheSummaries.find((model) => model.modelId === pendingModelDownloadId);
-  const replacedModel = pendingModelDownload && selectedModel && pendingModelDownload.id !== selectedModel.id
-    ? selectedModel
+  const pendingModelPlan = pendingModelDownloadId
+    ? createModelReplacementPlan(pendingModelDownloadId, cacheSummaries)
     : null;
+  const pendingReplacementModels: ModelManifest[] = pendingModelPlan?.sourceModelIds.flatMap((sourceModelId) => {
+    const source = MODEL_REGISTRY.find((model) => model.id === sourceModelId);
+    return source ? [source] : [];
+  }) ?? [];
   const pendingDeleteModel = MODEL_REGISTRY.find((model) => model.id === pendingDeleteModelId) ?? null;
   const pendingDeleteSummary = cacheSummaries.find((model) => model.modelId === pendingDeleteModelId);
   const pendingDeleteBytes = pendingDeleteSummary?.state === "partial" ? pendingDeleteSummary.resumableBytes : pendingDeleteSummary?.totalBytes;
@@ -154,7 +170,10 @@ export function SophonWorkbench() {
   const storageLabel = browserStorage === undefined ? "Checking…" : browserStorage === null ? "Unavailable" : `${formatStorageBytes(browserStorage.usage)} / ${formatStorageBytes(browserStorage.quota)} · ${browserStorage.persistent ? "Persistent" : "Best effort"}`;
   const promptDisabled = !modelReady || modelCompatibility !== "compatible";
   const canSend = modelReady && prompt.trim().length > 0 && !isBusy && modelCompatibility === "compatible";
-  const canResetConversation = messages.length > STARTER_MESSAGES.length || prompt.length > 0 || error !== null || failedTurn !== null;
+  const canResetConversation = messages.length > STARTER_MESSAGES.length
+    || prompt.length > 0
+    || (error !== null && startupCleanupStatus !== "failed")
+    || failedTurn !== null;
   const displayedMessages = messages.map((message) => message.id === "assistant-welcome"
     ? getWelcomeMessage(message, selectedModel, modelReady, isModelLoading, modelLoadPaused)
     : message);
@@ -175,6 +194,8 @@ export function SophonWorkbench() {
   const blockingDialogOpen = resetConfirmationOpen
     || pendingModelDownload !== null
     || pendingDeleteModel !== null;
+  const replacingModel = modelReplacementPhase !== null;
+  const storageReconciliationBlocked = startupCleanupStatus === "cleaning" || startupCleanupStatus === "failed";
 
   useDocumentScrollLock(blockingDialogOpen);
 
@@ -206,12 +227,14 @@ export function SophonWorkbench() {
       setModelSidebarOpen(false);
       setModelLoadPaused(snapshot.modelLoadPaused);
       setPendingModelDownloadId(snapshot.pendingModelDownloadId);
+      setModelReplacementPhase(snapshot.modelReplacementPhase);
       setPendingDeleteModelId(null);
       setResetConfirmationOpen(snapshot.resetConfirmationOpen);
       setCapabilities(snapshot.capabilities);
       setBrowserStorage(snapshot.browserStorage);
       setCacheSummaries(snapshot.cacheSummaries);
       setCacheInventoryResolved(snapshot.cacheInventoryResolved);
+      setStartupCleanupStatus(snapshot.startupCleanupStatus);
       setDeletingModelId(null);
       setAutoRestoreEnabled(false);
     });
@@ -246,29 +269,74 @@ export function SophonWorkbench() {
   useEffect(() => {
     if (productTestState !== null) return;
     let active = true;
-    void getCachedModels()
-      .then((models) => {
+    void (async () => {
+      let models = await getCachedModels();
+      if (!active) return;
+      setStartupCleanupStatus("idle");
+      const cleanupPlan = createStartupModelCleanupPlan(models);
+      if (cleanupPlan.requiresCleanup) {
         if (!active) return;
-        setCacheSummaries(models);
-        const rememberedModelId = readRememberedModelId();
-        const restorableModelId = models.some((model) => model.modelId === rememberedModelId && model.state === "cached")
-          ? rememberedModelId
-          : null;
-        setModelId((current) => {
-          if (current || !autoRestoreEnabled) return current;
-          return restorableModelId ?? current;
-        });
-        if (autoRestoreEnabled && restorableModelId) setLibraryModelId((current) => current || restorableModelId);
-        setCacheInventoryResolved(true);
-      })
-      .catch(() => {
-        if (active) {
-          setCacheSummaries([]);
-          setCacheInventoryResolved(true);
+        setStartupCleanupStatus("cleaning");
+        setError(null);
+        setNotice(null);
+        generationIdRef.current += 1;
+        try {
+          models = await runStartupModelCleanup(cleanupPlan, {
+            deleteStoredModel: async (modelToDelete) => {
+              setDeletingModelId(modelToDelete);
+              await deleteCachedModel(modelToDelete);
+              forgetRememberedModelId(modelToDelete);
+            },
+            onPhaseChange: setModelReplacementPhase,
+            readCacheSummaries: getCachedModels,
+            stopActiveModel: async () => {
+              await cancelModelPreload().catch(() => terminateRuntimeWorker());
+              setModelId("");
+              setLoadedModelId(null);
+              setModelLoadPaused(false);
+              setGeneration({ status: "idle" });
+            }
+          });
+          if (!active) return;
+          setStorageRevision((value) => value + 1);
+          setNotice("Old model files were removed. Choose a model to download.");
+          setStartupCleanupStatus("idle");
+        } catch (caught) {
+          if (!active) return;
+          const refreshed = await getCachedModels().catch(() => models);
+          setCacheSummaries(refreshed);
+          setStartupCleanupStatus("failed");
+          setError(caught instanceof Error
+            ? caught.message
+            : "Sophon could not remove old model files.");
+          return;
+        } finally {
+          if (active) {
+            setDeletingModelId(null);
+            setModelReplacementPhase(null);
+          }
         }
+      }
+      if (!active) return;
+      setCacheSummaries(models);
+      const rememberedModelId = readRememberedModelId();
+      const restorableModelId = models.some((model) => model.modelId === rememberedModelId && model.state === "cached")
+        ? rememberedModelId
+        : null;
+      setModelId((current) => {
+        if (current || !autoRestoreEnabled) return current;
+        return restorableModelId ?? current;
+      });
+      if (autoRestoreEnabled && restorableModelId) setLibraryModelId((current) => current || restorableModelId);
+      setCacheInventoryResolved(true);
+    })()
+      .catch(() => {
+        if (!active) return;
+        setCacheSummaries([]);
+        setCacheInventoryResolved(true);
       });
     return () => { active = false; };
-  }, [autoRestoreEnabled, productTestState, storageRevision]);
+  }, [autoRestoreEnabled, productTestState, startupCleanupRetryRevision, storageRevision]);
 
   useEffect(() => {
     if (productTestState !== null) return;
@@ -351,6 +419,7 @@ export function SophonWorkbench() {
   function selectModel(nextModelId: string) {
     setLibraryModelId(nextModelId);
     if (nextModelId === modelId && !modelLoadPaused) return;
+    clearConversationState();
     if (!productTestState) {
       void navigator.storage?.persist?.()
         .then((persistent) => setBrowserStorage((current) => current ? { ...current, persistent } : current))
@@ -374,8 +443,13 @@ export function SophonWorkbench() {
     setLibraryModelId(nextModelId);
     const cache = cacheSummaries.find((model) => model.modelId === nextModelId);
     if (cache?.state === "cached") {
-      if (modelSidebarOpen) setModelSidebarOpen(false);
-      void replaceActiveModel(nextModelId);
+      const plan = createModelReplacementPlan(nextModelId, cacheSummaries);
+      if (plan.requiresReplacement) {
+        requestModelAction(nextModelId);
+      } else {
+        selectModel(nextModelId);
+        if (modelSidebarOpen) setModelSidebarOpen(false);
+      }
     }
   }
 
@@ -385,10 +459,18 @@ export function SophonWorkbench() {
     setLibraryModelId(nextModelId);
     const cache = cacheSummaries.find((model) => model.modelId === nextModelId);
     if (cache?.state === "cached") {
-      selectModel(nextModelId);
-      if (modelSidebarOpen) setModelSidebarOpen(false);
+      const plan = createModelReplacementPlan(nextModelId, cacheSummaries);
+      if (plan.requiresReplacement) requestModelAction(nextModelId);
+      else {
+        selectModel(nextModelId);
+        if (modelSidebarOpen) setModelSidebarOpen(false);
+      }
       return;
     }
+    requestModelAction(nextModelId);
+  }
+
+  function requestModelAction(nextModelId: string) {
     modelDownloadTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     modelDownloadFromMobileRef.current = modelSidebarOpen;
     setPendingModelDownloadId(nextModelId);
@@ -396,6 +478,7 @@ export function SophonWorkbench() {
   }
 
   function closeModelDownloadConfirmation() {
+    if (modelReplacementPhase) return;
     setPendingModelDownloadId(null);
     if (modelDownloadFromMobileRef.current) {
       setModelSidebarOpen(true);
@@ -407,29 +490,73 @@ export function SophonWorkbench() {
   async function confirmModelDownload() {
     if (!pendingModelDownloadId) return;
     const targetModelId = pendingModelDownloadId;
-    setPendingModelDownloadId(null);
-    if (!await replaceActiveModel(targetModelId)) return;
+    const plan = createModelReplacementPlan(targetModelId, cacheSummaries);
     if (productTestState) {
-      const activity = createFixtureDownloadActivity();
-      setGeneration({ status: "loading", activity });
-      setCacheSummaries((current) => current.map((summary) => summary.modelId === targetModelId
-        ? {
-          ...summary,
-          state: "partial",
-          resumableBytes: activity.progress?.loaded ?? 0,
-          verifiedBytes: activity.progress?.loaded ?? 0
+      const activity = plan.action === "activate"
+        ? null
+        : createFixtureDownloadActivity(plan.action === "resume" ? "resume" : "download");
+      setCacheSummaries((current) => current.map((summary) => {
+        if (summary.modelId === targetModelId && activity) {
+          return {
+            ...summary,
+            state: "partial",
+            resumableBytes: activity.progress?.loaded ?? 0,
+            verifiedBytes: activity.progress?.loaded ?? 0
+          };
         }
-        : summary));
+        if (plan.sourceModelIds.includes(summary.modelId)) {
+          return { ...summary, state: "missing", resumableBytes: 0, verifiedBytes: 0 };
+        }
+        return summary;
+      }));
+      setPendingModelDownloadId(null);
+      selectModel(targetModelId);
+      if (activity) setGeneration({ status: "loading", activity });
+      else setLoadedModelId(targetModelId);
+      return;
     }
-  }
 
-  async function replaceActiveModel(nextModelId: string) {
-    if (nextModelId === modelId && !modelLoadPaused) return true;
-    const previousModelId = modelId && modelId !== nextModelId ? modelId : null;
-    clearConversationState();
-    if (previousModelId && !(await deleteModelDownload(previousModelId))) return false;
-    selectModel(nextModelId);
-    return true;
+    if (!plan.requiresReplacement) {
+      setPendingModelDownloadId(null);
+      selectModel(targetModelId);
+      return;
+    }
+
+    setError(null);
+    setNotice(null);
+    generationIdRef.current += 1;
+    try {
+      const next = await runModelReplacement(plan, {
+        deleteStoredModel: async (sourceModelId) => {
+          setDeletingModelId(sourceModelId);
+          await deleteCachedModel(sourceModelId);
+          forgetRememberedModelId(sourceModelId);
+        },
+        onPhaseChange: setModelReplacementPhase,
+        readCacheSummaries: getCachedModels,
+        stopActiveModel: async () => {
+          await cancelModelPreload().catch(() => terminateRuntimeWorker());
+          setModelId("");
+          setLoadedModelId(null);
+          setModelLoadPaused(false);
+          setGeneration({ status: "idle" });
+        }
+      });
+      setCacheSummaries(next);
+      setStorageRevision((value) => value + 1);
+      setPendingModelDownloadId(null);
+      selectModel(targetModelId);
+    } catch (caught) {
+      const refreshed = await getCachedModels().catch(() => null);
+      if (refreshed) setCacheSummaries(refreshed);
+      setPendingModelDownloadId(null);
+      setError(caught instanceof Error
+        ? caught.message
+        : `Sophon could not replace the saved model with ${modelName(targetModelId)}.`);
+    } finally {
+      setDeletingModelId(null);
+      setModelReplacementPhase(null);
+    }
   }
 
   function resumeModelLoad() {
@@ -731,9 +858,9 @@ export function SophonWorkbench() {
             <div className={cn("min-w-0", selectedModel && "max-[359px]:hidden")}>
               <div className="flex items-center gap-2">
                 <h1 className="font-mono text-sm font-semibold tracking-[0.12em] text-sophon-copy-primary">SOPHON</h1>
-                <span className="sophon-type-decorative hidden items-center rounded-md border border-sophon-signal-bright/40 bg-sophon-signal/10 px-2 py-0.5 font-mono font-medium uppercase tracking-[0.12em] text-sophon-signal-soft xl:inline-flex" data-typography-role="decorative">Local AI</span>
+                <span className="sophon-type-decorative hidden items-center rounded-md border border-sophon-signal-bright/40 bg-sophon-signal/10 px-2 py-0.5 font-mono font-medium uppercase tracking-[0.12em] text-sophon-signal-soft xl:inline-flex" data-typography-role="decorative">Open-source local AI</span>
               </div>
-              <p className="sophon-type-metadata hidden whitespace-nowrap font-mono uppercase tracking-[0.12em] text-sophon-copy-metadata xl:block" data-typography-role="metadata">Private AI in your browser</p>
+              <p className="sophon-type-metadata hidden whitespace-nowrap font-mono uppercase tracking-[0.12em] text-sophon-copy-metadata xl:block" data-typography-role="metadata">Multilingual AI, in your browser</p>
             </div>
           </div>
 
@@ -775,7 +902,7 @@ export function SophonWorkbench() {
         <div aria-atomic="true" aria-live="polite" className="sr-only" role="status">{runtimeStatus.label}</div>
 
         <div className={cn("flex flex-1", selectedModel ? "min-h-0" : "min-h-fit")}>
-          <SophonModelSidebar activeModelId={modelId} cacheSummaries={cacheSummaries} capabilities={capabilities} deletingModelId={deletingModelId} disabled={isRunning} downloadPercent={downloadPercent} downloadPercentLabel={downloadPercentLabel} loadedModelId={loadedModelId} loading={isModelLoading} loadingLabel={downloadStatus} mobileOpen={modelSidebarOpen} modelId={libraryModelId} onDelete={requestDeleteModelDownload} onDownload={requestModelDownload} onMobileOpenChange={setModelSidebarOpen} onSelect={chooseLibraryModel} recommendedModelId={RECOMMENDED_MODEL_ID} />
+          <SophonModelSidebar activeModelId={modelId} cacheSummaries={cacheSummaries} capabilities={capabilities} deletingModelId={deletingModelId} disabled={isRunning || replacingModel || storageReconciliationBlocked} downloadPercent={downloadPercent} downloadPercentLabel={downloadPercentLabel} loadedModelId={loadedModelId} loading={isModelLoading} loadingLabel={downloadStatus} mobileOpen={modelSidebarOpen} modelId={libraryModelId} onDelete={requestDeleteModelDownload} onDownload={requestModelDownload} onMobileOpenChange={setModelSidebarOpen} onSelect={chooseLibraryModel} recommendedModelId={RECOMMENDED_MODEL_ID} />
           <section aria-busy={isBusy} aria-label="Conversation" className={cn("relative flex min-w-0 flex-1 flex-col", selectedModel && "h-full min-h-0")}>
             <div className={cn("flex-1", selectedModel ? "min-h-0 overflow-y-auto overscroll-contain" : "overflow-visible")} data-testid="conversation-scroll">
               <div className="mx-auto flex min-w-0 w-full max-w-6xl flex-col px-4 py-6 sm:px-12 sm:py-9">
@@ -793,7 +920,14 @@ export function SophonWorkbench() {
                         onSelectRecommended={() => requestModelDownload(RECOMMENDED_MODEL_ID)}
                       />
                     ) : (
-                      <FirstRunCheck />
+                      <FirstRunCheck
+                        error={startupCleanupStatus === "failed" ? error : null}
+                        onRetry={() => {
+                          setError(null);
+                          setStartupCleanupRetryRevision((value) => value + 1);
+                        }}
+                        status={startupCleanupStatus}
+                      />
                     )
                   ) : displayedMessages.map((message, index) => (
                     <Message align={message.role === "user" ? "end" : "start"} aria-label={message.role === "user" ? "Message from you" : "Message from Sophon"} key={message.id} role="article">
@@ -956,13 +1090,15 @@ export function SophonWorkbench() {
       ) : null}
       {pendingModelDownload ? (
         <ConfirmationDialog
-          cancelLabel="Not now"
-          confirmLabel={pendingModelDownloadCache?.state === "partial" ? "Resume download" : "Download model"}
+          busy={replacingModel}
+          busyLabel={getReplacementBusyLabel(modelReplacementPhase, pendingReplacementModels)}
+          cancelLabel={getModelActionCancelLabel(pendingModelPlan)}
+          confirmLabel={getModelActionLabel(pendingModelPlan)}
           confirmTone="default"
-          description={getModelDownloadDescription(pendingModelDownload, pendingModelDownloadCache, browserStorage, replacedModel)}
+          description={getModelActionDescription(pendingModelDownload, pendingModelDownloadCache, browserStorage, pendingModelPlan)}
           onCancel={closeModelDownloadConfirmation}
           onConfirm={() => void confirmModelDownload()}
-          title={`${pendingModelDownloadCache?.state === "partial" ? "Resume" : "Download"} ${pendingModelDownload.label.split(" · ")[0]}?`}
+          title={getModelActionTitle(pendingModelDownload, pendingModelPlan)}
         />
       ) : null}
       {pendingDeleteModel ? (
@@ -981,14 +1117,27 @@ export function SophonWorkbench() {
   );
 }
 
-function FirstRunCheck() {
+function FirstRunCheck({ error, onRetry, status }: {
+  error: string | null;
+  onRetry: () => void;
+  status: StartupCleanupStatus;
+}) {
+  const cleaning = status === "cleaning";
+  const failed = status === "failed";
   return (
-    <div className="sophon-glass-tile mx-auto flex w-full max-w-xl items-center gap-3 rounded-2xl px-5 py-4" role="status">
-      <LoaderCircle aria-hidden="true" className="size-5 shrink-0 animate-spin text-sophon-signal-soft motion-reduce:animate-none" />
-      <span>
-        <span className="block text-sm font-medium text-sophon-copy-primary">Checking this browser</span>
-        <span className="sophon-type-metadata mt-0.5 block text-sophon-copy-metadata" data-typography-role="metadata">Looking for a model you have already downloaded…</span>
+    <div className="sophon-glass-tile mx-auto flex w-full max-w-xl flex-wrap items-center gap-3 rounded-2xl px-5 py-4" role={failed ? "alert" : "status"}>
+      {failed
+        ? <Trash2 aria-hidden="true" className="size-5 shrink-0 text-destructive" />
+        : <LoaderCircle aria-hidden="true" className="size-5 shrink-0 animate-spin text-sophon-signal-soft motion-reduce:animate-none" />}
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-medium text-sophon-copy-primary">
+          {failed ? "Old model files could not be removed" : cleaning ? "Cleaning up old model files" : "Checking this browser"}
+        </span>
+        <span className="sophon-type-metadata mt-0.5 block text-sophon-copy-metadata" data-typography-role="metadata">
+          {failed ? error : cleaning ? "Removing legacy downloads before Sophon starts…" : "Looking for a model you have already downloaded…"}
+        </span>
       </span>
+      {failed ? <Button className="ml-auto h-11 shrink-0 rounded-xl max-[359px]:basis-full sm:h-8" onClick={onRetry} size="sm" type="button" variant="sophon">Retry cleanup</Button> : null}
     </div>
   );
 }
@@ -1030,9 +1179,9 @@ function FirstRunWelcome({ cacheState, compatibility, mobileProfile, model, noti
             <Sparkles aria-hidden="true" className="size-3.5" />
             Start here
           </div>
-          <h2 className="max-w-2xl text-xl font-semibold tracking-tight text-sophon-copy-primary sm:text-2xl" id="first-run-title">Private AI, right in your browser</h2>
+          <h2 className="max-w-2xl text-xl font-semibold tracking-tight text-sophon-copy-primary sm:text-2xl" id="first-run-title">Multilingual AI that runs in your browser</h2>
           <p className="sophon-type-body mt-2 max-w-2xl text-sophon-copy-body" data-typography-role="body">
-            Choose one Cohere Tiny Aya model to run locally. No account is needed, and your prompts and responses are not sent to an inference server.
+            Sophon is an open-source web tool for running Tiny Aya models locally with WebGPU. No account is needed, and your prompts and responses are not sent to an inference server.
           </p>
 
           <div className="mt-4 rounded-xl border border-sophon-signal-bright/35 bg-sophon-signal/10 p-3 sm:grid sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:gap-3" data-testid="first-run-recommended">
@@ -1072,7 +1221,7 @@ function FirstRunWelcome({ cacheState, compatibility, mobileProfile, model, noti
               </span>
               <span className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
                 <span className="text-sm font-medium text-sophon-copy-primary">Stays private</span>
-                <span className="sophon-type-metadata text-sophon-copy-metadata" data-typography-role="metadata">Chats remain in this browser.</span>
+                <span className="sophon-type-metadata text-sophon-copy-metadata" data-typography-role="metadata">Chats run in this browser, not an inference server.</span>
               </span>
             </div>
             <div className="flex items-center gap-2 rounded-xl border border-sophon-glass-border bg-sophon-glass-tile px-3 py-2">
@@ -1084,13 +1233,14 @@ function FirstRunWelcome({ cacheState, compatibility, mobileProfile, model, noti
             </div>
           </div>
           <div className="sophon-type-metadata mt-3 flex flex-col gap-2 border-t border-sophon-glass-border pt-3 text-sophon-copy-metadata sm:flex-row sm:items-center sm:justify-between" data-typography-role="metadata">
-            <span>Open weights · {model.licenseLabel} · Downloads can be paused and resumed</span>
+            <span>Open weights model · {model.licenseLabel} · One model stored at a time</span>
             <Button className="h-11 self-start rounded-lg px-2.5 sm:h-8 lg:hidden" onClick={onOpenModels} size="sm" type="button" variant="sophon">Compare all {MODEL_REGISTRY.length} models</Button>
-            <span className="hidden items-center gap-3 lg:flex">More multilingual models are available in the library.</span>
+            <span className="hidden items-center gap-3 lg:flex">Choose a model based on the languages you use most.</span>
           </div>
           <nav aria-label="First-run privacy, licensing, and support" className="mt-3 border-t border-sophon-glass-border pt-3 sm:flex sm:items-center sm:justify-between sm:gap-2" data-testid="first-run-trust-nav">
-            <p className="sophon-type-decorative mb-2 shrink-0 font-mono font-semibold uppercase tracking-[0.1em] text-sophon-copy-decorative sm:mb-0" data-typography-role="decorative">Privacy, terms & support</p>
+            <p className="sophon-type-decorative mb-2 shrink-0 font-mono font-semibold uppercase tracking-[0.1em] text-sophon-copy-decorative sm:mb-0" data-typography-role="decorative">Source, privacy & terms</p>
             <div className="flex flex-wrap gap-1.5">
+              <a className="sophon-type-action inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-sophon-glass-border bg-sophon-glass-tile px-3 uppercase tracking-[0.06em] text-sophon-copy-primary transition-colors hover:border-sophon-signal-bright/55 hover:text-sophon-signal-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-signal sm:min-h-9 sm:px-2" data-typography-role="action" href={PROJECT_REPOSITORY_URL} rel="noreferrer" target="_blank"><Code2 aria-hidden="true" className="size-3.5" /> Source <ExternalLinkIndicator /></a>
               <a className="sophon-type-action inline-flex min-h-11 items-center rounded-lg border border-sophon-glass-border bg-sophon-glass-tile px-3 uppercase tracking-[0.06em] text-sophon-copy-primary transition-colors hover:border-sophon-signal-bright/55 hover:text-sophon-signal-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-signal sm:min-h-9 sm:px-2" data-typography-role="action" href={PRIVACY_PATH}>Privacy</a>
               <SophonAcknowledgements className="rounded-lg sm:min-h-9 sm:px-2" compact label="About & licenses" />
               <a className="sophon-type-action inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-sophon-glass-border bg-sophon-glass-tile px-3 uppercase tracking-[0.06em] text-sophon-copy-primary transition-colors hover:border-sophon-signal-bright/55 hover:text-sophon-signal-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-signal sm:min-h-9 sm:px-2" data-typography-role="action" href={PROJECT_SUPPORT_URL} rel="noreferrer" target="_blank">Support <ExternalLinkIndicator /></a>
@@ -1411,11 +1561,73 @@ function formatDownloadPercent(progress?: NonNullable<OnnxLogEvent["progress"]>)
   return progress.loaded > 0 && percent === 0 ? "<0.1%" : `${percent.toFixed(1)}%`;
 }
 
-function getModelDownloadDescription(
+function getModelActionLabel(plan: ModelReplacementPlan | null) {
+  if (!plan) return "Download model";
+  const action = plan.action === "activate" ? "use" : plan.action;
+  return plan.requiresReplacement
+    ? `Replace & ${action}`
+    : plan.action === "activate" ? "Use model" : `${capitalize(action)} model`;
+}
+
+function getModelActionCancelLabel(plan: ModelReplacementPlan | null) {
+  if (!plan?.requiresReplacement) return "Not now";
+  const replacedModelIds = plan.sourceModelIds.filter((modelId) => modelId !== plan.targetModelId);
+  return replacedModelIds.length === 1
+    ? `Keep ${modelName(replacedModelIds[0])}`
+    : "Keep current models";
+}
+
+function getModelActionTitle(model: ModelManifest, plan: ModelReplacementPlan | null) {
+  const targetName = model.label.split(" · ")[0];
+  if (plan?.requiresReplacement) {
+    const replacedModelIds = plan.sourceModelIds.filter((modelId) => modelId !== plan.targetModelId);
+    const source = replacedModelIds.length === 1
+      ? modelName(replacedModelIds[0])
+      : `${replacedModelIds.length} saved models`;
+    return `Replace ${source} with ${targetName}?`;
+  }
+  return `${plan?.action === "resume" ? "Resume" : plan?.action === "activate" ? "Use" : "Download"} ${targetName}?`;
+}
+
+function getModelActionDescription(
   model: ModelManifest,
   cache: ModelCacheSummary | undefined,
   storage: BrowserStorage | null | undefined,
-  replacedModel: ModelManifest | null
+  plan: ModelReplacementPlan | null
+) {
+  if (!plan?.requiresReplacement) return getModelDownloadDescription(model, cache, storage);
+  const targetName = model.label.split(" · ")[0];
+  const removal = `All ${formatStorageBytes(plan.bytesToRemove)} of saved model files will be removed first.`;
+  const download = getModelDownloadDescription(model, undefined, storage);
+  return `Sophon keeps one model on this device at a time. ${removal} ${targetName} will then download from scratch. ${download} Switching back will require another download.`;
+}
+
+function getReplacementBusyLabel(
+  phase: ModelReplacementPhase | null,
+  replacementModels: readonly ModelManifest[]
+) {
+  if (phase === "stopping") return "Stopping current model…";
+  if (phase === "deleting") {
+    return replacementModels.length === 1
+      ? `Removing ${replacementModels[0]!.label.split(" · ")[0]}…`
+      : "Removing saved models…";
+  }
+  return phase === "starting" ? "Starting new model…" : undefined;
+}
+
+function modelName(modelId: string | undefined) {
+  if (!modelId) return "current model";
+  return MODEL_REGISTRY.find((model) => model.id === modelId)?.label.split(" · ")[0] ?? "current model";
+}
+
+function capitalize(value: string) {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function getModelDownloadDescription(
+  model: ModelManifest,
+  cache: ModelCacheSummary | undefined,
+  storage: BrowserStorage | null | undefined
 ) {
   const resumableBytes = cache?.state === "partial" ? cache.resumableBytes : 0;
   const totalBytes = model.format.sizeBytes ?? cache?.totalBytes ?? 0;
@@ -1429,10 +1641,7 @@ function getModelDownloadDescription(
   const storageMessage = availableBytes === null
     ? "Your browser will verify available storage before downloading."
     : `This browser currently reports ${formatStorageBytes(availableBytes)} available.`;
-  const replacementMessage = replacedModel
-    ? `Switching will clear this conversation and remove the saved ${replacedModel.label.split(" · ")[0]} model first.`
-    : "";
-  return `${action} ${replacementMessage} ${storageMessage} Tiny Aya is licensed for non-commercial use under CC BY-NC 4.0 and the Cohere Labs AUP.`;
+  return `${action} ${storageMessage} Tiny Aya is licensed for non-commercial use under CC BY-NC 4.0 and the Cohere Labs AUP.`;
 }
 
 function formatEta(milliseconds: number) {

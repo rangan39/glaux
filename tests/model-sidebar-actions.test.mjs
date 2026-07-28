@@ -21,3 +21,11 @@ test("keeps the delete control model-specific and touch-sized on mobile", () => 
   assert.match(source, /mobile \? "h-11 flex-1 rounded-xl px-3"/);
   assert.match(source, /hasStoredData && "basis-full"/);
 });
+
+test("labels a model switch as a destructive replacement", () => {
+  assert.match(source, /const replacesStoredModel = cacheSummaries\.some/);
+  assert.match(source, /const primaryAction = replacesStoredModel \? "Replace"/);
+  assert.match(source, /Replace the saved model with \$\{ui\.name\}/);
+  assert.match(source, /Sophon keeps one model on this device at a time\./);
+  assert.match(source, /Choosing another model replaces the saved download\./);
+});

@@ -15,7 +15,7 @@ export const metadata: Metadata = {
     default: "Sophon",
     template: "%s · Sophon"
   },
-  description: "A private, browser-based ONNX language model workbench powered by WebGPU.",
+  description: "An open-source, multilingual AI web tool that runs locally in your browser with WebGPU.",
   category: "developer tools"
 };
 

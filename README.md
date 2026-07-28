@@ -1,8 +1,10 @@
 # Sophon
 
-Sophon is a browser-only local AI chat tool. It runs ONNX language models in a Web Worker with WebGPU, so prompts stay on the device instead of traveling to an inference server.
+Sophon is an open-source, multilingual AI web tool that runs ONNX language models locally in a browser with WebGPU. Prompts stay on the device instead of traveling to an inference server.
 
 Production app: [sophon-coral.vercel.app](https://sophon-coral.vercel.app)
+
+Sophon’s code is available under the [MIT License](LICENSE). The included Tiny Aya models are open weights subject to CC BY-NC 4.0 and the Cohere Labs Acceptable Use Policy; they are limited to non-commercial use.
 
 ## What it does
 
@@ -54,7 +56,7 @@ npm run audit:extension
 See [`docs/security/dependency-audit.md`](docs/security/dependency-audit.md) for
 the production audit gate and the bounded development-only ESLint advisory.
 
-WebGPU works best in a recent browser with WebGPU enabled. Opening Sophon does not download model weights; each explicit Tiny Aya selection downloads and caches about 2.35 GB.
+WebGPU works best in a recent browser with WebGPU enabled. Opening Sophon does not download model weights; an explicit Tiny Aya selection downloads and caches about 2.35 GB. Sophon stores one model at a time, so choosing another model removes all saved model files—including partial downloads—before starting the new download from scratch.
 
 ### Product-test states
 
@@ -69,7 +71,11 @@ The root page opens the deterministic `checking` state. Use these URLs to review
 | State | URL |
 | --- | --- |
 | Browser/cache check | [checking](http://localhost:3000/?sophon-product-test=checking) |
+| Legacy model cleanup | [legacy-cleanup](http://localhost:3000/?sophon-product-test=legacy-cleanup) |
+| Legacy cleanup failure | [legacy-cleanup-error](http://localhost:3000/?sophon-product-test=legacy-cleanup-error) |
 | Download confirmation | [confirmation](http://localhost:3000/?sophon-product-test=confirmation) |
+| Model replacement confirmation | [replacement-confirmation](http://localhost:3000/?sophon-product-test=replacement-confirmation) |
+| Model replacement cleanup | [replacement-deleting](http://localhost:3000/?sophon-product-test=replacement-deleting) |
 | Download progress | [downloading](http://localhost:3000/?sophon-product-test=downloading) |
 | Paused download | [paused](http://localhost:3000/?sophon-product-test=paused) |
 | Integrity verification | [verifying](http://localhost:3000/?sophon-product-test=verifying) |
@@ -136,19 +142,19 @@ The current registry includes:
 
 The four Tiny Aya entries are 3.35B-parameter q4f16 ONNX conversions. They use an 8K context and 48-token default on desktop, then switch to a 2K context and 24-token default on mobile hardware. Every model is WebGPU-only, pinned to an immutable repository revision, and marked `experimental` until Sophon certifies each tokenizer, graph, and browser combination. Chromium browsers request the high-performance GPU adapter and load the model with full ONNX graph optimization; Transformers.js keeps Tiny Aya's KV-cache outputs on the GPU.
 
-Tiny Aya is an open-weights research release governed by CC BY-NC 4.0 and the Cohere Labs Acceptable Use Policy; commercial use is not permitted under that license. Each variant has a separate browser cache key, so caching all four models can consume roughly 9.4 GB.
+Tiny Aya is an open-weights research release governed by CC BY-NC 4.0 and the Cohere Labs Acceptable Use Policy; commercial use is not permitted under that license. Each variant has a separate browser cache key, but Sophon keeps only one model download at a time to bound normal model storage near 2.35 GB.
 
 ## Model delivery and caching
 
 Selecting a model starts a pinned Hugging Face download of external tensor weights inside the browser worker. The ONNX graph, model configuration, generation configuration, and tokenizer are packaged with Sophon, verified against their compiled size and SHA-256, and seeded into local Cache Storage. Tiny Aya weights download in 64 MiB ranges through a bounded adaptive queue. Capable desktop Chromium devices warm up with six requests and can probe up to twelve; constrained Chromium devices start at four and cap at eight. Other desktop browsers start at four and can probe up to twelve, while phones start at two and cap at four to reduce memory and radio pressure. Chromium also verifies cached model segments with up to four workers on capable desktops. Every range is streamed directly into the Origin Private File System and simultaneously checked against a pinned segment SHA-256 digest. A corrupt response retries only its range, and a fresh download does not need a final OPFS reread. Resumed downloads retain the complete ordered SHA-256 path as a compatibility fallback and overlap it with remaining network work.
 
-Completed ranges become resumable in batches of four or after one second, whichever comes first. Every checkpoint flushes OPFS before its strict IndexedDB commit, so a crash can cause bounded redundant downloading but cannot authorize bytes that were not durably written. A reload or model switch can therefore reuse durable ranges instead of restarting a multi-gigabyte file. Set `NEXT_PUBLIC_SOPHON_ADAPTIVE_DOWNLOADS=0` before building to disable upward probing while retaining the device tier's conservative starting point.
+Completed ranges become resumable in batches of four or after one second, whichever comes first. Every checkpoint flushes OPFS before its strict IndexedDB commit, so a crash can cause bounded redundant downloading but cannot authorize bytes that were not durably written. Reloading or pausing the same model can therefore reuse durable ranges; switching models deliberately removes them and starts from scratch. Set `NEXT_PUBLIC_SOPHON_ADAPTIVE_DOWNLOADS=0` before building to disable upward probing while retaining the device tier's conservative starting point.
 
 Verified OPFS `File` objects are handed to Transformers.js as ONNX external data, so weights are not duplicated in CacheStorage. Packaged graph, configuration, generation settings, and tokenizer files are pinned by exact size and SHA-256, verified by Sophon, and stored under Transformers.js-compatible CacheStorage keys. They are never fetched from a remote model host. A cached artifact is rehashed once per browser-worker session before runtime use.
 
-Delivery fails closed when OPFS, synchronous worker access, CacheStorage, strong validators, or HTTP ranges are unavailable; there is no unverified multi-gigabyte fallback. Sophon checks the browser's available storage before starting and surfaces quota failures explicitly. Model selection also makes a best-effort persistent-storage request, while the browser retains final control over quota and eviction.
+Delivery fails closed when OPFS, synchronous worker access, CacheStorage, strong validators, or HTTP ranges are unavailable; there is no unverified multi-gigabyte fallback. Sophon checks the browser's available storage before starting and distinguishes failures to open, resize, write, flush, checkpoint, cache, or delete model data. Storage errors include the browser's reported usage, quota, available capacity, and persistence status when those estimates are available. Model selection also makes a best-effort persistent-storage request, while the browser retains final control over quota and eviction.
 
-Switching models or pressing Pause aborts active network reads without discarding flushed 64 MiB checkpoints. The model library distinguishes partial and fully cached models, and provides per-model deletion that disposes any live pipeline before removing OPFS, IndexedDB, and CacheStorage data. The UI also reports approximate site usage and quota through the Storage API.
+Pressing Pause aborts active network reads without discarding flushed 64 MiB checkpoints, so the same model can resume. Switching models first stops the live pipeline, removes all saved model files—including old partial data for the selected model—from OPFS, IndexedDB, and CacheStorage, verifies that cleanup, and only then starts a fresh download. At startup, Sophon automatically removes legacy storage containing more than one model before attempting auto-restore; a failed cleanup blocks model actions and exposes a retry. Returning to the previous model also requires a fresh download. The model library distinguishes partial and fully cached models, provides explicit deletion, and reports approximate site usage and quota through the Storage API.
 
 ## Repacking model artifacts
 

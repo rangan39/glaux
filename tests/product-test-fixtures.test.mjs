@@ -56,7 +56,14 @@ test("provides complete deterministic lifecycle snapshots", () => {
   const snapshots = new Map(PRODUCT_TEST_STATES.map((state) => [state, createProductTestSnapshot(state)]));
   assert.deepEqual([...snapshots.keys()], [...PRODUCT_TEST_STATES]);
   assert.equal(snapshots.get("checking").cacheInventoryResolved, false);
+  assert.equal(snapshots.get("legacy-cleanup").startupCleanupStatus, "cleaning");
+  assert.equal(snapshots.get("legacy-cleanup").cacheInventoryResolved, false);
+  assert.equal(snapshots.get("legacy-cleanup-error").startupCleanupStatus, "failed");
+  assert.match(snapshots.get("legacy-cleanup-error").error, /could not remove/i);
   assert.equal(snapshots.get("confirmation").pendingModelDownloadId, "tiny-aya-global");
+  assert.equal(snapshots.get("replacement-confirmation").pendingModelDownloadId, "tiny-aya-earth");
+  assert.equal(snapshots.get("replacement-confirmation").modelId, "tiny-aya-global");
+  assert.equal(snapshots.get("replacement-deleting").modelReplacementPhase, "deleting");
   assert.equal(snapshots.get("downloading").generation.status, "loading");
   assert.equal(snapshots.get("downloading").generation.activity.progress.stage, "download");
   assert.equal(snapshots.get("paused").modelLoadPaused, true);

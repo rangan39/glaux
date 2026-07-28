@@ -140,8 +140,8 @@ export function getRangeDownloadProfile(
   }
   if (browserEngine === "chromium") {
     return chromiumResourcesAreConstrained(environment)
-      ? { minimum: 2, initial: 4, maximum: 8, step: 2, epochBytes: 192 * 1024 * 1024 }
-      : { minimum: 2, initial: 6, maximum: 12, step: 2, epochBytes: 256 * 1024 * 1024 };
+      ? { minimum: 2, initial: 6, maximum: 10, step: 2, epochBytes: 128 * 1024 * 1024 }
+      : { minimum: 2, initial: 8, maximum: 12, step: 2, epochBytes: 128 * 1024 * 1024 };
   }
   return { minimum: 2, initial: 4, maximum: 12, step: 2, epochBytes: 256 * 1024 * 1024 };
 }

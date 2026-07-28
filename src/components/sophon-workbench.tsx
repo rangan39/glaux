@@ -122,7 +122,9 @@ export function SophonWorkbench() {
   const runtimeActivity = generation.status === "idle" ? null : generation.activity;
   const isModelLoading = generation.status === "loading" || runtimeActivity?.phase === "download";
   const downloadProgress = isModelLoading ? runtimeActivity?.progress : undefined;
-  const downloadPercent = downloadProgress ? Math.floor(downloadProgress.loaded / downloadProgress.total * 100) : undefined;
+  const downloadPercent = downloadProgress
+    ? Math.floor(downloadProgress.loaded / downloadProgress.total * 1_000) / 10
+    : undefined;
   const downloadPercentLabel = formatDownloadPercent(downloadProgress);
   const downloadStatus = getDownloadStageLabel(downloadProgress?.stage, true);
   const isNetworkDownload = downloadProgress?.stage === "download" || downloadProgress?.stage === "resume";
@@ -136,6 +138,9 @@ export function SophonWorkbench() {
   const recommendedCompatibility = getModelCompatibility(capabilities, recommendedModel);
   const pendingModelDownload = MODEL_REGISTRY.find((model) => model.id === pendingModelDownloadId) ?? null;
   const pendingModelDownloadCache = cacheSummaries.find((model) => model.modelId === pendingModelDownloadId);
+  const replacedModel = pendingModelDownload && selectedModel && pendingModelDownload.id !== selectedModel.id
+    ? selectedModel
+    : null;
   const pendingDeleteModel = MODEL_REGISTRY.find((model) => model.id === pendingDeleteModelId) ?? null;
   const pendingDeleteSummary = cacheSummaries.find((model) => model.modelId === pendingDeleteModelId);
   const pendingDeleteBytes = pendingDeleteSummary?.state === "partial" ? pendingDeleteSummary.resumableBytes : pendingDeleteSummary?.totalBytes;
@@ -329,14 +334,18 @@ export function SophonWorkbench() {
     if (isRunning && !productTestState) {
       void cancelGeneration().catch(() => terminateRuntimeWorker());
     }
+    clearConversationState();
+    setResetConfirmationOpen(false);
+    window.requestAnimationFrame(() => promptRef.current?.focus());
+  }
+
+  function clearConversationState() {
     setMessages(STARTER_MESSAGES);
     setPrompt("");
     setError(null);
     setNotice(null);
     setFailedTurn(null);
     setGeneration({ status: "idle" });
-    setResetConfirmationOpen(false);
-    window.requestAnimationFrame(() => promptRef.current?.focus());
   }
 
   function selectModel(nextModelId: string) {
@@ -365,8 +374,8 @@ export function SophonWorkbench() {
     setLibraryModelId(nextModelId);
     const cache = cacheSummaries.find((model) => model.modelId === nextModelId);
     if (cache?.state === "cached") {
-      selectModel(nextModelId);
       if (modelSidebarOpen) setModelSidebarOpen(false);
+      void replaceActiveModel(nextModelId);
     }
   }
 
@@ -395,11 +404,11 @@ export function SophonWorkbench() {
     }
   }
 
-  function confirmModelDownload() {
+  async function confirmModelDownload() {
     if (!pendingModelDownloadId) return;
     const targetModelId = pendingModelDownloadId;
     setPendingModelDownloadId(null);
-    selectModel(targetModelId);
+    if (!await replaceActiveModel(targetModelId)) return;
     if (productTestState) {
       const activity = createFixtureDownloadActivity();
       setGeneration({ status: "loading", activity });
@@ -412,6 +421,15 @@ export function SophonWorkbench() {
         }
         : summary));
     }
+  }
+
+  async function replaceActiveModel(nextModelId: string) {
+    if (nextModelId === modelId && !modelLoadPaused) return true;
+    const previousModelId = modelId && modelId !== nextModelId ? modelId : null;
+    clearConversationState();
+    if (previousModelId && !(await deleteModelDownload(previousModelId))) return false;
+    selectModel(nextModelId);
+    return true;
   }
 
   function resumeModelLoad() {
@@ -471,7 +489,7 @@ export function SophonWorkbench() {
 
   async function deleteModelDownload(targetModelId: string) {
     const target = MODEL_REGISTRY.find((model) => model.id === targetModelId);
-    if (!target) return;
+    if (!target) return false;
     setDeletingModelId(targetModelId);
     setError(null);
     setNotice(null);
@@ -488,7 +506,7 @@ export function SophonWorkbench() {
         ? { ...summary, state: "missing", resumableBytes: 0, verifiedBytes: 0 }
         : summary));
       setDeletingModelId(null);
-      return;
+      return true;
     }
     try {
       await deleteCachedModel(targetModelId);
@@ -496,8 +514,10 @@ export function SophonWorkbench() {
       const next = await getCachedModels();
       setCacheSummaries(next);
       setStorageRevision((value) => value + 1);
+      return true;
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : `${target.label} could not be deleted.`);
+      return false;
     } finally {
       setDeletingModelId(null);
     }
@@ -939,9 +959,9 @@ export function SophonWorkbench() {
           cancelLabel="Not now"
           confirmLabel={pendingModelDownloadCache?.state === "partial" ? "Resume download" : "Download model"}
           confirmTone="default"
-          description={getModelDownloadDescription(pendingModelDownload, pendingModelDownloadCache, browserStorage)}
+          description={getModelDownloadDescription(pendingModelDownload, pendingModelDownloadCache, browserStorage, replacedModel)}
           onCancel={closeModelDownloadConfirmation}
-          onConfirm={confirmModelDownload}
+          onConfirm={() => void confirmModelDownload()}
           title={`${pendingModelDownloadCache?.state === "partial" ? "Resume" : "Download"} ${pendingModelDownload.label.split(" · ")[0]}?`}
         />
       ) : null}
@@ -1387,14 +1407,15 @@ function formatDownloadAriaText(progress: NonNullable<OnnxLogEvent["progress"]>)
 
 function formatDownloadPercent(progress?: NonNullable<OnnxLogEvent["progress"]>) {
   if (!progress || progress.total <= 0) return undefined;
-  const percent = Math.floor(progress.loaded / progress.total * 100);
-  return progress.loaded > 0 && percent === 0 ? "<1%" : `${percent}%`;
+  const percent = Math.floor(progress.loaded / progress.total * 1_000) / 10;
+  return progress.loaded > 0 && percent === 0 ? "<0.1%" : `${percent.toFixed(1)}%`;
 }
 
 function getModelDownloadDescription(
   model: ModelManifest,
   cache: ModelCacheSummary | undefined,
-  storage: BrowserStorage | null | undefined
+  storage: BrowserStorage | null | undefined,
+  replacedModel: ModelManifest | null
 ) {
   const resumableBytes = cache?.state === "partial" ? cache.resumableBytes : 0;
   const totalBytes = model.format.sizeBytes ?? cache?.totalBytes ?? 0;
@@ -1408,7 +1429,10 @@ function getModelDownloadDescription(
   const storageMessage = availableBytes === null
     ? "Your browser will verify available storage before downloading."
     : `This browser currently reports ${formatStorageBytes(availableBytes)} available.`;
-  return `${action} ${storageMessage} Tiny Aya is licensed for non-commercial use under CC BY-NC 4.0 and the Cohere Labs AUP.`;
+  const replacementMessage = replacedModel
+    ? `Switching will clear this conversation and remove the saved ${replacedModel.label.split(" · ")[0]} model first.`
+    : "";
+  return `${action} ${replacementMessage} ${storageMessage} Tiny Aya is licensed for non-commercial use under CC BY-NC 4.0 and the Cohere Labs AUP.`;
 }
 
 function formatEta(milliseconds: number) {

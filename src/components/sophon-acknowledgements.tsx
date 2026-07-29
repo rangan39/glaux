@@ -6,7 +6,8 @@ import { cn } from "@/lib/utils";
 
 const SophonAcknowledgementsDialog = lazy(() => import("@/components/sophon-acknowledgements-dialog"));
 
-export function SophonAcknowledgements({ className, compact = false, label }: {
+export function SophonAcknowledgements({ ariaLabel, className, compact = false, label }: {
+  ariaLabel?: string;
   className?: string;
   compact?: boolean;
   label?: string;
@@ -18,7 +19,7 @@ export function SophonAcknowledgements({ className, compact = false, label }: {
   return (
     <>
       <button
-        aria-label={visibleLabel ? undefined : "About Sophon"}
+        aria-label={visibleLabel ? undefined : ariaLabel ?? "About Sophon"}
         aria-haspopup="dialog"
         className={cn(
           "inline-flex items-center justify-center gap-1.5 uppercase text-sophon-copy-primary transition-colors hover:text-sophon-signal-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-signal",

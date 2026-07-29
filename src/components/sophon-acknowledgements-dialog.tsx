@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState, type RefObject } from "react";
+import type { RefObject } from "react";
 import { CodeXml, FileText, HeartHandshake, Scale, ShieldCheck, X } from "lucide-react";
 import { ExternalLinkIndicator } from "@/components/external-link-indicator";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import {
   COHERE_LABS_AUP_URL,
   PRIVACY_PATH,
@@ -77,55 +78,23 @@ interface SophonAcknowledgementsDialogProps {
 }
 
 export default function SophonAcknowledgementsDialog({ onDismiss, triggerRef }: SophonAcknowledgementsDialogProps) {
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const closeTimerRef = useRef<number | null>(null);
-  const closingRef = useRef(false);
-  const [closing, setClosing] = useState(false);
-
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (dialog && !dialog.open) dialog.showModal();
-    return () => {
-      if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current);
-    };
-  }, []);
-
-  function closeDialog() {
-    const dialog = dialogRef.current;
-    if (!dialog?.open || closingRef.current) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      dialog.close();
-      return;
-    }
-    closingRef.current = true;
-    setClosing(true);
-    closeTimerRef.current = window.setTimeout(() => dialog.close(), 100);
-  }
-
-  function handleClose() {
+  function handleOpenChange(open: boolean) {
+    if (open) return;
     triggerRef.current?.focus();
     onDismiss();
   }
 
   return (
-    <dialog
-      aria-labelledby="about-sophon-title"
-      className="fixed inset-0 z-50 m-0 h-svh max-h-none w-full max-w-none items-center justify-center bg-transparent p-4 backdrop:bg-sophon-backdrop backdrop:backdrop-blur-sm open:flex sm:p-8"
-      data-state={closing ? "closing" : "open"}
-      id="sophon-acknowledgements"
-      onCancel={(event) => { event.preventDefault(); closeDialog(); }}
-      onClick={(event) => { if (event.target === event.currentTarget) closeDialog(); }}
-      onClose={handleClose}
-      ref={dialogRef}
-    >
-      <section className="sophon-glass-strong flex max-h-[min(84svh,44rem)] w-full max-w-xl flex-col overflow-hidden rounded-2xl border-sophon-glass-border shadow-[0_28px_100px_var(--sophon-glass-shadow)]" data-testid="acknowledgements-panel">
+    <Dialog defaultOpen onOpenChange={handleOpenChange}>
+      <DialogContent aria-describedby={undefined} className="sophon-glass-strong flex max-h-[min(84svh,44rem)] w-[calc(100%-2rem)] max-w-xl flex-col gap-0 overflow-hidden rounded-2xl border-sophon-glass-border p-0 shadow-[0_28px_100px_var(--sophon-glass-shadow)] sm:w-full" id="sophon-acknowledgements" showCloseButton={false}>
+        <section className="flex min-h-0 flex-1 flex-col" data-testid="acknowledgements-panel">
         <header className="flex shrink-0 items-start gap-3 border-b border-sophon-glass-border p-4 sm:p-5">
           <span aria-hidden="true" className="sophon-glass-tile hidden size-10 shrink-0 place-items-center rounded-xl font-serif text-lg text-sophon-signal-soft min-[400px]:grid">Σ</span>
           <span className="min-w-0 flex-1">
             <span className="sophon-type-decorative block font-mono uppercase tracking-[0.12em] text-sophon-signal-soft" data-typography-role="decorative">Trust, terms & credits</span>
-            <h2 className="mt-1 text-base font-semibold text-sophon-copy-primary sm:text-lg" id="about-sophon-title">About Sophon</h2>
+            <DialogTitle className="mt-1 text-base font-semibold text-sophon-copy-primary sm:text-lg" id="about-sophon-title">About Sophon</DialogTitle>
           </span>
-          <Button aria-label="Close About Sophon" className="size-11 shrink-0 rounded-xl sm:size-9" onClick={closeDialog} size="icon" type="button" variant="sophon"><X aria-hidden="true" /></Button>
+          <Button aria-label="Close About Sophon" className="size-11 shrink-0 rounded-xl sm:size-9" onClick={() => handleOpenChange(false)} size="icon" type="button" variant="sophon"><X aria-hidden="true" /></Button>
         </header>
 
         <div className="min-h-0 overflow-y-auto p-4 sm:p-5">
@@ -221,7 +190,8 @@ export default function SophonAcknowledgementsDialog({ onDismiss, triggerRef }: 
             <p className="mt-3 text-sophon-copy-body">Designed and built in Toronto, Canada by <a className="inline-flex items-center gap-1 text-sophon-copy-primary underline decoration-sophon-signal/30 underline-offset-4 transition-colors hover:text-sophon-signal-soft focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-signal" href="https://github.com/rangan39" rel="noreferrer" target="_blank">rangan39 <ExternalLinkIndicator className="text-sophon-copy-metadata" /></a>.</p>
           </div>
         </div>
-      </section>
-    </dialog>
+        </section>
+      </DialogContent>
+    </Dialog>
   );
 }

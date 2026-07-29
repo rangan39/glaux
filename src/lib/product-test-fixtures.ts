@@ -150,7 +150,7 @@ Start with **Global** for mixed-language traffic, then route stable regional wor
 local-only://review/this-intentionally-long-unbroken-sample-line-keeps-horizontal-content-contained-within-the-message-bubble
 \`\`\`
 
-The model files stay in browser-private storage. Review the [local privacy details](/privacy); prompts and responses remain in this page session.`;
+The model files stay in browser storage. Review the [local data details](/privacy); prompts and responses remain in this page session.`;
 const BASE_MESSAGES: ProductTestMessage[] = [
   {
     id: "assistant-welcome",
@@ -245,7 +245,7 @@ export function createProductTestSnapshot(state: ProductTestState, activeModelId
     return {
       ...snapshot,
       error: state === "legacy-cleanup-error"
-        ? "The browser could not remove old model files from private storage."
+        ? "The browser could not remove old model files from browser storage."
         : null,
       startupCleanupStatus: state === "legacy-cleanup-error" ? "failed" : "cleaning",
       modelReplacementPhase: state === "legacy-cleanup" ? "deleting" : null,

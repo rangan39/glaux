@@ -1,7 +1,7 @@
 "use client";
 
-import { type KeyboardEvent, lazy, memo, Suspense, useMemo, useRef, useState } from "react";
-import { Bubble, BubbleContent } from "@/components/ui/bubble";
+import { type KeyboardEvent, lazy, memo, type ReactNode, Suspense, useMemo, useRef, useState } from "react";
+import { Card, CardContent } from "@/components/ui/card";
 import { InfoHint } from "@/components/ui/info-hint";
 import { groupTokenPieces, type ContextTokenPiece, type TokenWord } from "@/lib/token-display";
 import { cn } from "@/lib/utils";
@@ -10,7 +10,7 @@ const MarkdownContent = lazy(() => import("@/components/markdown-content"));
 const markdownSyntax = /(?:^|\n)\s{0,3}(?:#{1,6}\s|>\s|[-+*]\s|\d+[.)]\s|```|~~~|(?:-{3,}|\*{3,}|_{3,})\s*(?:\n|$))|(?:\[[^\]\n]+\]\([^)\n]+\)|`[^`\n]+`|\*\*[^*\n]+\*\*|__[^_\n]+__|~~[^~\n]+~~)|(?:^|\n)\s*\|.+\|\s*(?:\n|$)/m;
 export type InspectableToken = ContextTokenPiece;
 
-type TokenMode = "text" | "tokens" | "words";
+export type TokenInspectMode = "tokens" | "words";
 type TokenSelection =
   | { kind: "token"; index: number; token: InspectableToken }
   | { kind: "word"; index: number; word: TokenWord }
@@ -26,18 +26,20 @@ type InspectableSegment = {
 };
 
 type InspectableMessageProps = {
+  actions?: ReactNode;
   content: string;
   developerMode?: boolean;
+  inspectMode?: TokenInspectMode | null;
   meta?: string;
+  onInspectHover?: (metrics: string | undefined) => void;
   role: "user" | "assistant";
   showMeta?: boolean;
   tokens?: InspectableToken[];
 };
 
-export const InspectableMessage = memo(function InspectableMessage({ content, developerMode = false, meta, role, showMeta = false, tokens = [] }: InspectableMessageProps) {
-  const [mode, setMode] = useState<TokenMode>("text");
+export const InspectableMessage = memo(function InspectableMessage({ actions, content, developerMode = false, inspectMode = null, meta, onInspectHover, role, showMeta = false, tokens = [] }: InspectableMessageProps) {
+  const mode = inspectMode ?? "tokens";
   const [selection, setSelection] = useState<TokenSelection>(null);
-  const [inspectorOpen, setInspectorOpen] = useState(false);
   const words = useMemo(() => mode === "words" ? groupTokenPieces(tokens) : [], [mode, tokens]);
   const segments = useMemo<InspectableSegment[]>(() => {
     if (mode === "tokens") {
@@ -64,47 +66,30 @@ export const InspectableMessage = memo(function InspectableMessage({ content, de
   const hasTokens = tokens.length > 0;
   const visibleMeta = showMeta ? meta : undefined;
 
-  function changeMode(nextMode: TokenMode) {
-    setMode(nextMode);
-    setSelection(null);
-  }
-
-  function closeInspector() {
-    setMode("text");
-    setSelection(null);
-    setInspectorOpen(false);
-  }
-
   return (
-    <div className={cn("flex max-w-full flex-col gap-2", role === "user" ? "items-end" : "items-start")} data-message-role={role}>
-      <Bubble align={role === "user" ? "end" : "start"} variant={role === "user" ? "default" : "muted"}>
-        <BubbleContent className={cn("break-words rounded-xl", role === "user" ? "sophon-accent-message border-sophon-signal-bright/55 font-medium" : "sophon-theme-elevation border-sophon-glass-border bg-sophon-panel text-sophon-copy-primary")}>
-          {developerMode && mode !== "text" && hasTokens ? (
+    <div className={cn("flex max-w-full flex-col gap-2", role === "user" ? "items-end" : "items-start")} data-message-role={role} onPointerEnter={developerMode && role === "assistant" ? () => onInspectHover?.(meta) : undefined} onPointerLeave={developerMode && role === "assistant" ? () => onInspectHover?.(undefined) : undefined}>
+      <Card className={cn("w-fit max-w-[92%] self-start overflow-hidden rounded-xl border shadow-none", role === "user" ? "self-end sophon-accent-message border-sophon-signal-bright/55 font-medium" : "sophon-theme-elevation border-sophon-glass-border bg-sophon-panel text-sophon-copy-primary")}>
+        <CardContent className="break-words p-4 text-sm leading-relaxed">
+          {developerMode && inspectMode && hasTokens ? (
             <SegmentSequence key={mode} kind={mode} role={role} segments={segments} selection={selection} setSelection={setSelection} />
           ) : (
             <MarkdownMessage content={content} role={role} />
           )}
-        </BubbleContent>
-      </Bubble>
+        </CardContent>
+      </Card>
 
-      {(visibleMeta || (developerMode && hasTokens)) ? (
+      {actions ? (
         <div className={cn("flex max-w-full flex-wrap items-center gap-x-2 gap-y-1.5 px-1", role === "user" && "flex-row-reverse")}>
-          {visibleMeta ? <span className={cn("min-w-0 max-w-full break-words text-xs text-sophon-copy-metadata", role === "user" && "text-right")}>{visibleMeta}</span> : null}
-          {developerMode && role === "assistant" && visibleMeta && hasTokens ? <InfoHint concept="generationMetrics" /> : null}
-          {developerMode && hasTokens ? (
-            <TokenModeControl
-              expanded={inspectorOpen}
-              mode={mode}
-              onChange={changeMode}
-              onClose={closeInspector}
-              onOpen={() => setInspectorOpen(true)}
-              tokenCount={tokens.length}
-            />
-          ) : null}
+          {actions}
         </div>
       ) : null}
 
-      {developerMode && mode !== "text" && hasTokens ? (
+      {visibleMeta ? <div className={cn("flex max-w-full items-center gap-1.5 px-1", role === "user" && "justify-end")}>
+        <span className={cn("min-w-0 max-w-full break-words text-xs text-sophon-copy-metadata", role === "user" && "text-right")}>{visibleMeta}</span>
+        {developerMode && role === "assistant" && hasTokens ? <InfoHint concept="generationMetrics" /> : null}
+      </div> : null}
+
+      {developerMode && inspectMode && hasTokens ? (
         <TokenInspector role={role} selection={selection} tokenCount={tokens.length} />
       ) : null}
     </div>
@@ -154,58 +139,8 @@ function MarkdownLoading() {
   );
 }
 
-function TokenModeControl({ expanded, mode, onChange, onClose, onOpen, tokenCount }: {
-  expanded: boolean;
-  mode: TokenMode;
-  onChange: (mode: TokenMode) => void;
-  onClose: () => void;
-  onOpen: () => void;
-  tokenCount: number;
-}) {
-  if (!expanded) {
-    return (
-      <button
-        aria-expanded={false}
-        aria-label={`Inspect ${tokenCount} message tokens`}
-        className="sophon-type-action inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-md border border-sophon-glass-border bg-sophon-glass-tile px-3 font-mono uppercase tracking-[0.06em] text-sophon-copy-metadata transition-colors hover:bg-sophon-glass-strong hover:text-sophon-signal-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-signal sm:min-h-9"
-        data-typography-role="action"
-        onClick={onOpen}
-        type="button"
-      >
-        <span aria-hidden="true" className="font-serif text-sm normal-case text-sophon-signal-soft">τ</span>
-        Inspect
-        <span aria-hidden="true" className="tabular-nums text-sophon-copy-decorative">{tokenCount}</span>
-      </button>
-    );
-  }
-  return (
-    <div aria-label="Message display granularity" className="sophon-type-action flex max-w-full shrink-0 flex-wrap items-center rounded-md border border-sophon-glass-border bg-sophon-glass-tile p-0.5 font-mono uppercase tracking-[0.06em] text-sophon-copy-metadata" data-typography-role="action" role="group">
-      <InfoHint className="text-sophon-signal-soft" concept="tokenLens" />
-      {(["text", "tokens", "words"] as const).map((option) => (
-        <button
-          aria-pressed={mode === option}
-          className={cn("min-h-11 min-w-11 rounded px-2.5 py-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-signal sm:min-h-9 sm:min-w-12", mode === option ? "bg-sophon-signal/15 text-sophon-signal-soft" : "hover:bg-sophon-glass-strong hover:text-sophon-signal-soft")}
-          key={option}
-          onClick={() => onChange(option)}
-          type="button"
-        >
-          {option}
-        </button>
-      ))}
-      <button
-        aria-label="Close token inspector"
-        className="min-h-11 rounded px-2.5 py-1 text-sophon-copy-metadata transition-colors hover:bg-sophon-glass-strong hover:text-sophon-signal-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-signal sm:min-h-9"
-        onClick={onClose}
-        type="button"
-      >
-        Done
-      </button>
-    </div>
-  );
-}
-
 function SegmentSequence({ kind, role, segments, selection, setSelection }: {
-  kind: Exclude<TokenMode, "text">;
+  kind: TokenInspectMode;
   role: InspectableMessageProps["role"];
   segments: InspectableSegment[];
   selection: TokenSelection;

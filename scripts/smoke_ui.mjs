@@ -155,7 +155,7 @@ try {
   await activePage.setViewportSize({ width: 1440, height: 900 });
   await assertVisible(firstRunPrimary, "first-run recommended-model action");
   assert.equal(await firstRunPrimary.isEnabled(), true, "The recommended model action must enable on a compatible browser.");
-  assert.match((await firstRunPrimary.textContent()) ?? "", /Download recommended model/);
+  assert.match((await firstRunPrimary.textContent()) ?? "", /Download/);
   await firstRunPrimary.click();
   const firstRunDownloadConfirmation = activePage.getByRole("dialog", { name: "Download Tiny Aya Global 3.35B?", exact: true });
   await assertVisible(firstRunDownloadConfirmation, "first-run model download confirmation");

@@ -99,7 +99,7 @@ async function runTransformersJsModel(
 ): Promise<OnnxRunResponse> {
   const log = options.onLog ?? (() => undefined);
   const runtimeProfile = getModelRuntimeProfile(model, (await getRuntimeCapabilities()).hardwareTier);
-  const maxNewTokens = clamp(options.maxNewTokens ?? runtimeProfile.maxNewTokens, 1, 64);
+  const requestedMaxNewTokens = options.maxNewTokens === undefined ? null : clamp(options.maxNewTokens, 1, 192);
   const temperature = clamp(options.temperature ?? 0.8, 0.05, 2);
   const topK = clamp(options.topK ?? 40, 1, 100);
   const loadStartedAt = performance.now();
@@ -114,13 +114,14 @@ async function runTransformersJsModel(
     const originalRenderedInput = renderGenerationInput(generator.tokenizer, originalInput);
     const promptTokenCount = generator.tokenizer.encode(originalRenderedInput, { add_special_tokens: false }).length;
     const contextLimit = readContextLimit(generator.tokenizer, runtimeProfile.contextLength);
-    const maxInputTokens = contextLimit === null ? null : Math.max(1, contextLimit - maxNewTokens);
+    const maxInputTokens = contextLimit === null ? null : Math.max(1, contextLimit - (requestedMaxNewTokens ?? 1));
     const fittedMessages = fitMessagesToContext(generator.tokenizer, messages, maxInputTokens);
     const input = prepareGenerationInput(fittedMessages);
     const renderedInput = renderGenerationInput(generator.tokenizer, input);
     const inputTokenIds = generator.tokenizer.encode(renderedInput, { add_special_tokens: false });
     (generator.tokenizer as PreTrainedTokenizer & { truncation_side: string }).truncation_side = "left";
     const contextTokenCount = maxInputTokens === null ? inputTokenIds.length : Math.min(inputTokenIds.length, maxInputTokens);
+    const maxNewTokens = requestedMaxNewTokens ?? (contextLimit === null ? undefined : Math.max(1, contextLimit - contextTokenCount));
     const truncatedInputTokens = Math.max(0, promptTokenCount - contextTokenCount);
     const tokenTimestamps: number[] = [];
     const streamedTokenIds: number[] = [];
@@ -156,7 +157,7 @@ async function runTransformersJsModel(
     try {
       emitTelemetry(options, shouldPublishTelemetry, "prefill", generationStartedAt, tokenTimestamps, promptTokenCount, contextTokenCount);
       output = await generator(input, {
-        max_new_tokens: maxNewTokens,
+        ...(maxNewTokens === undefined ? {} : { max_new_tokens: maxNewTokens }),
         do_sample: temperature > 0.1 && topK > 1,
         temperature,
         top_k: topK,
@@ -287,6 +288,7 @@ async function getPipeline(model: ModelManifest, provider: ModelProvider, log: (
 }
 
 function deliveryProgressMessage(progress: DeliveryProgress) {
+  if (progress.stage === "probe") return "Checking model files";
   if (progress.stage === "resume") return "Resuming model download";
   if (progress.stage === "verify") return "Verifying model download";
   if (progress.stage === "cache") return "Model cached locally";

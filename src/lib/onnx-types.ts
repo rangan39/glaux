@@ -4,7 +4,7 @@ import type { GenerationTimingSnapshot } from "@/lib/generation-metrics";
 
 export type OnnxRuntimePhase = "download" | "tokenize" | "inference" | "generate" | "runtime";
 export type OnnxLogLevel = "info" | "success" | "warning" | "error";
-export type OnnxDownloadStage = "validate" | "download" | "resume" | "verify" | "cache" | "ready";
+export type OnnxDownloadStage = "probe" | "validate" | "download" | "resume" | "verify" | "cache" | "ready";
 
 export type OnnxDownloadProgress = {
   loaded: number;

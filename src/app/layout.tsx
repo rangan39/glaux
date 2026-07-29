@@ -1,11 +1,25 @@
 import type { Metadata, Viewport } from "next";
-import { Cormorant_Garamond } from "next/font/google";
+import { Azeret_Mono, Instrument_Sans, Instrument_Serif } from "next/font/google";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 
-const cormorant = Cormorant_Garamond({
+const instrumentSans = Instrument_Sans({
   subsets: ["latin"],
-  weight: ["500", "600"],
-  variable: "--font-cormorant",
+  variable: "--font-instrument-sans",
+  display: "swap"
+});
+
+const instrumentSerif = Instrument_Serif({
+  subsets: ["latin"],
+  weight: "400",
+  variable: "--font-instrument-serif",
+  display: "swap"
+});
+
+const azeretMono = Azeret_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-azeret-mono",
   display: "swap"
 });
 
@@ -32,8 +46,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${cormorant.variable} antialiased`}>
-        {children}
+      <body className={`${instrumentSans.variable} ${instrumentSerif.variable} ${azeretMono.variable} antialiased`}>
+        <TooltipProvider delayDuration={120}>{children}</TooltipProvider>
       </body>
     </html>
   );

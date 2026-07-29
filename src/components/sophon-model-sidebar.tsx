@@ -1,60 +1,65 @@
 "use client";
 
-import { useEffect, useRef, useState, type RefObject } from "react";
-import { Download, Flame, Languages, Mountain, PanelLeftClose, PanelLeftOpen, Trash2, Waves, X, type LucideIcon } from "lucide-react";
+import { useState } from "react";
+import { Download, Flame, Languages, Mountain, PanelLeftClose, PanelLeftOpen, Sparkles, Trash2, Waves, X, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { InfoHint } from "@/components/ui/info-hint";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { getModelRuntimeProfile, MODEL_REGISTRY, type ModelManifest } from "@/lib/onnx-models";
 import type { ModelCacheSummary, RuntimeCapabilities } from "@/lib/onnx-types";
 import { cn } from "@/lib/utils";
+import type { TokenInspectMode } from "@/components/token-lens";
 
 type Props = {
   activeModelId: string; cacheSummaries: ModelCacheSummary[]; capabilities: RuntimeCapabilities | null; deletingModelId?: string | null; disabled?: boolean; downloadPercent?: number; downloadPercentLabel?: string; loadedModelId: string | null;
-  loading?: boolean; loadingLabel?: string; mobileOpen: boolean; modelId: string; onDelete: (modelId: string) => void; onDownload: (modelId: string) => void; onMobileOpenChange: (open: boolean) => void; onSelect: (modelId: string) => void; recommendedModelId: string;
+  inspectDisplayMode?: TokenInspectMode | null; inspectMetrics?: string; inspectMode?: boolean; loading?: boolean; loadingLabel?: string; mobileOpen: boolean; modelId: string; onDelete: (modelId: string) => void; onDownload: (modelId: string) => void; onHoverModelChange?: (modelId: string | null) => void; onInspectDisplayModeChange?: (mode: TokenInspectMode | null) => void; onMobileOpenChange: (open: boolean) => void; onSelect: (modelId: string) => void; recommendedModelId: string;
 };
-const MODEL_UI: Record<string, { bestFor: string; icon: LucideIcon; name: string }> = {
-  "tiny-aya-global": { bestFor: "Best all-around · 70+ languages", icon: Languages, name: "Global" },
-  "tiny-aya-earth": { bestFor: "Best for West Asia + Africa", icon: Mountain, name: "Earth" },
-  "tiny-aya-fire": { bestFor: "Best for South Asia", icon: Flame, name: "Fire" },
-  "tiny-aya-water": { bestFor: "Best for Europe + Asia Pacific", icon: Waves, name: "Water" }
+export const MODEL_UI: Record<string, { bestFor: string; icon: LucideIcon; name: string }> = {
+  "tiny-aya-global": { bestFor: "Broad multilingual coverage", icon: Languages, name: "Global" },
+  "tiny-aya-earth": { bestFor: "West Asia + Africa", icon: Mountain, name: "Earth" },
+  "tiny-aya-fire": { bestFor: "South Asia", icon: Flame, name: "Fire" },
+  "tiny-aya-water": { bestFor: "Europe + Asia Pacific", icon: Waves, name: "Water" }
 };
 
-export function SophonModelSidebar({ activeModelId, cacheSummaries = [], capabilities, deletingModelId = null, disabled = false, downloadPercent, downloadPercentLabel, loadedModelId, loading = false, loadingLabel = "Downloading", mobileOpen, modelId, onDelete, onDownload, onMobileOpenChange, onSelect, recommendedModelId }: Props) {
+export function SophonModelSidebar({ activeModelId, cacheSummaries = [], capabilities, deletingModelId = null, disabled = false, downloadPercent, downloadPercentLabel, inspectDisplayMode = null, inspectMetrics, inspectMode = false, loadedModelId, loading = false, loadingLabel = "Downloading", mobileOpen, modelId, onDelete, onDownload, onHoverModelChange, onInspectDisplayModeChange, onMobileOpenChange, onSelect, recommendedModelId }: Props) {
   const [expanded, setExpanded] = useState(true);
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const restoreFocusRef = useRef<HTMLElement | null>(null);
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    if (mobileOpen && !dialog.open) {
-      restoreFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-      dialog.showModal();
-    } else if (!mobileOpen) {
-      if (dialog.open) dialog.close();
-      restoreFocusRef.current?.focus();
-    }
-  }, [mobileOpen]);
-
-  const panelProps = { activeModelId, cacheSummaries, capabilities, deletingModelId, disabled, downloadPercent, downloadPercentLabel, loadedModelId, loading, loadingLabel, modelId, onDelete, onDownload, onSelect, recommendedModelId };
+  const panelProps = { activeModelId, cacheSummaries, capabilities, deletingModelId, disabled, downloadPercent, downloadPercentLabel, inspectDisplayMode, inspectMetrics, inspectMode, loadedModelId, loading, loadingLabel, modelId, onDelete, onDownload, onHoverModelChange, onInspectDisplayModeChange, onSelect, recommendedModelId };
   return <>
-    <aside aria-label="Model library" className={cn("sophon-glass-strong hidden h-full shrink-0 flex-col overflow-hidden border-y-0 border-l-0 transition-[width] duration-200 motion-reduce:transition-none lg:flex", expanded ? "w-72" : "w-[4.75rem]")} data-state={expanded ? "expanded" : "collapsed"} id="model-library-desktop">
+    <aside aria-label="Model library" className={cn("sophon-glass-strong sophon-reveal sophon-reveal-sidebar hidden h-full shrink-0 flex-col overflow-hidden border-y-0 border-l-0 transition-[width] duration-200 motion-reduce:transition-none lg:flex lg:h-[calc(100svh-74px)]", expanded ? "w-72" : "w-[4.75rem]")} data-state={expanded ? "expanded" : "collapsed"} id="model-library-desktop">
       <ModelPanel {...panelProps} expanded={expanded} onToggle={() => setExpanded((value) => !value)} />
     </aside>
-    <dialog aria-labelledby="model-library-mobile-title" className="fixed inset-0 z-50 m-0 h-svh max-h-none w-full max-w-none bg-transparent p-0 backdrop:bg-sophon-backdrop backdrop:backdrop-blur-sm lg:hidden" id="model-library-mobile" onCancel={(event) => { if (event.target === event.currentTarget) onMobileOpenChange(false); }} onClick={(event) => { if (event.target === event.currentTarget) onMobileOpenChange(false); }} onClose={(event) => { if (event.target === event.currentTarget) onMobileOpenChange(false); }} ref={dialogRef}>
-      <div className="sophon-glass-strong flex h-full w-[min(19rem,92vw)] flex-col overflow-hidden rounded-none border-y-0 border-l-0 pt-[env(safe-area-inset-top)]" data-testid="mobile-model-sheet">
-        <ModelPanel {...panelProps} expanded mobile onClose={() => onMobileOpenChange(false)} portalContainer={dialogRef} />
-      </div>
-    </dialog>
+    <Sheet onOpenChange={onMobileOpenChange} open={mobileOpen}>
+      <SheetContent aria-describedby={undefined} className="sophon-glass-strong flex h-full w-[min(19rem,92vw)] flex-col overflow-hidden rounded-none border-y-0 border-l-0 p-0 pt-[env(safe-area-inset-top)] lg:hidden" id="model-library-mobile" showCloseButton={false} side="left">
+        <SheetTitle className="sr-only">Model library</SheetTitle>
+        <div className="flex min-h-0 flex-1 flex-col" data-testid="mobile-model-sheet"><ModelPanel {...panelProps} expanded mobile onClose={() => onMobileOpenChange(false)} /></div>
+      </SheetContent>
+    </Sheet>
   </>;
 }
 
-type PanelProps = Omit<Props, "mobileOpen" | "onMobileOpenChange"> & { expanded: boolean; mobile?: boolean; onClose?: () => void; onToggle?: () => void; portalContainer?: RefObject<HTMLElement | null> };
-function ModelPanel({ activeModelId, cacheSummaries = [], capabilities, deletingModelId = null, disabled = false, downloadPercent, downloadPercentLabel, expanded, loadedModelId, loading, loadingLabel, mobile = false, modelId, onClose, onDelete, onDownload, onSelect, onToggle, portalContainer, recommendedModelId }: PanelProps) {
+type PanelProps = Omit<Props, "mobileOpen" | "onMobileOpenChange"> & { expanded: boolean; mobile?: boolean; onClose?: () => void; onToggle?: () => void };
+function ModelPanel({ activeModelId, cacheSummaries = [], capabilities, deletingModelId = null, disabled = false, downloadPercent, downloadPercentLabel, expanded, inspectDisplayMode = null, inspectMetrics, inspectMode = false, loadedModelId, loading, loadingLabel, mobile = false, modelId, onClose, onDelete, onDownload, onHoverModelChange, onInspectDisplayModeChange, onSelect, onToggle, recommendedModelId }: PanelProps) {
   const detailModel = MODEL_REGISTRY.find((model) => model.id === modelId)
     ?? MODEL_REGISTRY.find((model) => model.id === recommendedModelId)
     ?? MODEL_REGISTRY[0];
   const mobileProfile = capabilities?.hardwareTier === "mobile";
   const detailProfile = getModelRuntimeProfile(detailModel, mobileProfile ? "mobile" : "desktop");
+  if (inspectMode) return <>
+    <header className={cn("flex h-[74px] shrink-0 items-center border-b border-sophon-glass-border p-3", expanded ? "justify-between" : "justify-center")}>
+      {expanded ? <div className="min-w-0"><h2 className="sophon-type-status font-mono uppercase tracking-[0.12em] text-sophon-copy-primary" data-typography-role="status">Inspect</h2><p className="sophon-type-metadata mt-1 font-mono uppercase tracking-[0.08em] text-sophon-copy-metadata" data-typography-role="metadata">Read-only session</p></div> : null}
+      <Button aria-label={mobile ? "Close inspector" : expanded ? "Collapse inspector" : "Expand inspector"} className="size-11 shrink-0 rounded-xl lg:size-9" onClick={mobile ? onClose : onToggle} size="icon" type="button" variant="sophon">{mobile ? <X aria-hidden="true" /> : expanded ? <PanelLeftClose aria-hidden="true" /> : <PanelLeftOpen aria-hidden="true" />}</Button>
+    </header>
+    {expanded ? <section aria-label="Generation metrics" className="min-h-0 flex-1 overflow-y-auto p-3">
+      <div aria-label="Inspect message display" className="mb-3 flex rounded-xl border border-sophon-glass-border bg-sophon-panel-deep p-0.5" role="group">
+        {(["tokens", "words"] as const).map((mode) => <button aria-pressed={inspectDisplayMode === mode} className={cn("sophon-type-action min-h-9 flex-1 rounded-lg px-2 font-mono uppercase tracking-[0.06em] transition-colors", inspectDisplayMode === mode ? "bg-sophon-signal text-white shadow-[0_0_12px_var(--sophon-signal-shadow)]" : "text-sophon-copy-metadata hover:bg-sophon-glass-tile hover:text-sophon-copy-primary")} key={mode} onClick={() => onInspectDisplayModeChange?.(inspectDisplayMode === mode ? null : mode)} type="button">{mode}</button>)}
+      </div>
+      <div className="rounded-xl border border-sophon-glass-border bg-sophon-panel-deep p-3">
+        <p className="sophon-type-metadata font-mono uppercase tracking-[0.1em] text-sophon-copy-metadata" data-typography-role="metadata">Generation metrics</p>
+        {inspectMetrics ? <dl className="mt-3 grid gap-2">{inspectMetrics.split(" · ").map((metric) => <div className="rounded-lg border border-sophon-glass-border bg-sophon-panel px-2.5 py-2" key={metric}><dd className="sophon-type-status font-mono font-medium text-sophon-copy-primary" data-typography-role="status">{metric}</dd></div>)}</dl> : <p className="mt-3 text-sm leading-5 text-sophon-copy-metadata">Hover a response to inspect its timing and token metrics.</p>}
+        <p className="mt-3 border-t border-sophon-glass-border pt-3 text-xs leading-5 text-sophon-copy-metadata">Return to Chat to switch or manage models.</p>
+      </div>
+    </section> : null}
+  </>;
   return <>
     <header className={cn("flex h-[74px] shrink-0 items-center border-b border-sophon-glass-border p-3", expanded ? "justify-between" : "justify-center")}>
       {expanded ? <div className="min-w-0"><h2 className="sophon-type-status font-mono uppercase tracking-[0.12em] text-sophon-copy-primary" data-typography-role="status" id={mobile ? "model-library-mobile-title" : undefined}>Model library</h2><p className="sophon-type-metadata mt-1 font-mono uppercase tracking-[0.08em] text-sophon-copy-metadata" data-typography-role="metadata">{MODEL_REGISTRY.length} models</p></div> : null}
@@ -79,8 +84,8 @@ function ModelPanel({ activeModelId, cacheSummaries = [], capabilities, deleting
           const active = loading && activeModelId === model.id;
           const deleteLabel = cache?.state === "partial" ? "Delete saved progress" : "Delete download";
           const primaryAction = replacesStoredModel ? "Replace" : cache?.state === "partial" ? "Resume" : "Download";
-          const subtitle = `${mobileProfile && model.family === "cohere" ? "2K mobile · " : ""}${model.format.sizeLabel} · ${ui.bestFor}`;
-          const status = active
+          const subtitle = `${mobileProfile && model.family === "cohere" ? "Mobile profile · " : ""}${ui.bestFor}`;
+          const accessibleStatus = active
             ? `${loadingLabel}${downloadPercentLabel ? ` ${downloadPercentLabel}` : ""}`
             : loadedModelId === model.id
               ? "Installed · active"
@@ -89,47 +94,49 @@ function ModelPanel({ activeModelId, cacheSummaries = [], capabilities, deleting
                 : cache?.state === "partial"
                   ? `${formatSavedBytes(cache.resumableBytes)} saved`
                   : modelAvailability(capabilities, model);
-          return <div className={cn("relative min-w-0", expanded && "rounded-xl border transition-colors focus-within:ring-2 focus-within:ring-sophon-signal", expanded && (selected ? "border-sophon-signal-bright/70 bg-sophon-signal/10 shadow-[0_0_24px_var(--sophon-signal-shadow)]" : "border-sophon-glass-border bg-sophon-glass-tile hover:border-sophon-signal-bright/45 hover:bg-sophon-glass-strong"))} data-model-card key={model.id}>
-            <label className={cn("relative flex cursor-pointer", expanded ? mobile ? "min-h-[104px] items-start gap-3 p-3" : "min-h-[88px] items-start gap-2 p-2.5" : "mx-auto size-12 items-center justify-center rounded-xl border transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-sophon-signal", !expanded && (selected ? "border-sophon-signal-bright/70 bg-sophon-signal/10 shadow-[0_0_24px_var(--sophon-signal-shadow)]" : "border-sophon-glass-border bg-sophon-glass-tile hover:border-sophon-signal-bright/45 hover:bg-sophon-glass-strong"), (disabled || unavailable || deletingModelId !== null) && "cursor-not-allowed border-sophon-glass-border bg-sophon-panel-deep")} data-model-id={model.id} data-model-surface={mobile ? "mobile" : "desktop"} title={expanded ? undefined : `${ui.name} · ${status}`}>
-              <input aria-label={`Choose ${model.label}. ${ui.bestFor}. ${model.format.sizeLabel} download. ${status}.`} checked={selected} className="sr-only" disabled={unavailable} name={mobile ? "mobile-model" : "desktop-model"} onChange={() => onSelect(model.id)} type="radio" value={model.id} />
+          const status = active
+            ? `${loadingLabel}${downloadPercentLabel ? ` ${downloadPercentLabel}` : ""}`
+            : loadedModelId === model.id
+              ? "Active"
+              : availableLocally
+                ? "Installed"
+                : cache?.state === "partial"
+                  ? `${formatSavedBytes(cache.resumableBytes)} saved`
+                  : modelAvailability(capabilities, model) === "Ready to download" ? "Ready" : modelAvailability(capabilities, model);
+          return <div className={cn("relative min-w-0", expanded && "rounded-xl border transition-colors duration-[2000ms] ease-in-out focus-within:ring-2 focus-within:ring-sophon-signal", expanded && (selected ? "border-sophon-signal-bright/70 bg-sophon-signal/10 shadow-[0_0_24px_var(--sophon-signal-shadow)]" : "border-sophon-glass-border bg-sophon-glass-tile hover:border-sophon-signal-bright/45 hover:bg-sophon-glass-strong"))} data-model-card data-selected={selected ? "true" : "false"} key={model.id} onPointerEnter={mobile ? undefined : () => onHoverModelChange?.(model.id)} onPointerLeave={mobile ? undefined : () => onHoverModelChange?.(null)} onPointerMove={mobile ? undefined : () => onHoverModelChange?.(model.id)}>
+            <label className={cn("relative flex cursor-pointer", expanded ? mobile ? cn("min-h-[80px] items-start gap-3 p-3", (hasStoredData || (selected && !availableLocally && !active)) && "pr-12") : cn("min-h-[62px] items-start gap-2 p-2.5", (hasStoredData || (selected && !availableLocally && !active)) && "pr-10") : "mx-auto size-12 items-center justify-center rounded-xl border transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-sophon-signal", !expanded && (selected ? "border-sophon-signal-bright/70 bg-sophon-signal/10 shadow-[0_0_24px_var(--sophon-signal-shadow)]" : "border-sophon-glass-border bg-sophon-glass-tile hover:border-sophon-signal-bright/45 hover:bg-sophon-glass-strong"), (disabled || unavailable || deletingModelId !== null) && "cursor-not-allowed border-sophon-glass-border bg-sophon-panel-deep")} data-model-id={model.id} data-model-surface={mobile ? "mobile" : "desktop"} title={expanded ? undefined : `${ui.name} · ${status}`}>
+              <input aria-label={`Choose ${model.label}. Best for ${ui.bestFor}. ${model.format.sizeLabel} download. ${accessibleStatus}.`} checked={selected} className="sr-only" disabled={unavailable} name={mobile ? "mobile-model" : "desktop-model"} onChange={() => onSelect(model.id)} type="radio" value={model.id} />
               {selected ? <span aria-hidden="true" className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-sophon-signal-bright shadow-[0_0_10px_var(--sophon-signal-bright)]" /> : null}
-              {expanded ? <span aria-hidden="true" className={cn("mt-2 grid size-4 shrink-0 place-items-center rounded-full border", selected ? "border-sophon-signal-bright bg-sophon-signal/15" : "border-sophon-copy-decorative bg-sophon-panel-deep")} data-model-selection-indicator data-selected={selected ? "true" : "false"}>{selected ? <span className="size-2 rounded-full bg-sophon-signal-bright shadow-[0_0_6px_var(--sophon-signal-bright)]" /> : null}</span> : null}
-              <span aria-hidden="true" className={cn("grid size-9 shrink-0 place-items-center rounded-lg border", selected ? "border-sophon-signal-bright/45 bg-sophon-signal/15 text-sophon-signal-soft" : "border-sophon-glass-border bg-sophon-panel-deep text-sophon-copy-metadata")}><Icon className="size-[17px]" /></span>
+              {expanded ? <span aria-hidden="true" className={cn("mt-2 grid size-4 shrink-0 place-items-center rounded-full border lg:hidden", selected ? "border-sophon-signal-bright bg-sophon-signal/15" : "border-sophon-copy-decorative bg-sophon-panel-deep")} data-model-selection-indicator data-selected={selected ? "true" : "false"}>{selected ? <span className="size-2 rounded-full bg-sophon-signal-bright shadow-[0_0_6px_var(--sophon-signal-bright)]" /> : null}</span> : null}
+              <span aria-hidden="true" className={cn("grid size-9 shrink-0 place-items-center rounded-lg border", selected ? "border-sophon-signal-bright/45 bg-sophon-signal/15 text-sophon-signal-soft" : "border-sophon-glass-border bg-sophon-panel-deep text-sophon-copy-metadata")} data-model-emblem><Icon className="size-[17px]" /></span>
               {expanded ? <span className="min-w-0 flex-1">
                 <span className="sophon-type-status flex flex-wrap items-center gap-x-1.5 gap-y-1 font-mono uppercase tracking-[0.06em] text-sophon-copy-primary" data-typography-role="status">
                   <span data-model-name>{ui.name}</span>
-                  {model.id === recommendedModelId ? <span className="sophon-verified-emphasis sophon-type-status shrink-0 rounded-full border border-transparent bg-sophon-verified-bright px-1.5 py-0.5 tracking-normal" data-model-recommendation>Recommended</span> : null}
+                  {model.id === recommendedModelId ? <span aria-label="Recommended model" className="sophon-verified-emphasis grid size-4 shrink-0 place-items-center rounded-full bg-sophon-verified-bright text-sophon-on-verified" data-model-recommendation title="Recommended model"><Sparkles aria-hidden="true" className="size-2.5" /><span className="sr-only">Recommended</span></span> : null}
                 </span>
-                <span className={cn("sophon-type-metadata block break-words text-sophon-copy-metadata", mobile ? "mt-1" : "mt-0.5")} data-model-description data-typography-role="metadata">{subtitle}</span>
-                <span className={cn("sophon-type-status flex items-start gap-1.5 break-words font-mono uppercase tracking-[0.06em]", mobile ? "mt-2" : "mt-1", loadedModelId === model.id || availableLocally ? "text-sophon-verified" : active || cache?.state === "partial" ? "text-sophon-signal-soft" : "text-sophon-copy-metadata")} data-model-status data-typography-role="status"><span aria-hidden="true" className={cn("mt-[5px] size-1.5 shrink-0 rounded-full", loadedModelId === model.id || availableLocally ? "bg-sophon-verified-bright shadow-[0_0_8px_var(--sophon-verified-bright)]" : selected || active || cache?.state === "partial" ? "bg-sophon-signal-bright" : "bg-sophon-copy-decorative")} />{status}</span>
+                <span className={cn("sophon-type-metadata block truncate text-sophon-copy-metadata", mobile ? "mt-1" : "mt-0.5")} data-model-description data-typography-role="metadata">{subtitle}</span>
+                {status !== "Ready" && status !== "Active" ? <span className={cn("sophon-type-status flex items-start gap-1.5 break-words font-mono uppercase tracking-[0.06em]", mobile ? "mt-2" : "mt-1", loadedModelId === model.id || availableLocally ? "text-sophon-verified" : active || cache?.state === "partial" ? "text-sophon-signal-soft" : "text-sophon-copy-metadata")} data-model-status data-typography-role="status"><span aria-hidden="true" className={cn("mt-[5px] size-1.5 shrink-0 rounded-full", loadedModelId === model.id || availableLocally ? "bg-sophon-verified-bright shadow-[0_0_8px_var(--sophon-verified-bright)]" : selected || active || cache?.state === "partial" ? "bg-sophon-signal-bright" : "bg-sophon-copy-decorative")} />{status}</span> : null}
               </span> : null}
-              {active ? <span aria-hidden="true" className="absolute inset-x-0 bottom-0 h-0.5 bg-sophon-panel-deep"><span className={cn("block h-full bg-sophon-signal-bright", downloadPercent === undefined && "w-1/3 animate-pulse motion-reduce:animate-none")} style={downloadPercent === undefined ? undefined : { width: `${downloadPercent}%` }} /></span> : null}
+              {active ? <span aria-hidden="true" className="absolute inset-x-0 bottom-0 h-0.5 overflow-hidden bg-sophon-panel-deep"><span className={cn("block h-full bg-sophon-signal-bright", downloadPercent === undefined && "w-1/3 motion-reduce:animate-none")} style={downloadPercent === undefined ? undefined : { width: `${downloadPercent}%` }} /></span> : null}
             </label>
-            {expanded && !active && (selected || hasStoredData) ? <div className={cn("flex min-w-0 items-center gap-1 border-t border-sophon-glass-border", mobile ? "flex-wrap p-1.5" : "flex-wrap p-1")} data-model-actions>
-              {selected && !availableLocally ? <Button aria-label={`${primaryAction} ${ui.name} · ${model.format.sizeLabel}`} className={cn("sophon-accent-surface sophon-type-action min-w-0 flex-1 gap-1 rounded-lg px-2 font-mono uppercase tracking-[0.04em]", mobile ? cn("h-11", hasStoredData && "basis-full") : "h-8 basis-full")} data-model-download data-typography-role="action" disabled={capabilities === null || unavailable} onClick={() => onDownload(model.id)} title={replacesStoredModel ? `Replace the saved model with ${ui.name}` : `${primaryAction} ${ui.name} from the network`} type="button"><Download aria-hidden="true" /><span className="truncate">{primaryAction} {ui.name} · {model.format.sizeLabel}</span></Button> : null}
-              {hasStoredData ? <Button aria-label={`${deleteLabel} for ${model.label}`} className={cn("sophon-type-action min-w-0 shrink-0 gap-1 border-0 bg-transparent font-mono uppercase tracking-[0.04em] text-sophon-copy-decorative shadow-none hover:border-transparent hover:bg-destructive/10 hover:text-destructive", mobile ? "h-11 flex-1 rounded-xl px-3" : "h-8 px-2")} data-model-delete data-typography-role="action" disabled={deletingModelId !== null} onClick={() => onDelete(model.id)} title={`${deleteLabel} for ${ui.name}`} type="button" variant="sophon"><Trash2 aria-hidden="true" className="stroke-[1.5]" /><span>{deleteLabel}</span></Button> : null}
-            </div> : null}
+            {expanded && !active && selected && !availableLocally ? <Button aria-label={`${primaryAction} ${ui.name} · ${model.format.sizeLabel}`} className={cn("absolute z-10 size-9 rounded-lg border-sophon-signal-bright/60 bg-sophon-signal/10 p-0 text-sophon-signal-soft shadow-none hover:border-sophon-signal-bright hover:bg-sophon-signal hover:text-white", mobile ? "right-3 top-3" : "right-2.5 top-2.5")} data-model-download disabled={capabilities === null || unavailable} onClick={() => onDownload(model.id)} title={replacesStoredModel ? `Replace the saved model with ${ui.name}` : `${primaryAction} ${ui.name} from the network`} type="button" variant="sophon"><Download aria-hidden="true" className="size-[17px] stroke-[1.75]" /><span className="sr-only">{primaryAction} {ui.name}</span></Button> : null}
+            {expanded && !active && hasStoredData ? <Button aria-label={`${deleteLabel} for ${model.label}`} className={cn("absolute z-10 size-9 rounded-lg border-destructive/70 bg-transparent p-0 text-destructive shadow-none hover:border-destructive hover:bg-destructive/10 hover:text-destructive", mobile ? "right-3 top-3" : "right-2.5 top-2.5")} data-model-delete disabled={deletingModelId !== null} onClick={() => onDelete(model.id)} title={`${deleteLabel} for ${ui.name}`} type="button" variant="sophon"><Trash2 aria-hidden="true" className="size-[17px] stroke-[1.75]" /><span className="sr-only">{deleteLabel}</span></Button> : null}
           </div>;
         })}
       </div>
     </fieldset>
     {expanded ? (
-      <footer className="sophon-type-metadata shrink-0 border-t border-sophon-glass-border p-4 font-mono uppercase tracking-[0.06em] text-sophon-copy-metadata" data-typography-role="metadata">
-        <div className="space-y-0.5">
-          <div className="flex min-h-6 items-center gap-1">
-            <span className="min-w-0 flex-1 text-sophon-copy-body">{detailModel.parameterLabel} · 4-bit · {formatContext(detailProfile.contextLength)}</span>
-            <InfoHint concept="modelSpecs" portalContainer={portalContainer} />
-          </div>
-          <div className="flex min-h-6 items-center gap-1">
-            <span className="min-w-0 flex-1">{detailModel.format.sizeLabel} · {capabilities?.browserEngine === "chromium" ? "Chromium WebGPU" : "WebGPU"}</span>
-            <InfoHint concept="webgpu" portalContainer={portalContainer} />
-          </div>
-          <div className="flex min-h-6 items-center gap-1">
-            <span className="min-w-0 flex-1">{detailModel.licenseLabel}</span>
-            <InfoHint concept="modelLicense" portalContainer={portalContainer} />
-          </div>
+      <footer className="sophon-type-metadata shrink-0 border-t border-sophon-glass-border bg-sophon-panel-deep p-3 font-mono tracking-[0.03em] text-sophon-copy-metadata shadow-[inset_0_1px_0_rgb(255_255_255/0.8)]" data-typography-role="metadata">
+        <div className="grid grid-cols-2 gap-1.5">
+          <span className="inline-flex h-7 min-w-0 items-center rounded-md border border-sophon-glass-border bg-sophon-panel px-2 font-medium text-sophon-copy-body shadow-[inset_0_1px_0_var(--sophon-glass-highlight)]">{detailModel.parameterLabel} · 4-bit</span>
+          <span className="inline-flex h-7 min-w-0 items-center rounded-md border border-sophon-glass-border bg-sophon-panel pl-2 pr-1 font-medium text-sophon-copy-body shadow-[inset_0_1px_0_var(--sophon-glass-highlight)]">{formatContext(detailProfile.contextLength)}<InfoHint className="ml-auto size-6" concept="modelSpecs" /></span>
+          <span className="inline-flex h-7 min-w-0 items-center rounded-md border border-sophon-glass-border bg-sophon-panel px-2 font-medium shadow-[inset_0_1px_0_var(--sophon-glass-highlight)]">{detailModel.format.sizeLabel}</span>
+          <span className="inline-flex h-7 min-w-0 items-center rounded-md border border-sophon-glass-border bg-sophon-panel pl-2 pr-1 font-medium shadow-[inset_0_1px_0_var(--sophon-glass-highlight)]" title={capabilities?.browserEngine === "chromium" ? "Chromium WebGPU" : "WebGPU"}>WebGPU<InfoHint className="ml-auto size-6" concept="webgpu" /></span>
         </div>
-        <p className="sophon-type-metadata mt-2 normal-case tracking-normal text-sophon-copy-metadata">Sophon keeps one model on this device at a time. Choosing another model replaces the saved download.</p>
+        <div className="mt-2 flex items-center">
+          <span className="inline-flex items-center">{detailModel.licenseLabel}<InfoHint className="size-6" concept="modelLicense" /></span>
+        </div>
+        <p className="sophon-type-metadata mt-2 border-l-2 border-sophon-signal-bright/45 pl-2 normal-case tracking-normal text-sophon-copy-metadata">One model is stored locally. Choosing another replaces it.</p>
       </footer>
     ) : null}
   </>;

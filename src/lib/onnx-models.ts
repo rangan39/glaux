@@ -72,7 +72,7 @@ export const MODEL_REGISTRY = [
     verification: "experimental",
     source: { kind: "huggingface", repo: "onnx-community/tiny-aya-global-ONNX", revision: "7fff1be9627e40f0d89c33f406882bdafb56ec90" },
     format: { quantization: "q4f16", sizeLabel: "~2.35 GB", sizeBytes: 2_354_413_407, contextLength: 8192 },
-    runtime: { maxNewTokens: 48, mobileContextLength: 2048, mobileMaxNewTokens: 24 },
+    runtime: { maxNewTokens: 128, mobileContextLength: 2048, mobileMaxNewTokens: 64 },
     providers: ["webgpu"]
   },
   {
@@ -85,7 +85,7 @@ export const MODEL_REGISTRY = [
     verification: "experimental",
     source: { kind: "huggingface", repo: "onnx-community/tiny-aya-earth-ONNX", revision: "24a24ee8b8483762575fe734e57bad21ca36d8c6" },
     format: { quantization: "q4f16", sizeLabel: "~2.35 GB", sizeBytes: 2_354_413_397, contextLength: 8192 },
-    runtime: { maxNewTokens: 48, mobileContextLength: 2048, mobileMaxNewTokens: 24 },
+    runtime: { maxNewTokens: 128, mobileContextLength: 2048, mobileMaxNewTokens: 64 },
     providers: ["webgpu"]
   },
   {
@@ -98,7 +98,7 @@ export const MODEL_REGISTRY = [
     verification: "experimental",
     source: { kind: "huggingface", repo: "onnx-community/tiny-aya-fire-ONNX", revision: "70f6b7edf79955855d7939342d2a39ab644d3ed6" },
     format: { quantization: "q4f16", sizeLabel: "~2.35 GB", sizeBytes: 2_354_413_397, contextLength: 8192 },
-    runtime: { maxNewTokens: 48, mobileContextLength: 2048, mobileMaxNewTokens: 24 },
+    runtime: { maxNewTokens: 128, mobileContextLength: 2048, mobileMaxNewTokens: 64 },
     providers: ["webgpu"]
   },
   {
@@ -111,7 +111,7 @@ export const MODEL_REGISTRY = [
     verification: "experimental",
     source: { kind: "huggingface", repo: "onnx-community/tiny-aya-water-ONNX", revision: "e1109b664b476b709d13bf40dc105efb147caa09" },
     format: { quantization: "q4f16", sizeLabel: "~2.35 GB", sizeBytes: 2_354_413_397, contextLength: 8192 },
-    runtime: { maxNewTokens: 48, mobileContextLength: 2048, mobileMaxNewTokens: 24 },
+    runtime: { maxNewTokens: 128, mobileContextLength: 2048, mobileMaxNewTokens: 64 },
     providers: ["webgpu"]
   }
 ] as const satisfies readonly [ModelManifest, ...ModelManifest[]];

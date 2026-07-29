@@ -45,6 +45,7 @@ export type PreparedModelDelivery = {
 };
 
 const inFlightArtifacts = new Map<string, Promise<File>>();
+const MINIMUM_PROBE_STATE_MS = 700;
 
 export async function prepareModelDelivery(
   model: DeliveryModel,
@@ -62,6 +63,8 @@ export async function prepareModelDelivery(
     const totalBytes = getManifestBytes(manifest);
     const states = await getAllArtifactStates();
     await ensureStorageHeadroom(manifest, totalBytes, states);
+    const probeStartedAt = now();
+    onProgress({ loaded: 0, total: totalBytes, stage: "probe" });
 
     let probes: { artifact: ModelDeliveryArtifact; etag: string }[];
     try {
@@ -83,6 +86,8 @@ export async function prepareModelDelivery(
           }, { signal }))
         };
       }));
+      const remainingProbeStateMs = MINIMUM_PROBE_STATE_MS - (now() - probeStartedAt);
+      if (remainingProbeStateMs > 0) await new Promise<void>((resolve) => globalThis.setTimeout(resolve, remainingProbeStateMs));
     } catch (error) {
       if (error instanceof RangeDeliveryUnavailableError) {
         throw new ModelDeliveryUnavailableError("The model host cannot provide the strong, resumable byte ranges Sophon requires.", { cause: error });

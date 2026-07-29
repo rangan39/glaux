@@ -69,7 +69,7 @@ export async function deleteModelStorage(model: ModelDeliveryManifest) {
       if (!(error instanceof DOMException && error.name === "NotFoundError")) {
         throw toModelStorageOperationError(
           error,
-          "The browser could not remove old model files from private storage.",
+          "The browser could not remove old model files from browser storage.",
           "opfs-delete"
         );
       }
@@ -166,7 +166,7 @@ export async function openArtifactFile(model: ModelDeliveryManifest, artifact: M
           } catch (error) {
             throw toModelStorageOperationError(
               error,
-              "The browser rejected a model-file resize in private storage.",
+              "The browser rejected a model-file resize in browser storage.",
               "opfs-resize"
             );
           }
@@ -178,7 +178,7 @@ export async function openArtifactFile(model: ModelDeliveryManifest, artifact: M
           } catch (error) {
             throw toModelStorageOperationError(
               error,
-              "The browser rejected a model-file write in private storage.",
+              "The browser rejected a model-file write in browser storage.",
               "opfs-write"
             );
           }
@@ -189,7 +189,7 @@ export async function openArtifactFile(model: ModelDeliveryManifest, artifact: M
           } catch (error) {
             throw toModelStorageOperationError(
               error,
-              "The browser could not flush model files to private storage.",
+              "The browser could not flush model files to browser storage.",
               "opfs-flush"
             );
           }
@@ -206,7 +206,7 @@ export async function openArtifactFile(model: ModelDeliveryManifest, artifact: M
     if (error instanceof ModelDeliveryUnavailableError) throw error;
     const storageError = toModelStorageOperationError(
       error,
-      "The browser could not open private model storage.",
+      "The browser could not open browser model storage.",
       "opfs-open"
     );
     if (storageError !== error) throw storageError;

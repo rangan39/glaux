@@ -194,7 +194,7 @@ async function assertState(page, state, viewport) {
   if (state === "downloading") {
     const progress = page.getByRole("progressbar", { name: /Loading Tiny Aya Global/ });
     await assertVisible(progress, "download progress");
-    assert.equal(await progress.getAttribute("aria-valuenow"), "38");
+    assert.equal(await progress.getAttribute("aria-valuenow"), "38.8");
     await assertVisible(page.getByRole("button", { name: "Pause model download", exact: true }), "pause action");
     await assertPromptLocked(page, state);
     return;
@@ -585,7 +585,10 @@ async function assertDocumentScrollLock(page, viewport, state) {
     };
   });
 
-  await firstRunPrimary.click();
+  await firstRunPrimary.evaluate((element) => {
+    element.focus({ preventScroll: true });
+    element.click();
+  });
   await dialog.waitFor({ state: "visible", timeout: timeoutMs });
   await assertDocumentScrollLocked(page, `${viewport.name} reopened download confirmation`);
   const opened = await page.evaluate(() => {

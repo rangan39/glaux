@@ -8,7 +8,7 @@ import {
 } from "@/lib/model-delivery/adaptive-range-queue";
 import { createOrderedArtifactHasher } from "@/lib/model-delivery/ordered-artifact-hasher";
 
-export type DeliveryStage = "validate" | "download" | "resume" | "verify" | "cache" | "ready";
+export type DeliveryStage = "probe" | "validate" | "download" | "resume" | "verify" | "cache" | "ready";
 export type DeliveryProgress = {
   loaded: number;
   total: number;

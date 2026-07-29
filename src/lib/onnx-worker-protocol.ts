@@ -151,6 +151,7 @@ function isLogEvent(value: unknown): value is OnnxLogEvent {
 function isDownloadProgress(value: unknown) {
   if (!isRecord(value) || !isFiniteNonNegative(value.loaded) || !isFinitePositive(value.total) || Number(value.loaded) > Number(value.total)) return false;
   if (value.stage !== undefined
+    && value.stage !== "probe"
     && value.stage !== "validate"
     && value.stage !== "download"
     && value.stage !== "resume"

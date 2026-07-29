@@ -37,7 +37,9 @@ const WORKER_TIMEOUTS: Record<WorkerRequestType, { idleMs: number; overallMs: nu
   generate: { idleMs: 30 * 60_000, overallMs: 60 * 60_000 },
   cancel: { idleMs: 10_000, overallMs: 10_000 },
   preload: { idleMs: 2 * 60_000, overallMs: 6 * 60 * 60_000 },
-  "cache-status": { idleMs: 30_000, overallMs: 30_000 },
+  // Cache inventory is only a startup convenience. Never let a stalled worker block model selection.
+  // The overall ceiling is deliberately separate from the progress watchdog: worker logs must not extend it.
+  "cache-status": { idleMs: 2_000, overallMs: 5_000 },
   "delete-cache": { idleMs: 2 * 60_000, overallMs: 10 * 60_000 }
 };
 

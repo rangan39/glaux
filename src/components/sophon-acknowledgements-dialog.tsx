@@ -1,13 +1,12 @@
 "use client";
 
 import type { RefObject } from "react";
-import { CodeXml, FileText, HeartHandshake, Scale, ShieldCheck, X } from "lucide-react";
+import { CodeXml, FileText, HeartHandshake, Scale, X } from "lucide-react";
 import { ExternalLinkIndicator } from "@/components/external-link-indicator";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import {
   COHERE_LABS_AUP_URL,
-  PRIVACY_PATH,
   PROJECT_REPOSITORY_URL,
   PROJECT_SUPPORT_URL,
   TINY_AYA_LICENSE_URL
@@ -101,20 +100,11 @@ export default function SophonAcknowledgementsDialog({ onDismiss, triggerRef }: 
           <div className="space-y-5">
             <section aria-labelledby="trust-support-title">
               <div className="mb-2 px-1">
-                <h3 className="sophon-type-decorative font-mono uppercase tracking-[0.12em] text-sophon-signal-soft" data-typography-role="decorative" id="trust-support-title">Privacy, licensing & support</h3>
-                <p className="sophon-type-metadata mt-0.5 text-sophon-copy-metadata" data-typography-role="metadata">Source, privacy, and model terms for Sophon and Tiny Aya.</p>
+                <h3 className="sophon-type-decorative font-mono uppercase tracking-[0.12em] text-sophon-signal-soft" data-typography-role="decorative" id="trust-support-title">Licensing & support</h3>
+                <p className="sophon-type-metadata mt-0.5 text-sophon-copy-metadata" data-typography-role="metadata">Source and model terms for Sophon and Tiny Aya.</p>
               </div>
-              <nav aria-label="Privacy, licensing, and support">
+              <nav aria-label="Licensing and support">
                 <ul className="grid gap-2 sm:grid-cols-2" data-testid="trust-support-links">
-                  <li>
-                    <a className="sophon-glass-tile flex min-h-16 h-full items-center gap-3 rounded-xl px-3.5 py-3 text-sophon-copy-primary transition-colors hover:border-sophon-signal-bright/55 hover:bg-sophon-glass-strong hover:text-sophon-signal-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-signal" href={PRIVACY_PATH}>
-                      <ShieldCheck aria-hidden="true" className="size-4 shrink-0 text-sophon-verified-bright" />
-                      <span>
-                        <span className="block text-sm font-medium">Privacy policy</span>
-                        <span className="sophon-type-metadata mt-0.5 block text-sophon-copy-metadata" data-typography-role="metadata">Local data and network requests</span>
-                      </span>
-                    </a>
-                  </li>
                   <li>
                     <a className="sophon-glass-tile flex min-h-16 h-full items-center gap-3 rounded-xl px-3.5 py-3 text-sophon-copy-primary transition-colors hover:border-sophon-signal-bright/55 hover:bg-sophon-glass-strong hover:text-sophon-signal-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-signal" href={PROJECT_REPOSITORY_URL} rel="noreferrer" target="_blank">
                       <CodeXml aria-hidden="true" className="size-4 shrink-0 text-sophon-signal-soft" />

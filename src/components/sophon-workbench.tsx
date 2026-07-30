@@ -1525,7 +1525,7 @@ function getRuntimeStatus(
     return { label: "Model unavailable", className: "text-destructive", dotClassName: "bg-destructive" };
   }
   if (loadedModelId === model.id) {
-    return { label: "Model ready", className: "text-sophon-verified", dotClassName: "bg-sophon-verified-bright shadow-[0_0_10px_var(--sophon-verified-bright)]" };
+    return { label: "Model ready", className: "text-black", dotClassName: "bg-sophon-verified-bright shadow-[0_0_10px_var(--sophon-verified-bright)]" };
   }
   if (modelLoadPaused) {
     return { label: "Download paused", className: "text-sophon-warning", dotClassName: "bg-sophon-warning shadow-[0_0_10px_var(--sophon-warning)]" };

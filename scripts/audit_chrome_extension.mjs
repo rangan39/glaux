@@ -11,7 +11,7 @@ export async function auditChromeExtension(extensionDir, { reportPath } = {}) {
   const manifest = JSON.parse(await readFile(path.join(extensionDir, "manifest.json"), "utf8"));
   assert.equal(manifest.manifest_version, 3);
   assert.equal(manifest.version, packageJson.version, "package.json and manifest.json versions differ.");
-  assert.equal(manifest.name, "Sophon — Private Local AI");
+  assert.equal(manifest.name, "Glaux — Private Local AI");
   assert.deepEqual(manifest.permissions, ["unlimitedStorage"]);
   assert.deepEqual(manifest.host_permissions, [
     "https://huggingface.co/*",
@@ -19,7 +19,7 @@ export async function auditChromeExtension(extensionDir, { reportPath } = {}) {
     "https://*.hf.co/*",
     "https://*.xethub.hf.co/*"
   ]);
-  assert.equal(manifest.homepage_url, "https://sophon-coral.vercel.app");
+  assert.equal(manifest.homepage_url, "https://glaux-ai.vercel.app");
   assert.match(manifest.content_security_policy.extension_pages, /^script-src 'self' 'wasm-unsafe-eval';/);
   assert.ok(!manifest.content_security_policy.extension_pages.includes("'unsafe-inline'"));
   assert.ok(!manifest.content_security_policy.extension_pages.includes("'unsafe-eval'"));

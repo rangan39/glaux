@@ -1,9 +1,9 @@
 "use client";
 
 import { type FormEvent, type KeyboardEvent, type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { Check, CircleUserRound, Code2, Copy, Download, Gauge, Hammer, HardDrive, Languages, LifeBuoy, LoaderCircle, MessageCircle, PanelLeft, Pencil, RotateCcw, Search, SendHorizontal, ShieldCheck, Sparkles, Square, Trash2 } from "lucide-react";
-import { SophonAcknowledgements } from "@/components/sophon-acknowledgements";
-import { MODEL_UI, SophonModelSidebar } from "@/components/sophon-model-sidebar";
+import { Check, CircleUserRound, Code2, Copy, Download, ExternalLink, Gauge, Hammer, HardDrive, Languages, LifeBuoy, LoaderCircle, MessageCircle, PanelLeft, Pencil, RotateCcw, SendHorizontal, ShieldCheck, Sparkles, Square, Trash2 } from "lucide-react";
+import { GlauxAcknowledgements } from "@/components/sophon-acknowledgements";
+import { MODEL_UI, GlauxModelSidebar } from "@/components/sophon-model-sidebar";
 import { InspectableMessage, type InspectableToken, type TokenInspectMode } from "@/components/token-lens";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -42,7 +42,7 @@ import {
   type ProductTestState
 } from "@/lib/product-test-fixtures";
 import { cn } from "@/lib/utils";
-import { PRIVACY_PATH, PROJECT_REPOSITORY_URL, PROJECT_SUPPORT_URL } from "@/lib/trust-navigation";
+import { ONNX_COMMUNITY_URL, PRIVACY_PATH, PROJECT_REPOSITORY_URL, PROJECT_SUPPORT_URL } from "@/lib/trust-navigation";
 
 type ChatMessage = {
   id: string;
@@ -84,11 +84,11 @@ const STARTER_MESSAGES: ChatMessage[] = [
   {
     id: "assistant-welcome",
     role: "assistant",
-    content: "Hi — I’m Sophon. Choose a multilingual Tiny Aya model to download, then chat locally in this browser.",
+    content: "Hi — I’m Glaux. Find a compatible ONNX Community model to download, then chat locally in this browser.",
     meta: "Open-source web tool · local inference · no server inference"
   }
 ];
-export function SophonWorkbench() {
+export function GlauxWorkbench() {
   const [productTestState, setProductTestState] = useState<ProductTestState | null | undefined>(
     PRODUCT_TESTING_BUILD ? undefined : null
   );
@@ -291,7 +291,7 @@ export function SophonWorkbench() {
       inventoryTimedOut = true;
       setCacheSummaries([]);
       setCacheInventoryResolved(true);
-      setNotice("Sophon couldn’t check for saved model data. You can still choose a model to download.");
+      setNotice("Glaux couldn’t check for saved model data. You can still choose a model to download.");
     }, 5_000);
     void (async () => {
       let models = await getCachedModels();
@@ -333,7 +333,7 @@ export function SophonWorkbench() {
           setStartupCleanupStatus("failed");
           setError(caught instanceof Error
             ? caught.message
-            : "Sophon could not remove old model files.");
+            : "Glaux could not remove old model files.");
           return;
         } finally {
           if (active) {
@@ -360,7 +360,7 @@ export function SophonWorkbench() {
         window.clearTimeout(inventoryFallbackTimer);
         setCacheSummaries([]);
         setCacheInventoryResolved(true);
-        setNotice("Sophon couldn’t check for saved model data. You can still choose a model to download.");
+        setNotice("Glaux couldn’t check for saved model data. You can still choose a model to download.");
       });
     return () => {
       active = false;
@@ -597,7 +597,7 @@ export function SophonWorkbench() {
       setPendingModelDownloadId(null);
       setError(caught instanceof Error
         ? caught.message
-        : `Sophon could not replace the saved model with ${modelName(targetModelId)}.`);
+        : `Glaux could not replace the saved model with ${modelName(targetModelId)}.`);
     } finally {
       setDeletingModelId(null);
       setModelReplacementPhase(null);
@@ -625,7 +625,7 @@ export function SophonWorkbench() {
     setError(null);
     setNotice(cancelledModel
       ? pausedNetworkDownload
-        ? `${cancelledModel.label} download paused. Sophon will check saved progress when you resume.`
+        ? `${cancelledModel.label} download paused. Glaux will check saved progress when you resume.`
         : `${cancelledModel.label} loading paused. Downloaded files remain available in this browser.`
       : pausedNetworkDownload ? "Model download paused." : "Model loading cancelled.");
     setStorageRevision((value) => value + 1);
@@ -710,13 +710,13 @@ export function SophonWorkbench() {
     if (!text || isBusy) return;
 
     if (!selectedModel) {
-      setError("Choose a Tiny Aya model before sending a message.");
+      setError("Choose an ONNX Community model before sending a message.");
       return;
     }
 
     if (modelCompatibility !== "compatible") {
       setError(modelCompatibility === "probing"
-        ? "Sophon is still checking this browser's GPU support."
+        ? "Glaux is still checking this browser's GPU support."
         : `${selectedModel.label} needs browser GPU support, which is unavailable in this browser.`);
       return;
     }
@@ -902,7 +902,7 @@ export function SophonWorkbench() {
             </div> : null}
             <div className={cn("min-w-0", selectedModel && "max-[359px]:hidden")}>
               <div className="flex items-center gap-2">
-                <h1 className="font-mono text-sm font-semibold tracking-[0.12em] text-sophon-copy-primary">SOPHON</h1>
+                <h1 className="font-mono text-sm font-semibold tracking-[0.12em] text-sophon-copy-primary">GLAUX</h1>
                 <span className="sophon-type-decorative hidden items-center rounded-md border border-sophon-signal-bright/40 bg-sophon-signal/10 px-2 py-0.5 font-mono font-medium uppercase tracking-[0.12em] text-sophon-signal-soft xl:inline-flex" data-typography-role="decorative">Open-source local AI</span>
               </div>
               <p className="sophon-type-metadata hidden whitespace-nowrap font-mono uppercase tracking-[0.12em] text-sophon-copy-metadata xl:block" data-typography-role="metadata">Multilingual AI, in your browser</p>
@@ -929,7 +929,7 @@ export function SophonWorkbench() {
                 <ToggleGroupItem aria-label="Developer mode" className="size-9 rounded-lg bg-transparent p-0 text-sophon-copy-metadata shadow-[inset_0_0_0_1px_var(--sophon-glass-border)] data-[state=on]:bg-sophon-signal data-[state=on]:text-white data-[state=on]:shadow-none" title="Developer mode" value="developer"><Code2 aria-hidden="true" className="size-4" /><span className="sr-only">Developer</span></ToggleGroupItem>
               </ToggleGroup>
             ) : null}
-            <SophonAcknowledgements className="size-10 rounded-xl p-0 sm:!size-10" compact />
+            <GlauxAcknowledgements className="size-10 rounded-xl p-0 sm:!size-10" compact />
             <Button aria-controls="model-library-mobile" aria-expanded={modelSidebarOpen} aria-label="Open model library" className="size-10 rounded-xl p-0 lg:hidden" data-testid="open-model-library" onClick={() => setModelSidebarOpen(true)} size="sm" type="button" variant="sophon"><PanelLeft aria-hidden="true" /><span className="sr-only">Models</span></Button>
           </div>
           {isModelLoading && loadingModel && !isProbingModelFiles ? <span aria-label={`Loading ${loadingModel.label}`} aria-valuemax={100} aria-valuemin={0} aria-valuenow={downloadPercent} aria-valuetext={downloadProgress ? formatDownloadAriaText(downloadProgress) : "Preparing model delivery"} className="absolute inset-x-0 bottom-0 h-1 overflow-hidden bg-sophon-panel-deep" role="progressbar"><span className={cn("block h-full bg-gradient-to-r from-sophon-signal to-sophon-signal-bright shadow-[0_0_12px_var(--sophon-signal-bright)] transition-[width] duration-200 motion-reduce:transition-none", downloadPercent === undefined && "w-1/3 motion-reduce:animate-none")} style={downloadPercent === undefined ? undefined : { width: `${downloadPercent}%` }} /></span> : null}
@@ -938,7 +938,7 @@ export function SophonWorkbench() {
         <div aria-atomic="true" aria-live="polite" className="sr-only" role="status">{runtimeStatus.label}</div>
 
         <div className={cn("flex flex-1", selectedModel ? "min-h-0" : "min-h-fit")}>
-          <SophonModelSidebar activeModelId={modelId} cacheSummaries={cacheSummaries} capabilities={capabilities} communityModels={communityModels} deletingModelId={deletingModelId} disabled={isRunning || replacingModel || storageReconciliationBlocked} downloadPercent={downloadPercent} downloadPercentLabel={downloadPercentLabel} inspectMetrics={hoveredInspectMetrics} inspectMode={developerMode} inspectDisplayMode={inspectDisplayMode} loadedModelId={loadedModelId} loading={isModelLoading} loadingLabel={downloadStatus} mobileOpen={modelSidebarOpen} modelId={libraryModelId} onCommunityModelAdded={addCommunityModel} onDelete={requestDeleteModelDownload} onDownload={requestModelDownload} onHoverModelChange={setHoveredModelId} onInspectDisplayModeChange={setInspectDisplayMode} onMobileOpenChange={setModelSidebarOpen} onSelect={chooseLibraryModel} recommendedModelId={RECOMMENDED_MODEL_ID} />
+          <GlauxModelSidebar activeModelId={modelId} cacheSummaries={cacheSummaries} capabilities={capabilities} communityModels={communityModels} deletingModelId={deletingModelId} disabled={isRunning || replacingModel || storageReconciliationBlocked} downloadPercent={downloadPercent} downloadPercentLabel={downloadPercentLabel} inspectMetrics={hoveredInspectMetrics} inspectMode={developerMode} inspectDisplayMode={inspectDisplayMode} loadedModelId={loadedModelId} loading={isModelLoading} loadingLabel={downloadStatus} mobileOpen={modelSidebarOpen} modelId={libraryModelId} onCommunityModelAdded={addCommunityModel} onDelete={requestDeleteModelDownload} onDownload={requestModelDownload} onHoverModelChange={setHoveredModelId} onInspectDisplayModeChange={setInspectDisplayMode} onInspectModeChange={(enabled) => setInterfaceMode(enabled ? "developer" : "chat")} onMobileOpenChange={setModelSidebarOpen} onSelect={chooseLibraryModel} recommendedModelId={RECOMMENDED_MODEL_ID} />
           <section aria-busy={isBusy} aria-label="Conversation" className={cn("sophon-reveal sophon-reveal-workspace relative flex min-w-0 flex-1 flex-col", selectedModel && "h-full min-h-0")}>
             <div className={cn("flex-1", selectedModel ? "min-h-0 overflow-y-auto overscroll-contain" : "overflow-visible")} data-testid="conversation-scroll">
               <div className="mx-auto flex min-w-0 w-full max-w-6xl flex-col px-4 py-6 sm:px-12 sm:py-9">
@@ -965,7 +965,7 @@ export function SophonWorkbench() {
                       />
                     )
                   ) : displayedMessages.map((message, index) => (
-                    <article aria-label={message.role === "user" ? "Message from you" : "Message from Sophon"} className={cn("group/message relative flex w-full min-w-0 gap-3 text-sm", message.role === "user" && "flex-row-reverse")} key={message.id}>
+                    <article aria-label={message.role === "user" ? "Message from you" : "Message from Glaux"} className={cn("group/message relative flex w-full min-w-0 gap-3 text-sm", message.role === "user" && "flex-row-reverse")} key={message.id}>
                       <div className={cn("flex size-8 shrink-0 items-center justify-center self-end overflow-hidden", message.role === "user" ? "sophon-accent-avatar !self-start mt-1 rounded-xl border border-sophon-signal-bright/50" : "sophon-glass-tile !self-start mt-1 rounded-xl text-sophon-signal-soft")}>
                         {message.role === "user" ? <CircleUserRound aria-hidden="true" className="size-4" /> : ActiveModelIcon ? <ActiveModelIcon aria-hidden="true" className="size-4" /> : null}
                       </div>
@@ -994,7 +994,7 @@ export function SophonWorkbench() {
                     </article>
                   ))}
                   {isRunning ? (
-                    <article aria-label={generation.draft.trim() ? "Sophon is responding" : `Sophon status: ${runtimeActivity?.label ?? "Generating response"}`} aria-live="off" className="group/message relative flex w-full min-w-0 gap-3 text-sm">
+                    <article aria-label={generation.draft.trim() ? "Glaux is responding" : `Glaux status: ${runtimeActivity?.label ?? "Generating response"}`} aria-live="off" className="group/message relative flex w-full min-w-0 gap-3 text-sm">
                       <div className="sophon-glass-tile !self-start mt-1 flex size-8 shrink-0 items-center justify-center self-end overflow-hidden rounded-xl text-sophon-signal-soft">{ActiveModelIcon ? <ActiveModelIcon aria-hidden="true" className="size-4 animate-pulse motion-reduce:animate-none" /> : null}</div>
                       <div className="flex w-full min-w-0 flex-col gap-2.5 max-w-[calc(100%_-_2.75rem)] sm:max-w-xl">
                         <Card className="w-full max-w-full overflow-hidden rounded-xl border-sophon-glass-border bg-sophon-panel shadow-none">
@@ -1066,7 +1066,7 @@ export function SophonWorkbench() {
                     <Button className="h-11 self-start rounded-xl sm:h-8 sm:self-auto" onClick={() => setNotice(null)} size="sm" type="button" variant="sophon">Dismiss</Button>
                   </div>
                 ) : null}
-                <label className="sr-only" htmlFor="sophon-prompt">Message Sophon</label>
+                <label className="sr-only" htmlFor="sophon-prompt">Message Glaux</label>
                 <div className="sophon-glass-tile sophon-glass-interactive relative overflow-hidden rounded-2xl before:pointer-events-none before:absolute before:inset-y-3 before:left-0 before:z-10 before:w-px before:bg-sophon-glass-highlight after:pointer-events-none after:absolute after:inset-y-3 after:right-0 after:z-10 after:w-px after:bg-sophon-glass-highlight">
                   <Textarea
                     aria-describedby="prompt-help"
@@ -1206,7 +1206,7 @@ function FirstRunCheck({ error, onRetry, status }: {
           {failed ? "Old model files could not be removed" : cleaning ? "Cleaning up old model files" : "Checking this browser"}
         </span>
         <span className="sophon-type-metadata mt-0.5 block text-sophon-copy-metadata" data-typography-role="metadata">
-          {failed ? error : cleaning ? "Removing legacy downloads before Sophon starts…" : "Looking for a model you have already downloaded…"}
+          {failed ? error : cleaning ? "Removing legacy downloads before Glaux starts…" : "Looking for a model you have already downloaded…"}
         </span>
       </span>
       {failed ? <Button className="ml-auto h-11 shrink-0 rounded-xl max-[359px]:basis-full sm:h-8" onClick={onRetry} size="sm" type="button" variant="sophon">Retry cleanup</Button> : null}
@@ -1254,16 +1254,16 @@ function FirstRunWelcome({ compatibility, notice, onDismissNotice, onOpenModels 
                   <Sparkles aria-hidden="true" className="size-2.5" />
                 </span>
               </div>
-              <p className="sophon-type-metadata mt-1 text-sophon-copy-metadata" data-typography-role="metadata">Search by model name, family, architecture, or base model.</p>
+              <p className="sophon-type-metadata mt-1 text-sophon-copy-metadata" data-typography-role="metadata">Visit the ONNX Community page on Hugging Face to browse available models.</p>
             </div>
             <Button
-              aria-label="Search Hugging Face ONNX Community"
+              asChild
               className="sophon-accent-surface mt-3 h-11 w-full shrink-0 rounded-lg px-3 sm:mt-0 sm:w-auto"
               data-testid="first-run-primary"
-              onClick={onOpenModels}
-              type="button"
             >
-              <><Search aria-hidden="true" /><span>Search models</span></>
+              <a aria-label="Visit the Hugging Face ONNX Community (opens in a new tab)" href={ONNX_COMMUNITY_URL} rel="noreferrer" target="_blank">
+                <ExternalLink aria-hidden="true" /><span>View on Hugging Face</span>
+              </a>
             </Button>
           </div>
           {compatibility === "incompatible" ? (
@@ -1309,7 +1309,7 @@ function FirstRunWelcome({ compatibility, notice, onDismissNotice, onOpenModels 
               <a aria-label="Privacy" className="inline-flex size-9 items-center justify-center rounded-lg border border-sophon-glass-border bg-sophon-glass-strong text-sophon-copy-primary transition-colors hover:border-sophon-signal-bright/55 hover:bg-sophon-glass-tile hover:text-sophon-signal-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-signal" href={PRIVACY_PATH} title="Privacy">
                 <ShieldCheck aria-hidden="true" className="size-4" />
               </a>
-              <SophonAcknowledgements ariaLabel="About & licenses" className="size-9 rounded-lg border border-sophon-glass-border bg-sophon-glass-strong hover:border-sophon-signal-bright/55 hover:bg-sophon-glass-tile sm:size-9" compact />
+              <GlauxAcknowledgements ariaLabel="About & licenses" className="size-9 rounded-lg border border-sophon-glass-border bg-sophon-glass-strong hover:border-sophon-signal-bright/55 hover:bg-sophon-glass-tile sm:size-9" compact />
               <a aria-label="Support (opens in a new tab)" className="inline-flex size-9 items-center justify-center rounded-lg border border-sophon-glass-border bg-sophon-glass-strong text-sophon-copy-primary transition-colors hover:border-sophon-signal-bright/55 hover:bg-sophon-glass-tile hover:text-sophon-signal-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-signal" href={PROJECT_SUPPORT_URL} rel="noreferrer" target="_blank" title="Support">
                 <LifeBuoy aria-hidden="true" className="size-4" />
               </a>
@@ -1399,7 +1399,7 @@ function getWelcomeMessage(message: ChatMessage, model: ModelManifest | null, mo
     content: modelLoadPaused
       ? `${modelName} is selected and its download is paused. Resume to finish the download and unlock the prompt.`
       : isModelLoading
-        ? `${modelName} is getting ready. The prompt will unlock after Sophon downloads and verifies it locally.`
+        ? `${modelName} is getting ready. The prompt will unlock after Glaux downloads and verifies it locally.`
         : `${modelName} is selected. The prompt will unlock as soon as it is ready to run privately.`,
     meta: "Local download · resumable"
   };
@@ -1743,15 +1743,15 @@ function getModelDownloadDescription(
   const totalBytes = model.format.sizeBytes ?? cache?.totalBytes ?? 0;
   const remainingBytes = Math.max(0, totalBytes - resumableBytes);
   const action = resumableBytes > 0
-    ? `Sophon found ${formatStorageBytes(resumableBytes)} of resumable data and will download about ${formatStorageBytes(remainingBytes)} more.`
-    : `Sophon will download ${model.format.sizeLabel} to this browser before it can answer locally.`;
+    ? `Glaux found ${formatStorageBytes(resumableBytes)} of resumable data and will download about ${formatStorageBytes(remainingBytes)} more.`
+    : `Glaux will download ${model.format.sizeLabel} to this browser before it can answer locally.`;
   const availableBytes = storage?.quota !== undefined && storage.usage !== undefined
     ? Math.max(0, storage.quota - storage.usage)
     : null;
   const storageMessage = availableBytes === null
     ? "Your browser will verify available storage before downloading."
     : `This browser currently reports ${formatStorageBytes(availableBytes)} available.`;
-  return `${action} ${storageMessage} Tiny Aya is licensed for non-commercial use under CC BY-NC 4.0 and the Cohere Labs AUP.`;
+  return `${action} ${storageMessage} Review the selected model’s license and repository terms before use.`;
 }
 
 function formatEta(milliseconds: number) {

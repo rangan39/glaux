@@ -47,8 +47,8 @@ try {
   await capture(page, "02-model-download-disclosure-1280x800.png");
   await confirmation.getByRole("button", { name: "Not now", exact: true }).click();
 
-  await page.getByRole("button", { name: "About Sophon", exact: true }).click();
-  await page.getByRole("dialog", { name: "About Sophon", exact: true }).waitFor({ state: "visible" });
+  await page.getByRole("button", { name: "About Glaux", exact: true }).click();
+  await page.getByRole("dialog", { name: "About Glaux", exact: true }).waitFor({ state: "visible" });
   await capture(page, "03-open-model-stack-1280x800.png");
 
   await page.goto(`chrome-extension://${extensionId}/privacy.html`, { waitUntil: "domcontentloaded" });

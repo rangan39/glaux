@@ -1,10 +1,11 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { Cpu, Download, Flame, Languages, LoaderCircle, Mountain, PanelLeftClose, PanelLeftOpen, Search, Sparkles, Trash2, Waves, X, type LucideIcon } from "lucide-react";
+import { Code2, Cpu, Download, ExternalLink, FileText, Flame, Languages, LoaderCircle, Mountain, PanelLeftClose, PanelLeftOpen, Search, Sparkles, Trash2, Waves, X, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { InfoHint } from "@/components/ui/info-hint";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getModelRuntimeProfile, MODEL_REGISTRY, type ModelManifest } from "@/lib/onnx-models";
 import type { ModelCacheSummary, RuntimeCapabilities } from "@/lib/onnx-types";
 import { cn } from "@/lib/utils";
@@ -24,6 +25,7 @@ type Props = {
   communityModels?: ModelManifest[]; onCommunityModelAdded?: (descriptor: CommunityModelDescriptor) => void;
   activeModelId: string; cacheSummaries: ModelCacheSummary[]; capabilities: RuntimeCapabilities | null; deletingModelId?: string | null; disabled?: boolean; downloadPercent?: number; downloadPercentLabel?: string; loadedModelId: string | null;
   inspectDisplayMode?: TokenInspectMode | null; inspectMetrics?: string; inspectMode?: boolean; loading?: boolean; loadingLabel?: string; mobileOpen: boolean; modelId: string; onDelete: (modelId: string) => void; onDownload: (modelId: string) => void; onHoverModelChange?: (modelId: string | null) => void; onInspectDisplayModeChange?: (mode: TokenInspectMode | null) => void; onMobileOpenChange: (open: boolean) => void; onSelect: (modelId: string) => void; recommendedModelId: string;
+  onInspectModeChange?: (enabled: boolean) => void;
 };
 export const MODEL_UI: Record<string, { bestFor: string; icon: LucideIcon; name: string }> = {
   "tiny-aya-global": { bestFor: "Broad multilingual coverage", icon: Languages, name: "Global" },
@@ -32,9 +34,9 @@ export const MODEL_UI: Record<string, { bestFor: string; icon: LucideIcon; name:
   "tiny-aya-water": { bestFor: "Europe + Asia Pacific", icon: Waves, name: "Water" }
 };
 
-export function SophonModelSidebar({ activeModelId, cacheSummaries = [], capabilities, communityModels = [], deletingModelId = null, disabled = false, downloadPercent, downloadPercentLabel, inspectDisplayMode = null, inspectMetrics, inspectMode = false, loadedModelId, loading = false, loadingLabel = "Downloading", mobileOpen, modelId, onCommunityModelAdded, onDelete, onDownload, onHoverModelChange, onInspectDisplayModeChange, onMobileOpenChange, onSelect, recommendedModelId }: Props) {
+export function GlauxModelSidebar({ activeModelId, cacheSummaries = [], capabilities, communityModels = [], deletingModelId = null, disabled = false, downloadPercent, downloadPercentLabel, inspectDisplayMode = null, inspectMetrics, inspectMode = false, loadedModelId, loading = false, loadingLabel = "Downloading", mobileOpen, modelId, onCommunityModelAdded, onDelete, onDownload, onHoverModelChange, onInspectDisplayModeChange, onInspectModeChange, onMobileOpenChange, onSelect, recommendedModelId }: Props) {
   const [expanded, setExpanded] = useState(true);
-  const panelProps = { activeModelId, cacheSummaries, capabilities, communityModels, deletingModelId, disabled, downloadPercent, downloadPercentLabel, inspectDisplayMode, inspectMetrics, inspectMode, loadedModelId, loading, loadingLabel, modelId, onCommunityModelAdded, onDelete, onDownload, onHoverModelChange, onInspectDisplayModeChange, onSelect, recommendedModelId };
+  const panelProps = { activeModelId, cacheSummaries, capabilities, communityModels, deletingModelId, disabled, downloadPercent, downloadPercentLabel, inspectDisplayMode, inspectMetrics, inspectMode, loadedModelId, loading, loadingLabel, modelId, onCommunityModelAdded, onDelete, onDownload, onHoverModelChange, onInspectDisplayModeChange, onInspectModeChange, onSelect, recommendedModelId };
   return <>
     <aside aria-label="Model library" className={cn("sophon-glass-strong sophon-reveal sophon-reveal-sidebar hidden h-full shrink-0 flex-col overflow-hidden border-y-0 border-l-0 transition-[width] duration-200 motion-reduce:transition-none lg:flex lg:h-[calc(100svh-74px)]", expanded ? "w-72" : "w-[4.75rem]")} data-state={expanded ? "expanded" : "collapsed"} id="model-library-desktop">
       <ModelPanel {...panelProps} expanded={expanded} onToggle={() => setExpanded((value) => !value)} />
@@ -49,7 +51,10 @@ export function SophonModelSidebar({ activeModelId, cacheSummaries = [], capabil
 }
 
 type PanelProps = Omit<Props, "mobileOpen" | "onMobileOpenChange"> & { expanded: boolean; mobile?: boolean; onClose?: () => void; onToggle?: () => void };
-function ModelPanel({ activeModelId, cacheSummaries = [], capabilities, communityModels = [], deletingModelId = null, disabled = false, downloadPercent, downloadPercentLabel, expanded, inspectDisplayMode = null, inspectMetrics, inspectMode = false, loadedModelId, loading, loadingLabel, mobile = false, modelId, onClose, onCommunityModelAdded, onDelete, onDownload, onHoverModelChange, onInspectDisplayModeChange, onSelect, onToggle, recommendedModelId }: PanelProps) {
+type SidebarView = "search" | "details" | "dev";
+function ModelPanel({ activeModelId, cacheSummaries = [], capabilities, communityModels = [], deletingModelId = null, disabled = false, downloadPercent, downloadPercentLabel, expanded, inspectDisplayMode = null, inspectMetrics, inspectMode = false, loadedModelId, loading, loadingLabel, mobile = false, modelId, onClose, onCommunityModelAdded, onDelete, onDownload, onHoverModelChange, onInspectDisplayModeChange, onInspectModeChange, onSelect, onToggle, recommendedModelId }: PanelProps) {
+  const [view, setView] = useState<SidebarView>("search");
+  const activeView: SidebarView = inspectMode ? "dev" : view;
   const models = [...MODEL_REGISTRY, ...communityModels];
   const visibleModelCards: ModelManifest[] = [];
   const detailModel = models.find((model) => model.id === modelId)
@@ -57,30 +62,28 @@ function ModelPanel({ activeModelId, cacheSummaries = [], capabilities, communit
     ?? MODEL_REGISTRY[0];
   const mobileProfile = capabilities?.hardwareTier === "mobile";
   const detailProfile = getModelRuntimeProfile(detailModel, mobileProfile ? "mobile" : "desktop");
-  if (inspectMode) return <>
-    <header className={cn("flex h-[74px] shrink-0 items-center border-b border-sophon-glass-border p-3", expanded ? "justify-between" : "justify-center")}>
-      {expanded ? <div className="min-w-0"><h2 className="sophon-type-status font-mono uppercase tracking-[0.12em] text-sophon-copy-primary" data-typography-role="status">Inspect</h2><p className="sophon-type-metadata mt-1 font-mono uppercase tracking-[0.08em] text-sophon-copy-metadata" data-typography-role="metadata">Read-only session</p></div> : null}
-      <Button aria-label={mobile ? "Close inspector" : expanded ? "Collapse inspector" : "Expand inspector"} className="size-11 shrink-0 rounded-xl lg:size-9" onClick={mobile ? onClose : onToggle} size="icon" type="button" variant="sophon">{mobile ? <X aria-hidden="true" /> : expanded ? <PanelLeftClose aria-hidden="true" /> : <PanelLeftOpen aria-hidden="true" />}</Button>
-    </header>
-    {expanded ? <section aria-label="Generation metrics" className="min-h-0 flex-1 overflow-y-auto p-3">
-      <div aria-label="Inspect message display" className="mb-3 flex rounded-xl border border-sophon-glass-border bg-sophon-panel-deep p-0.5" role="group">
-        {(["tokens", "words"] as const).map((mode) => <button aria-pressed={inspectDisplayMode === mode} className={cn("sophon-type-action min-h-9 flex-1 rounded-lg px-2 font-mono uppercase tracking-[0.06em] transition-colors", inspectDisplayMode === mode ? "bg-sophon-signal text-white shadow-[0_0_12px_var(--sophon-signal-shadow)]" : "text-sophon-copy-metadata hover:bg-sophon-glass-tile hover:text-sophon-copy-primary")} key={mode} onClick={() => onInspectDisplayModeChange?.(inspectDisplayMode === mode ? null : mode)} type="button">{mode}</button>)}
-      </div>
-      <div className="rounded-xl border border-sophon-glass-border bg-sophon-panel-deep p-3">
-        <p className="sophon-type-metadata font-mono uppercase tracking-[0.1em] text-sophon-copy-metadata" data-typography-role="metadata">Generation metrics</p>
-        {inspectMetrics ? <dl className="mt-3 grid gap-2">{inspectMetrics.split(" · ").map((metric) => <div className="rounded-lg border border-sophon-glass-border bg-sophon-panel px-2.5 py-2" key={metric}><dd className="sophon-type-status font-mono font-medium text-sophon-copy-primary" data-typography-role="status">{metric}</dd></div>)}</dl> : <p className="mt-3 text-sm leading-5 text-sophon-copy-metadata">Hover a response to inspect its timing and token metrics.</p>}
-        <p className="mt-3 border-t border-sophon-glass-border pt-3 text-xs leading-5 text-sophon-copy-metadata">Return to Chat to switch or manage models.</p>
-      </div>
-    </section> : null}
-  </>;
+  function selectView(nextView: SidebarView) {
+    setView(nextView);
+    onInspectModeChange?.(nextView === "dev");
+  }
   return <>
-    <header className={cn("flex h-[74px] shrink-0 items-center border-b border-sophon-glass-border p-3", expanded ? "justify-between" : "justify-center")}>
-      {expanded ? <div className="min-w-0"><h2 className="sophon-type-status font-mono uppercase tracking-[0.12em] text-sophon-copy-primary" data-typography-role="status" id={mobile ? "model-library-mobile-title" : undefined}>Model search</h2><p className="sophon-type-metadata mt-1 font-mono uppercase tracking-[0.08em] text-sophon-copy-metadata" data-typography-role="metadata">ONNX Community</p></div> : null}
+    <header className={cn("flex h-16 shrink-0 items-center border-b border-sophon-glass-border p-2.5", expanded ? "justify-between" : "justify-center")}>
+      {expanded ? <div className="min-w-0"><h2 className="sophon-type-status font-mono uppercase tracking-[0.12em] text-sophon-copy-primary" data-typography-role="status" id={mobile ? "model-library-mobile-title" : undefined}>Model library</h2><p className="sophon-type-metadata mt-1 font-mono uppercase tracking-[0.08em] text-sophon-copy-metadata" data-typography-role="metadata">{activeView === "search" ? "ONNX Community" : activeView === "details" ? "Model information" : "Developer tools"}</p></div> : null}
       <Button aria-controls={mobile ? undefined : "model-library-desktop"} aria-expanded={mobile ? undefined : expanded} aria-label={mobile ? "Close model library" : expanded ? "Collapse model library" : "Expand model library"} className="size-11 shrink-0 rounded-xl lg:size-9" onClick={mobile ? onClose : onToggle} size="icon" type="button" variant="sophon">
         {mobile ? <X aria-hidden="true" /> : expanded ? <PanelLeftClose aria-hidden="true" /> : <PanelLeftOpen aria-hidden="true" />}
       </Button>
     </header>
-    <fieldset className="min-h-0 min-w-0 w-full max-w-full flex-1 overflow-y-auto p-3" data-testid={mobile ? "mobile-model-list" : "desktop-model-list"} disabled={disabled || deletingModelId !== null}>
+    {expanded ? <div className="border-b border-sophon-glass-border px-2 py-1.5"><div aria-label="Model library views" className="grid grid-cols-3 gap-0.5 rounded-lg border border-sophon-glass-border bg-sophon-panel-deep p-0.5 shadow-[inset_0_1px_0_var(--sophon-glass-highlight)]" role="group">
+      {([
+        { icon: Search, label: "Model Search", value: "search" },
+        { icon: FileText, label: "Model Details", value: "details" },
+        { icon: Code2, label: "Dev Mode", value: "dev" }
+      ] as const).map(({ icon: ViewIcon, label, value }) => <Tooltip key={value}>
+        <TooltipTrigger asChild><button aria-label={label} aria-pressed={activeView === value} className={cn("grid h-8 min-w-0 place-items-center rounded-md transition-colors", activeView === value ? "bg-sophon-signal/10 text-sophon-signal-soft shadow-[inset_0_0_0_1px_var(--sophon-signal-bright)]" : "text-sophon-copy-metadata hover:bg-sophon-glass-tile hover:text-sophon-copy-primary")} onClick={() => selectView(value)} type="button"><ViewIcon aria-hidden="true" className="size-3.5" /></button></TooltipTrigger>
+        <TooltipContent className="border border-sophon-glass-border bg-sophon-copy-primary text-sophon-panel shadow-lg" side="top">{label}</TooltipContent>
+      </Tooltip>)}
+    </div></div> : null}
+    {activeView === "search" ? <fieldset className="min-h-0 min-w-0 w-full max-w-full flex-1 overflow-y-auto p-3" data-testid={mobile ? "mobile-model-list" : "desktop-model-list"} disabled={disabled || deletingModelId !== null}>
       <legend className="sr-only">Local text generation models</legend>
       <div className="min-w-0 w-full space-y-2">
         {expanded ? <CommunityCatalog disabled={disabled} onAdded={onCommunityModelAdded} /> : null}
@@ -138,7 +141,9 @@ function ModelPanel({ activeModelId, cacheSummaries = [], capabilities, communit
           </div>;
         })}
       </div>
-    </fieldset>
+    </fieldset> : null}
+    {expanded && activeView === "details" ? <ModelDetails model={detailModel} profile={detailProfile} /> : null}
+    {expanded && activeView === "dev" ? <DeveloperTools inspectDisplayMode={inspectDisplayMode} inspectMetrics={inspectMetrics} onInspectDisplayModeChange={onInspectDisplayModeChange} /> : null}
     {expanded && visibleModelCards.length > 0 ? (
       <footer className="sophon-type-metadata shrink-0 border-t border-sophon-glass-border bg-sophon-panel-deep p-3 font-mono tracking-[0.03em] text-sophon-copy-metadata shadow-[inset_0_1px_0_rgb(255_255_255/0.8)]" data-typography-role="metadata">
         <div className="grid grid-cols-2 gap-1.5">
@@ -154,6 +159,42 @@ function ModelPanel({ activeModelId, cacheSummaries = [], capabilities, communit
       </footer>
     ) : null}
   </>;
+}
+
+function ModelDetails({ model, profile }: { model: ModelManifest; profile: ReturnType<typeof getModelRuntimeProfile> }) {
+  if (model.source.kind !== "huggingface") {
+    return <section aria-label="Model details" className="min-h-0 flex-1 overflow-y-auto p-3"><div className="rounded-xl border border-sophon-glass-border bg-sophon-panel-deep p-3"><p className="text-sm text-sophon-copy-metadata">Select a Hugging Face model to view its details.</p></div></section>;
+  }
+  const details = [
+    ["Repository", model.source.repo],
+    ["Revision", model.source.revision.slice(0, 12)],
+    ["Download", model.format.sizeLabel],
+    ["Quantization", model.format.quantization.toUpperCase()],
+    ["Context", formatContext(profile.contextLength)],
+    ["Runtime", model.providers.join(" · ").toUpperCase()],
+    ["License", model.licenseLabel]
+  ];
+  return <section aria-label="Model details" className="min-h-0 flex-1 overflow-y-auto p-2.5">
+    <div className="rounded-lg border border-sophon-glass-border bg-sophon-panel-deep p-2.5">
+      <p className="text-sm font-semibold text-sophon-copy-primary">{model.label}</p>
+      <p className="mt-1 text-xs leading-5 text-sophon-copy-metadata">{model.description}</p>
+      <dl className="mt-2 divide-y divide-sophon-glass-border overflow-hidden rounded-md border border-sophon-glass-border bg-sophon-panel">{details.map(([label, value]) => <div className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-2 px-2 py-1.5" key={label}><dt className="text-[9px] font-medium uppercase tracking-[0.06em] text-sophon-copy-metadata">{label}</dt><dd className="min-w-0 break-words text-[11px] text-sophon-copy-primary">{value}</dd></div>)}</dl>
+      <Button asChild className="mt-3 w-full" size="sm" variant="sophon"><a href={`https://huggingface.co/${model.source.repo}`} rel="noreferrer" target="_blank"><ExternalLink aria-hidden="true" />View on Hugging Face</a></Button>
+    </div>
+  </section>;
+}
+
+function DeveloperTools({ inspectDisplayMode, inspectMetrics, onInspectDisplayModeChange }: { inspectDisplayMode: TokenInspectMode | null; inspectMetrics?: string; onInspectDisplayModeChange?: (mode: TokenInspectMode | null) => void }) {
+  return <section aria-label="Generation metrics" className="min-h-0 flex-1 overflow-y-auto p-2.5">
+    <div aria-label="Inspect message display" className="mb-3 flex rounded-xl border border-sophon-glass-border bg-sophon-panel-deep p-0.5" role="group">
+      {(["tokens", "words"] as const).map((mode) => <button aria-pressed={inspectDisplayMode === mode} className={cn("sophon-type-action min-h-9 flex-1 rounded-lg px-2 font-mono uppercase tracking-[0.06em] transition-colors", inspectDisplayMode === mode ? "bg-sophon-signal text-white shadow-[0_0_12px_var(--sophon-signal-shadow)]" : "text-sophon-copy-metadata hover:bg-sophon-glass-tile hover:text-sophon-copy-primary")} key={mode} onClick={() => onInspectDisplayModeChange?.(inspectDisplayMode === mode ? null : mode)} type="button">{mode}</button>)}
+    </div>
+    <div className="rounded-xl border border-sophon-glass-border bg-sophon-panel-deep p-3">
+      <p className="sophon-type-metadata font-mono uppercase tracking-[0.1em] text-sophon-copy-metadata" data-typography-role="metadata">Generation metrics</p>
+      {inspectMetrics ? <dl className="mt-3 grid gap-2">{inspectMetrics.split(" · ").map((metric) => <div className="rounded-lg border border-sophon-glass-border bg-sophon-panel px-2.5 py-2" key={metric}><dd className="sophon-type-status font-mono font-medium text-sophon-copy-primary" data-typography-role="status">{metric}</dd></div>)}</dl> : <p className="mt-3 text-sm leading-5 text-sophon-copy-metadata">Hover a response to inspect its timing and token metrics.</p>}
+      <p className="mt-3 border-t border-sophon-glass-border pt-3 text-xs leading-5 text-sophon-copy-metadata">Choose Tokens or Words to inspect generated responses.</p>
+    </div>
+  </section>;
 }
 
 function CommunityCatalog({ disabled, onAdded }: { disabled: boolean; onAdded?: (descriptor: CommunityModelDescriptor) => void }) {
@@ -210,11 +251,11 @@ function CommunityCatalog({ disabled, onAdded }: { disabled: boolean; onAdded?: 
 
   function submit(event: FormEvent) { event.preventDefault(); }
 
-  return <section className="mb-3 rounded-xl border border-sophon-glass-border bg-sophon-panel-deep p-2.5" aria-label="ONNX Community catalog">
-    <p className="sophon-type-status font-mono uppercase tracking-[0.06em] text-sophon-copy-primary">Hugging Face ONNX Community</p>
-    <form className="relative mt-2" onSubmit={submit} role="search">
-      <Search aria-hidden="true" className="absolute left-2.5 top-2.5 size-4 text-sophon-copy-metadata" />
-      <input aria-label="Search ONNX Community models" className="h-9 w-full rounded-lg border border-sophon-glass-border bg-sophon-panel pl-8 pr-2 text-sm text-sophon-copy-primary outline-none focus:border-sophon-signal-bright" disabled={disabled} onChange={(event) => {
+  return <section className="mb-2 rounded-lg border border-sophon-glass-border bg-sophon-panel-deep p-2" aria-label="ONNX Community catalog">
+    <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-sophon-copy-primary">Hugging Face ONNX Community</p>
+    <form className="relative mt-1.5" onSubmit={submit} role="search">
+      <Search aria-hidden="true" className="absolute left-2 top-2 size-3.5 text-sophon-copy-metadata" />
+      <input aria-label="Search ONNX Community models" className="h-8 w-full rounded-md border border-sophon-glass-border bg-sophon-panel pl-7 pr-2 text-xs text-sophon-copy-primary outline-none focus:border-sophon-signal-bright" disabled={disabled} onChange={(event) => {
         const value = event.target.value;
         setQuery(value);
         setResults([]);
@@ -222,11 +263,11 @@ function CommunityCatalog({ disabled, onAdded }: { disabled: boolean; onAdded?: 
       }} placeholder="Search models…" value={query} />
     </form>
     {status ? <p className="mt-2 text-xs leading-4 text-sophon-copy-metadata" role="status">{status}</p> : null}
-    {results.length > 0 ? <p className="mt-3 text-[11px] font-medium uppercase tracking-[0.08em] text-sophon-copy-metadata">{query.trim() ? "Search results" : "Popular models"}</p> : null}
-    <div className="mt-1.5 space-y-1.5">
-      {results.map((model) => <button className="flex w-full items-center gap-2 rounded-lg border border-sophon-glass-border bg-sophon-panel px-2 py-2 text-left hover:border-sophon-signal-bright/60 disabled:opacity-60" disabled={disabled || busyRepo !== null || !model.revision} key={model.repo} onClick={() => void addModel(model)} type="button">
-        {busyRepo === model.repo ? <LoaderCircle aria-hidden="true" className="size-4 shrink-0 animate-spin" /> : <Download aria-hidden="true" className="size-4 shrink-0" />}
-        <span className="min-w-0"><span className="block truncate text-xs font-medium text-sophon-copy-primary">{model.name}</span><span className="block text-[11px] text-sophon-copy-metadata">{model.downloads.toLocaleString()} downloads{model.license ? ` · ${model.license}` : ""}</span></span>
+    {results.length > 0 ? <p className="mt-2 text-[9px] font-medium uppercase tracking-[0.08em] text-sophon-copy-metadata">{query.trim() ? "Search results" : "Popular models"}</p> : null}
+    <div className="mt-1 space-y-1">
+      {results.map((model) => <button className="flex w-full items-center gap-1.5 rounded-md border border-sophon-glass-border bg-sophon-panel px-2 py-1.5 text-left hover:border-sophon-signal-bright/60 disabled:opacity-60" disabled={disabled || busyRepo !== null || !model.revision} key={model.repo} onClick={() => void addModel(model)} type="button">
+        {busyRepo === model.repo ? <LoaderCircle aria-hidden="true" className="size-3.5 shrink-0 animate-spin" /> : <Download aria-hidden="true" className="size-3.5 shrink-0" />}
+        <span className="min-w-0"><span className="block truncate text-[11px] font-medium leading-4 text-sophon-copy-primary">{model.name}</span><span className="block truncate text-[9.5px] leading-3 text-sophon-copy-metadata">{model.downloads.toLocaleString()} downloads{model.license ? ` · ${model.license}` : ""}</span></span>
       </button>)}
     </div>
   </section>;

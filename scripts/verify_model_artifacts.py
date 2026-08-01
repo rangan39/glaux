@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify a generated Sophon model artifact and its deterministic manifest."""
+"""Verify a generated Glaux model artifact and its deterministic manifest."""
 
 from __future__ import annotations
 

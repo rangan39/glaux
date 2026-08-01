@@ -24,10 +24,10 @@ const azeretMono = Azeret_Mono({
 });
 
 export const metadata: Metadata = {
-  applicationName: "Sophon",
+  applicationName: "Glaux",
   title: {
-    default: "Sophon",
-    template: "%s · Sophon"
+    default: "Glaux",
+    template: "%s · Glaux"
   },
   description: "An open-source, multilingual AI web tool that runs locally in your browser with WebGPU.",
   category: "developer tools"

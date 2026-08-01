@@ -2,8 +2,8 @@
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
 
-const baseUrl = process.env.SOPHON_SMOKE_URL ?? "http://localhost:3000";
-const timeoutMs = Number(process.env.SOPHON_SMOKE_TIMEOUT_MS ?? 30_000);
+const baseUrl = process.env.GLAUX_SMOKE_URL ?? "http://localhost:3000";
+const timeoutMs = Number(process.env.GLAUX_SMOKE_TIMEOUT_MS ?? 30_000);
 const rendererDelayMs = 750;
 const rawMarkdownMarkers = [
   "## Recommendation",
@@ -18,7 +18,7 @@ const viewports = [
   { width: 1440, height: 900 }
 ];
 
-assert.ok(Number.isFinite(timeoutMs) && timeoutMs > rendererDelayMs, "SOPHON_SMOKE_TIMEOUT_MS must exceed the renderer delay.");
+assert.ok(Number.isFinite(timeoutMs) && timeoutMs > rendererDelayMs, "GLAUX_SMOKE_TIMEOUT_MS must exceed the renderer delay.");
 
 const browser = await chromium.launch({ headless: true });
 try {
@@ -51,7 +51,7 @@ try {
       );
     }
 
-    const assistant = page.getByRole("article", { name: "Message from Sophon" }).filter({ hasText: "Recommendation" });
+    const assistant = page.getByRole("article", { name: "Message from Glaux" }).filter({ hasText: "Recommendation" });
     await assistant.getByRole("heading", { level: 2, name: "Recommendation" }).waitFor({ timeout: timeoutMs });
     assert.equal(await assistant.locator("strong", { hasText: "Global" }).count(), 1);
     assert.equal(await assistant.getByRole("table").count(), 1);

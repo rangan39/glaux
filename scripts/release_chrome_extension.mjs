@@ -39,7 +39,7 @@ try {
   ]);
   await run(process.execPath, ["scripts/smoke_chrome_extension.mjs"], {
     ...process.env,
-    SOPHON_EXTENSION_DIR: unpackedDir
+    GLAUX_EXTENSION_DIR: unpackedDir
   });
 } finally {
   await rm(unpackedDir, { recursive: true, force: true });

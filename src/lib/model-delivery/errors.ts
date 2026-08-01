@@ -75,7 +75,7 @@ export function toModelStorageError(
   if (isStorageQuotaError(error)) return new ModelStorageQuotaError(message, operation, { cause: error });
   if (isCacheStorageWriteError(error)) {
     return new ModelStorageWriteError(
-      "Sophon could not save the model files in browser storage. Free some device space, remove the partial model download, and retry.",
+      "Glaux could not save the model files in browser storage. Free some device space, remove the partial model download, and retry.",
       "cache-write",
       { cause: error }
     );

@@ -26,6 +26,6 @@ test("labels a model switch as a destructive replacement", () => {
   assert.match(source, /const replacesStoredModel = cacheSummaries\.some/);
   assert.match(source, /const primaryAction = replacesStoredModel \? "Replace"/);
   assert.match(source, /Replace the saved model with \$\{ui\.name\}/);
-  assert.match(source, /Sophon keeps one model on this device at a time\./);
+  assert.match(source, /Glaux keeps one model on this device at a time\./);
   assert.match(source, /Choosing another model replaces the saved download\./);
 });

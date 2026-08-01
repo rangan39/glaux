@@ -134,7 +134,7 @@ const ASSISTANT_TOKENS: OnnxToken[] = [
   { id: 2_210, text: " comparison" },
   { id: 17, text: "." }
 ];
-const LONG_USER_PROMPT = "Compare the four Tiny Aya variants for a multilingual community help desk. Explain the trade-offs, recommend a default, and preserve enough detail to exercise wrapping in a narrow composer without sending anything off-device.";
+const LONG_USER_PROMPT = "Compare several browser-compatible ONNX language models for a multilingual community help desk. Explain the trade-offs, recommend a default, and preserve enough detail to exercise wrapping in a narrow composer without sending anything off-device.";
 const ASSISTANT_RESPONSE = `## Recommendation
 
 Start with **Global** for mixed-language traffic, then route stable regional workloads to the matching model.
@@ -155,7 +155,7 @@ const BASE_MESSAGES: ProductTestMessage[] = [
   {
     id: "assistant-welcome",
     role: "assistant",
-    content: "Hi — I’m Sophon. Choose a multilingual Tiny Aya model to download, then chat locally in this browser.",
+    content: "Hi — I’m Glaux. Find a compatible ONNX Community model to download, then chat locally in this browser.",
     meta: "Open-source web tool · local inference · no server inference"
   },
   {
@@ -186,8 +186,8 @@ const PENDING_MESSAGE: ProductTestMessage = {
 
 export const PRODUCT_TESTING_BUILD = isProductTestingBuild({
   nodeEnv: process.env.NODE_ENV,
-  productTesting: process.env.NEXT_PUBLIC_SOPHON_PRODUCT_TESTING,
-  chromeExtension: process.env.NEXT_PUBLIC_SOPHON_CHROME_EXTENSION
+  productTesting: process.env.NEXT_PUBLIC_GLAUX_PRODUCT_TESTING,
+  chromeExtension: process.env.NEXT_PUBLIC_GLAUX_CHROME_EXTENSION
 });
 
 export function isProductTestingBuild({

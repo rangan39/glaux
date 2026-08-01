@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
-  "name": "Sophon — Private Local AI",
-  "short_name": "Sophon",
+  "name": "Glaux — Private Local AI",
+  "short_name": "Glaux",
   "version": "0.1.0",
-  "description": "Run Tiny Aya language models locally in Chrome with private, on-device WebGPU inference.",
-  "homepage_url": "https://sophon-coral.vercel.app",
+  "description": "Find and run compatible Hugging Face ONNX Community models locally with private, on-device WebGPU inference.",
+  "homepage_url": "https://glaux-ai.vercel.app",
   "minimum_chrome_version": "121",
   "permissions": [
     "unlimitedStorage"
@@ -20,7 +20,7 @@
     "type": "module"
   },
   "action": {
-    "default_title": "Open Sophon",
+    "default_title": "Open Glaux",
     "default_icon": {
       "16": "icons/icon-16.png",
       "32": "icons/icon-32.png",

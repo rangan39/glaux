@@ -108,7 +108,7 @@ async function runModelStorageCleanup(
   const cacheSummaries = await transaction.readCacheSummaries();
   const remainingModels = cacheSummaries.filter((summary) => summary.state !== "missing");
   if (remainingModels.length > 0) {
-    throw new Error(`Sophon could not finish removing saved model files for ${remainingModels.map((summary) => summary.modelId).join(", ")}.`);
+    throw new Error(`Glaux could not finish removing saved model files for ${remainingModels.map((summary) => summary.modelId).join(", ")}.`);
   }
   return cacheSummaries;
 }

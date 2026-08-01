@@ -2,42 +2,34 @@
 
 ## Environment
 
-Use current stable desktop Google Chrome on a WebGPU-capable macOS, Windows, or Linux computer. The extension requires Chrome 121 or later, a working high-performance WebGPU adapter, at least 2.35 GB of free browser storage for one model, and enough system/GPU memory to initialize a 3.35-billion-parameter q4f16 model.
+Use current stable desktop Chrome on a WebGPU-capable macOS, Windows, or Linux device. Glaux requires Chrome 121 or later, available browser storage, and enough system/GPU memory for the selected ONNX model.
 
-No account, API key, payment, external service login, or companion application is required.
+No Glaux account, API key, payment, external login, or companion application is required.
 
 ## Primary review flow
 
-1. Install the submitted ZIP and click the Sophon toolbar action. It opens `index.html` in a full extension tab.
-2. Confirm that the first-run screen says prompts and responses are not sent to an inference server and discloses the approximately 2.35 GB model download.
-3. Choose **Tiny Aya Global**. Review the confirmation dialog, licensing notice, required storage, and reported available browser storage.
-4. Choose **Download model**. On a typical broadband connection the 2.35 GB download can take several minutes. The UI shows verified progress and permits pause/resume.
-5. When the model is ready, enter a short prompt such as `Reply with exactly: local inference works`.
-6. Confirm that a response appears and the runtime status identifies WebGPU. Generation can be slow on integrated GPUs.
-7. Open **Models** and use the delete control beside Tiny Aya Global. Confirm deletion in the dialog.
+1. Install the submitted ZIP and choose the Glaux toolbar action. It opens `index.html` in a full extension tab.
+2. Confirm that the first-run screen states that prompts and responses are processed locally.
+3. Use **Model Search** to choose a popular model or search the Hugging Face ONNX Community catalog.
+4. Review the model details, repository license, immutable revision, exact download size, storage estimate, and compatibility result.
+5. Confirm the model download. Large downloads can take several minutes and may be paused and resumed.
+6. When the model is ready, enter a short prompt and confirm a locally generated response.
+7. Open **Dev Mode** to inspect generation metrics, tokens, or words.
+8. Delete the downloaded model and confirm its local files are removed.
 
 ## Network verification
 
-Open DevTools for the extension page and use the Network panel:
-
-- Before model selection, there are no Hugging Face/CDN requests.
-- After confirmation, remote requests are limited to the two allowlisted `onnx/model_q4f16.onnx_data*` tensor-weight files at the immutable Tiny Aya revision.
-- Prompts and responses do not appear in request URLs, headers, or bodies.
-- Application JavaScript, WebAssembly, the ONNX graph, configuration, generation configuration, and tokenizer files load from the `chrome-extension://` origin.
-
-The package audit report and `model-runtime/artifacts.json` enumerate the behavior-defining model files included in the submitted ZIP. Remote tensor files are pinned by immutable revision, exact size, whole-file SHA-256, and 64 MiB segment SHA-256.
-
-## Additional behavior
-
-- **Pause/resume:** Pause during a download, then resume from the header or model library. Flushed verified segments are retained.
-- **Offline import:** In **Models**, choose **Import offline pack**, select a matching `.sophon-model` file, review the license gate, then import. This is optional and no pack is required for primary review.
-- **Conversation deletion:** Use the trash control in the header and confirm **Reset**. Conversations are otherwise held only in page memory.
-- **Model deletion:** Use the per-model trash control in **Models**. This removes weights, resumable state, and cached runtime artifacts for that model.
-- **Uninstall:** Remove Sophon from `chrome://extensions` to remove the extension and its extension-origin data.
+- Before catalog refresh or model selection, Glaux makes no model-download request.
+- Catalog and model requests go only to Hugging Face and its model-delivery hosts.
+- Model artifacts use immutable repository revisions selected and validated by Glaux.
+- Prompts and generated responses do not appear in request URLs, headers, or bodies.
+- Application JavaScript, WebAssembly, and the inference worker load from the `chrome-extension://` origin.
 
 ## Expected limitations
 
-- Tiny Aya is experimental and limited to non-commercial use under CC BY-NC 4.0 plus the Cohere Labs Acceptable Use Policy.
-- A device without WebGPU is intentionally blocked before download/inference.
-- Sophon has no cloud-inference fallback.
-- The project is independent and is not affiliated with, sponsored by, or endorsed by Cohere or Hugging Face.
+- Only compatible text-generation repositories can proceed to download.
+- Model behavior and performance vary by repository, browser, GPU, memory, and ONNX operator support.
+- Devices without WebGPU are intentionally blocked from inference.
+- Glaux has no cloud-inference fallback.
+- Model weights retain their repository-specific licenses.
+- Glaux is independent and is not affiliated with, sponsored by, or endorsed by Hugging Face, Cohere, or model publishers.

@@ -1,9 +1,9 @@
 "use client";
 
 import { type FormEvent, type KeyboardEvent, type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { Check, CircleUserRound, Code2, Copy, Download, ExternalLink, Gauge, Hammer, HardDrive, Languages, LifeBuoy, LoaderCircle, MessageCircle, PanelLeft, Pencil, RotateCcw, SendHorizontal, ShieldCheck, Sparkles, Square, Trash2 } from "lucide-react";
+import { Check, CircleUserRound, Code2, Copy, Download, ExternalLink, Gauge, Hammer, HardDrive, Languages, LifeBuoy, LoaderCircle, MessageCircle, MoonStar, PanelLeft, Pencil, RotateCcw, SendHorizontal, ShieldCheck, Sparkles, Square, Trash2 } from "lucide-react";
 import { GlauxAcknowledgements } from "@/components/sophon-acknowledgements";
-import { MODEL_UI, GlauxModelSidebar } from "@/components/sophon-model-sidebar";
+import { GlauxModelSidebar } from "@/components/sophon-model-sidebar";
 import { InspectableMessage, type InspectableToken, type TokenInspectMode } from "@/components/token-lens";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -64,7 +64,6 @@ type FailedTurn = {
 };
 type StartupCleanupStatus = "idle" | "cleaning" | "failed";
 type InterfaceMode = "chat" | "developer";
-type ModelTheme = "earth" | "fire" | "global" | "water";
 
 type GenerationState =
   | { status: "idle" }
@@ -74,12 +73,6 @@ type BrowserStorage = StorageEstimate & { persistent: boolean };
 const LAST_READY_MODEL_KEY = "sophon:last-ready-model";
 const PROMPT_MAX_HEIGHT = 192;
 const PROMPT_SHORTCUT_HELP = "Enter sends · Shift+Enter adds a line";
-const MODEL_THEME_BY_ID: Record<string, ModelTheme> = {
-  "tiny-aya-earth": "earth",
-  "tiny-aya-fire": "fire",
-  "tiny-aya-global": "global",
-  "tiny-aya-water": "water"
-};
 const STARTER_MESSAGES: ChatMessage[] = [
   {
     id: "assistant-welcome",
@@ -104,7 +97,6 @@ export function GlauxWorkbench() {
   const [loadedModelId, setLoadedModelId] = useState<string | null>(null);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [interfaceMode, setInterfaceMode] = useState<InterfaceMode>("chat");
-  const [hoveredModelId, setHoveredModelId] = useState<string | null>(null);
   const [modelId, setModelId] = useState("");
   const [communityModels, setCommunityModels] = useState<ModelManifest[]>([]);
   const [libraryModelId, setLibraryModelId] = useState("");
@@ -148,8 +140,6 @@ export function GlauxWorkbench() {
   const isNetworkDownload = downloadProgress?.stage === "download" || downloadProgress?.stage === "resume";
   const availableModels = [...MODEL_REGISTRY, ...communityModels];
   const selectedModel = availableModels.find((model) => model.id === modelId) ?? null;
-  const ActiveModelIcon = selectedModel ? MODEL_UI[selectedModel.id]?.icon : undefined;
-  const modelTheme = MODEL_THEME_BY_ID[hoveredModelId ?? (libraryModelId || selectedModel?.id || "")];
   const loadingModel = selectedModel;
   const modelLoadCancelLabel = isNetworkDownload ? "Pause model download" : "Cancel model loading";
   const modelLoadCancelText = isNetworkDownload ? "Pause" : "Cancel";
@@ -891,15 +881,15 @@ export function GlauxWorkbench() {
   }
 
   return (
-    <main className={cn("sophon-stage relative w-full bg-sophon-canvas text-foreground", selectedModel ? "h-svh overflow-hidden" : "min-h-svh", !selectedModel && !hoveredModelId && !libraryModelId && "sophon-first-run-theme")} data-inference={isBusy ? "active" : "idle"} data-model-theme={modelTheme} data-product-test-state={productTestState ?? undefined}>
+    <main className={cn("sophon-stage relative w-full bg-sophon-canvas text-foreground", selectedModel ? "h-svh overflow-hidden" : "min-h-svh")} data-inference={isBusy ? "active" : "idle"} data-product-test-state={productTestState ?? undefined}>
       <div aria-hidden="true" className="sophon-noise pointer-events-none absolute inset-0" />
       <div aria-hidden="true" className="sophon-grid pointer-events-none absolute inset-0 opacity-45" />
       <div className={cn("relative flex w-full flex-col bg-transparent", selectedModel ? "h-svh" : "min-h-svh")}>
         <header className={cn("sophon-glass-strong sophon-reveal sophon-reveal-header relative z-20 shrink-0 items-center border-x-0 border-t-0", selectedModel ? "grid h-[calc(106px+env(safe-area-inset-top))] grid-cols-[minmax(0,1fr)_auto] grid-rows-[28px_44px] gap-x-2 gap-y-2 px-3 pb-[10px] pt-[calc(8px+env(safe-area-inset-top))] sm:h-[calc(120px+env(safe-area-inset-top))] sm:grid-rows-[40px_36px] sm:px-7 sm:pb-3 sm:pt-[calc(12px+env(safe-area-inset-top))] lg:flex lg:h-auto lg:justify-between lg:gap-0 lg:p-4" : "flex h-[calc(106px+env(safe-area-inset-top))] justify-between px-3 pb-8 pt-[env(safe-area-inset-top)] sm:h-auto sm:p-4")} data-testid="workbench-header">
           <div className="flex min-w-0 items-center gap-2 sm:gap-3" data-testid="workbench-brand">
-            {ActiveModelIcon ? <div aria-label={`${selectedModel?.label} icon`} className="sophon-accent-surface sophon-mark relative grid size-10 shrink-0 place-items-center border border-sophon-signal-bright/60" role="img">
-              <ActiveModelIcon aria-hidden="true" className="size-5 stroke-[1.7]" />
-            </div> : null}
+            <div aria-label="Glaux logo" className="sophon-accent-surface sophon-mark relative grid size-10 shrink-0 place-items-center border border-sophon-signal-bright/60" role="img">
+              <MoonStar aria-hidden="true" className="size-5 stroke-[1.7]" />
+            </div>
             <div className={cn("min-w-0", selectedModel && "max-[359px]:hidden")}>
               <div className="flex items-center gap-2">
                 <h1 className="font-mono text-sm font-semibold tracking-[0.12em] text-sophon-copy-primary">GLAUX</h1>
@@ -938,7 +928,7 @@ export function GlauxWorkbench() {
         <div aria-atomic="true" aria-live="polite" className="sr-only" role="status">{runtimeStatus.label}</div>
 
         <div className={cn("flex flex-1", selectedModel ? "min-h-0" : "min-h-fit")}>
-          <GlauxModelSidebar activeModelId={modelId} cacheSummaries={cacheSummaries} capabilities={capabilities} communityModels={communityModels} deletingModelId={deletingModelId} disabled={isRunning || replacingModel || storageReconciliationBlocked} downloadPercent={downloadPercent} downloadPercentLabel={downloadPercentLabel} inspectMetrics={hoveredInspectMetrics} inspectMode={developerMode} inspectDisplayMode={inspectDisplayMode} loadedModelId={loadedModelId} loading={isModelLoading} loadingLabel={downloadStatus} mobileOpen={modelSidebarOpen} modelId={libraryModelId} onCommunityModelAdded={addCommunityModel} onDelete={requestDeleteModelDownload} onDownload={requestModelDownload} onHoverModelChange={setHoveredModelId} onInspectDisplayModeChange={setInspectDisplayMode} onInspectModeChange={(enabled) => setInterfaceMode(enabled ? "developer" : "chat")} onMobileOpenChange={setModelSidebarOpen} onSelect={chooseLibraryModel} recommendedModelId={RECOMMENDED_MODEL_ID} />
+          <GlauxModelSidebar activeModelId={modelId} cacheSummaries={cacheSummaries} capabilities={capabilities} communityModels={communityModels} deletingModelId={deletingModelId} disabled={isRunning || replacingModel || storageReconciliationBlocked} downloadPercent={downloadPercent} downloadPercentLabel={downloadPercentLabel} inspectMetrics={hoveredInspectMetrics} inspectMode={developerMode} inspectDisplayMode={inspectDisplayMode} loadedModelId={loadedModelId} loading={isModelLoading} loadingLabel={downloadStatus} mobileOpen={modelSidebarOpen} modelId={libraryModelId} onCommunityModelAdded={addCommunityModel} onDelete={requestDeleteModelDownload} onDownload={requestModelDownload} onInspectDisplayModeChange={setInspectDisplayMode} onInspectModeChange={(enabled) => setInterfaceMode(enabled ? "developer" : "chat")} onMobileOpenChange={setModelSidebarOpen} onSelect={chooseLibraryModel} recommendedModelId={RECOMMENDED_MODEL_ID} />
           <section aria-busy={isBusy} aria-label="Conversation" className={cn("sophon-reveal sophon-reveal-workspace relative flex min-w-0 flex-1 flex-col", selectedModel && "h-full min-h-0")}>
             <div className={cn("flex-1", selectedModel ? "min-h-0 overflow-y-auto overscroll-contain" : "overflow-visible")} data-testid="conversation-scroll">
               <div className="mx-auto flex min-w-0 w-full max-w-6xl flex-col px-4 py-6 sm:px-12 sm:py-9">
@@ -967,7 +957,7 @@ export function GlauxWorkbench() {
                   ) : displayedMessages.map((message, index) => (
                     <article aria-label={message.role === "user" ? "Message from you" : "Message from Glaux"} className={cn("group/message relative flex w-full min-w-0 gap-3 text-sm", message.role === "user" && "flex-row-reverse")} key={message.id}>
                       <div className={cn("flex size-8 shrink-0 items-center justify-center self-end overflow-hidden", message.role === "user" ? "sophon-accent-avatar !self-start mt-1 rounded-xl border border-sophon-signal-bright/50" : "sophon-glass-tile !self-start mt-1 rounded-xl text-sophon-signal-soft")}>
-                        {message.role === "user" ? <CircleUserRound aria-hidden="true" className="size-4" /> : ActiveModelIcon ? <ActiveModelIcon aria-hidden="true" className="size-4" /> : null}
+                        {message.role === "user" ? <CircleUserRound aria-hidden="true" className="size-4" /> : <MoonStar aria-hidden="true" className="size-4" />}
                       </div>
                       <div className="flex w-full min-w-0 flex-col gap-2.5 max-w-[calc(100%_-_2.75rem)] sm:max-w-[min(920px,calc(100%_-_3rem))]">
                           <InspectableMessage
@@ -995,7 +985,7 @@ export function GlauxWorkbench() {
                   ))}
                   {isRunning ? (
                     <article aria-label={generation.draft.trim() ? "Glaux is responding" : `Glaux status: ${runtimeActivity?.label ?? "Generating response"}`} aria-live="off" className="group/message relative flex w-full min-w-0 gap-3 text-sm">
-                      <div className="sophon-glass-tile !self-start mt-1 flex size-8 shrink-0 items-center justify-center self-end overflow-hidden rounded-xl text-sophon-signal-soft">{ActiveModelIcon ? <ActiveModelIcon aria-hidden="true" className="size-4 animate-pulse motion-reduce:animate-none" /> : null}</div>
+                      <div className="sophon-glass-tile !self-start mt-1 flex size-8 shrink-0 items-center justify-center self-end overflow-hidden rounded-xl text-sophon-signal-soft"><MoonStar aria-hidden="true" className="size-4 animate-pulse motion-reduce:animate-none" /></div>
                       <div className="flex w-full min-w-0 flex-col gap-2.5 max-w-[calc(100%_-_2.75rem)] sm:max-w-xl">
                         <Card className="w-full max-w-full overflow-hidden rounded-xl border-sophon-glass-border bg-sophon-panel shadow-none">
                           {generation.draft.trim() ? (

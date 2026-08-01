@@ -165,13 +165,26 @@ class BlobProtoReader {
 
   async skip(wire: number, parentEnd: number) {
     if (wire === 0) {
-      await this.readVarint(parentEnd);
+      await this.skipVarint(parentEnd);
       return;
     }
     if (wire === 1) return this.advance(8, parentEnd);
     if (wire === 2) return this.advance(await this.readVarint(parentEnd), parentEnd);
     if (wire === 5) return this.advance(4, parentEnd);
     throw new OnnxExternalDataError(`The ONNX graph used unsupported protobuf wire type ${wire}.`);
+  }
+
+  private async skipVarint(end: number) {
+    for (let index = 0; index < 10; index += 1) {
+      const byte = await this.readByte(end);
+      if ((byte & 0x80) === 0) {
+        if (index === 9 && byte > 1) {
+          throw new OnnxExternalDataError("The ONNX graph contained an oversized protobuf integer.");
+        }
+        return;
+      }
+    }
+    throw new OnnxExternalDataError("The ONNX graph contained an unterminated protobuf integer.");
   }
 
   async readVarint(end: number) {

@@ -164,11 +164,10 @@ function CommunityCatalog({ disabled, onAdded }: { disabled: boolean; onAdded?: 
 
   useEffect(() => {
     let active = true;
-    if (!query.trim()) {
-      return () => { active = false; };
-    }
+    const trimmedQuery = query.trim();
+    const resultLimit = trimmedQuery ? 8 : 5;
     const updateResults = async () => {
-      const models = await searchCommunityCatalogIndex(query, 8);
+      const models = await searchCommunityCatalogIndex(trimmedQuery, resultLimit);
       if (!active) return models;
       setResults(models);
       if (models.length > 0) setStatus(null);
@@ -176,17 +175,19 @@ function CommunityCatalog({ disabled, onAdded }: { disabled: boolean; onAdded?: 
     };
     const unsubscribe = subscribeCommunityCatalogIndex(() => { void updateResults(); });
     const timer = window.setTimeout(() => {
-      setStatus("Updating the on-device catalog…");
+      setStatus(trimmedQuery ? "Updating the on-device catalog…" : "Loading popular models…");
       void updateResults()
         .then(() => refreshCommunityCatalogIndex())
         .then(updateResults)
         .then((models) => {
-          if (active) setStatus(models.length === 0 ? "No matching text-generation models" : null);
+          if (active) setStatus(models.length === 0
+            ? trimmedQuery ? "No matching text-generation models" : "No compatible community models found"
+            : null);
         })
         .catch((error) => {
           if (active) setStatus(error instanceof Error ? error.message : "Catalog indexing failed");
         });
-    }, 300);
+    }, trimmedQuery ? 300 : 0);
     return () => { active = false; unsubscribe(); window.clearTimeout(timer); };
   }, [query]);
 
@@ -216,14 +217,13 @@ function CommunityCatalog({ disabled, onAdded }: { disabled: boolean; onAdded?: 
       <input aria-label="Search ONNX Community models" className="h-9 w-full rounded-lg border border-sophon-glass-border bg-sophon-panel pl-8 pr-2 text-sm text-sophon-copy-primary outline-none focus:border-sophon-signal-bright" disabled={disabled} onChange={(event) => {
         const value = event.target.value;
         setQuery(value);
-        if (!value.trim()) {
-          setResults([]);
-          setStatus(null);
-        }
+        setResults([]);
+        setStatus(null);
       }} placeholder="Search models…" value={query} />
     </form>
     {status ? <p className="mt-2 text-xs leading-4 text-sophon-copy-metadata" role="status">{status}</p> : null}
-    <div className="mt-2 space-y-1.5">
+    {results.length > 0 ? <p className="mt-3 text-[11px] font-medium uppercase tracking-[0.08em] text-sophon-copy-metadata">{query.trim() ? "Search results" : "Popular models"}</p> : null}
+    <div className="mt-1.5 space-y-1.5">
       {results.map((model) => <button className="flex w-full items-center gap-2 rounded-lg border border-sophon-glass-border bg-sophon-panel px-2 py-2 text-left hover:border-sophon-signal-bright/60 disabled:opacity-60" disabled={disabled || busyRepo !== null || !model.revision} key={model.repo} onClick={() => void addModel(model)} type="button">
         {busyRepo === model.repo ? <LoaderCircle aria-hidden="true" className="size-4 shrink-0 animate-spin" /> : <Download aria-hidden="true" className="size-4 shrink-0" />}
         <span className="min-w-0"><span className="block truncate text-xs font-medium text-sophon-copy-primary">{model.name}</span><span className="block text-[11px] text-sophon-copy-metadata">{model.downloads.toLocaleString()} downloads{model.license ? ` · ${model.license}` : ""}</span></span>

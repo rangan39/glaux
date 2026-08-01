@@ -2,65 +2,58 @@
 
 ## Identity
 
-- **Listing name:** Sophon — Open-Source Local AI
+- **Listing name:** Glaux — Private Local AI
 - **Category:** Productivity
 - **Language:** English
-- **Homepage:** https://sophon-coral.vercel.app
-- **Support:** https://github.com/rangan39/sophon/issues
-- **Privacy policy:** https://sophon-coral.vercel.app/privacy
-- **Affiliation:** Sophon is not affiliated with, sponsored by, or endorsed by Cohere or Hugging Face.
+- **Homepage:** https://glaux-ai.vercel.app
+- **Support:** https://github.com/rangan39/glaux/issues
+- **Privacy policy:** https://glaux-ai.vercel.app/privacy
 
 ## Summary
 
-Use an open-source web tool to run multilingual Tiny Aya models locally in Chrome, without sending prompts or responses to an inference service.
+Find compatible Hugging Face ONNX Community models and run them locally in Chrome with WebGPU.
 
 ## Detailed description
 
-Sophon is an open-source web tool for private, multilingual AI chat in desktop Chrome. Select a Tiny Aya model, download its weights once, and run prompts locally with WebGPU. Prompts and generated responses stay in the browser and are never sent to an inference service.
+Glaux is an open-source browser workspace for local AI chat. Search the Hugging Face ONNX Community catalog, review a model’s compatibility and license, download its pinned ONNX artifacts into browser-private storage, and run prompts locally with WebGPU.
 
-Choose from Tiny Aya Global, Earth, Fire, and Water for different language-region strengths. Sophon shows model status and generation performance, supports pausing and resuming the current download, accepts verified offline model packs, and keeps one model download at a time. Choosing another model removes all saved model files before a fresh download begins. Older multi-model storage is cleared automatically before Sophon restores a model.
+Glaux includes model search, popular-model discovery, Hugging Face model details, resumable browser storage, local chat, and developer views for generation metrics and token or word inspection.
 
 Before downloading:
 
-- Each selected model downloads approximately 2.35 GB and may take several minutes.
-- Switching models deletes the previously downloaded model; switching back requires another download.
-- A recent desktop Chromium browser, WebGPU-capable GPU, sufficient memory, and available browser storage are required.
-- Tiny Aya weights are licensed under CC BY-NC 4.0 for non-commercial use and remain subject to the Cohere Labs Acceptable Use Policy.
-- Sophon’s application code is MIT licensed. The Tiny Aya model-weights licence is separate and remains non-commercial.
-- Sophon is an independent project and is not affiliated with, sponsored by, or endorsed by Cohere or Hugging Face.
+- Glaux shows the model’s exact estimated download size and available browser storage.
+- Only compatible text-generation repositories can continue.
+- Switching models removes the previous complete or partial model after confirmation.
+- Model licenses vary and remain governed by their Hugging Face repositories.
+- A current Chromium browser, WebGPU-capable GPU, sufficient memory, and sufficient browser storage are required.
 
 Privacy:
 
-- No account, cloud inference, analytics, advertising, telemetry upload, or human review.
-- Prompts and responses are processed locally and kept only for the current page session.
-- Model weights are downloaded from immutable Hugging Face revisions over HTTPS, checked by exact size and SHA-256, and stored in browser-private storage.
-- Hugging Face and CDN providers receive ordinary request metadata such as IP address and user agent during a model download. Prompts and responses are not included.
+- No account, cloud inference, advertising, telemetry upload, or human review.
+- Prompts and responses are processed locally and retained only for the current page session.
+- Catalog metadata and selected model files are downloaded from Hugging Face over HTTPS.
+- Hugging Face and its delivery providers receive ordinary request metadata such as IP address and user agent. Prompts and responses are not included.
+
+Glaux is independent and is not affiliated with, sponsored by, or endorsed by Hugging Face, Cohere, or model publishers.
 
 ## Single purpose
 
-Run selected Tiny Aya language models locally in Chrome so users can chat without sending prompts or responses to an inference service.
+Run user-selected compatible ONNX text-generation models locally in Chrome without sending prompts or responses to an inference service.
 
-## Permission justifications
+## Permission justification
 
 ### `unlimitedStorage`
 
-Sophon stores user-selected multi-gigabyte model tensor data in extension-origin OPFS and stores integrity checkpoints plus packaged runtime artifacts in IndexedDB and Cache Storage. This permission keeps verified models available for local inference between sessions.
+Glaux stores user-selected multi-gigabyte model artifacts in extension-origin OPFS and stores catalog metadata, immutable descriptors, integrity checkpoints, and runtime artifacts in IndexedDB and Cache Storage. This permission keeps the selected local model available between sessions.
 
 ### Host access
 
-`https://huggingface.co/*`, `https://*.huggingface.co/*`, `https://*.hf.co/*`, and `https://*.xethub.hf.co/*` are used only to download external tensor-weight files for a model the user explicitly selected and confirmed. Every model uses an immutable revision, exact allowlisted paths and sizes, whole-file SHA-256, and per-segment SHA-256. Prompts, responses, model configuration, ONNX graphs, JavaScript, and WebAssembly are never downloaded from these hosts.
+Hugging Face and related delivery hosts are used only to retrieve public ONNX Community catalog metadata and artifacts for models the user explicitly selects and confirms. Prompts, responses, Glaux application code, and WebAssembly are not uploaded to or downloaded from those hosts.
 
 ## Privacy-practices declarations
 
-- **Personally identifiable information:** Not collected.
-- **Health information:** Not collected.
-- **Financial and payment information:** Not collected.
-- **Authentication information:** Not collected.
-- **Personal communications:** User prompts and generated responses are handled locally for the user-facing chat feature; they are not transmitted or persistently stored.
-- **Location:** Not collected.
-- **Web history:** Not collected.
-- **User activity:** Not collected.
-- **Website content:** Not collected.
-- **User-generated content:** Prompts are processed locally and retained only in page memory for the current conversation.
+- Personally identifiable, health, financial, authentication, location, web-history, and website-content data: not collected.
+- Personal communications and user-generated content: prompts and generated responses are handled locally for the chat feature; they are not transmitted or persistently stored.
+- User activity: not collected for analytics, advertising, or tracking.
 
-Certify that data use complies with the Chrome Web Store User Data Policy and its Limited Use requirements. The privacy policy, listing, dashboard declarations, and product UI must stay consistent with this file.
+The privacy policy, store listing, dashboard declarations, and product UI must remain consistent with this file.

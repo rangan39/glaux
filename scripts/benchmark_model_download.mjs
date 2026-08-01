@@ -3,11 +3,11 @@
 import { performance } from "node:perf_hooks";
 
 const MiB = 1024 * 1024;
-const url = process.env.SOPHON_BENCHMARK_URL
+const url = process.env.GLAUX_BENCHMARK_URL
   ?? "https://huggingface.co/onnx-community/tiny-aya-global-ONNX/resolve/7fff1be9627e40f0d89c33f406882bdafb56ec90/onnx/model_q4f16.onnx_data";
-const sampleBytes = readPositiveInteger(process.env.SOPHON_BENCHMARK_BYTES, 64 * MiB);
-const trialCount = readPositiveInteger(process.env.SOPHON_BENCHMARK_TRIALS, 3);
-const concurrencyValues = (process.env.SOPHON_BENCHMARK_CONCURRENCY ?? "1,2,4")
+const sampleBytes = readPositiveInteger(process.env.GLAUX_BENCHMARK_BYTES, 64 * MiB);
+const trialCount = readPositiveInteger(process.env.GLAUX_BENCHMARK_TRIALS, 3);
+const concurrencyValues = (process.env.GLAUX_BENCHMARK_CONCURRENCY ?? "1,2,4")
   .split(",")
   .map((value) => readPositiveInteger(value.trim()))
   .filter((value, index, values) => values.indexOf(value) === index);

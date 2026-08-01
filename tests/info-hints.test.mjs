@@ -6,7 +6,7 @@ const EXPECTED_HINTS = {
   modelSpecs: {
     label: "About model specifications",
     title: "Model specifications",
-    terms: [/3\.35B/, /4-bit \(q4f16\)/, /8,192-token context window/]
+    terms: [/selected Hugging Face repository/, /download space/, /GPU capacity/]
   },
   browserStorage: {
     label: "About browser storage",
@@ -31,7 +31,7 @@ const EXPECTED_HINTS = {
   modelLicense: {
     label: "About model usage",
     title: "Model usage",
-    terms: [/non-commercial use/, /CC BY-NC 4\.0/, /Acceptable Use Policy/]
+    terms: [/own license and usage terms/, /selected model’s Hugging Face repository/]
   }
 };
 

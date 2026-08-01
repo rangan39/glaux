@@ -787,7 +787,7 @@ function now() {
 }
 
 function adaptiveDownloadsEnabled() {
-  return typeof process === "undefined" || process.env.NEXT_PUBLIC_SOPHON_ADAPTIVE_DOWNLOADS !== "0";
+  return typeof process === "undefined" || process.env.NEXT_PUBLIC_GLAUX_ADAPTIVE_DOWNLOADS !== "0";
 }
 
 function chromiumResourcesAreConstrained({

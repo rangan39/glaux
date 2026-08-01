@@ -5,8 +5,8 @@ import { readFile } from "node:fs/promises";
 
 const seedUrl = new URL("../models/model-artifacts.seed.json", import.meta.url);
 const seed = JSON.parse(await readFile(seedUrl, "utf8"));
-const segmentSize = readPositiveInteger(process.env.SOPHON_SEGMENT_SIZE, 64 * 1024 * 1024);
-const fileConcurrency = readPositiveInteger(process.env.SOPHON_SEGMENT_HASH_CONCURRENCY, 8);
+const segmentSize = readPositiveInteger(process.env.GLAUX_SEGMENT_SIZE, 64 * 1024 * 1024);
+const fileConcurrency = readPositiveInteger(process.env.GLAUX_SEGMENT_HASH_CONCURRENCY, 8);
 const artifacts = seed.models.flatMap((model) => model.source.files
   .filter((file) => file.path.startsWith("onnx/") && file.path.includes(".onnx_data"))
   .map((file) => ({

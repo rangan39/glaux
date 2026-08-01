@@ -4,9 +4,9 @@ import { lazy, Suspense, useRef, useState } from "react";
 import { Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const SophonAcknowledgementsDialog = lazy(() => import("@/components/sophon-acknowledgements-dialog"));
+const GlauxAcknowledgementsDialog = lazy(() => import("@/components/sophon-acknowledgements-dialog"));
 
-export function SophonAcknowledgements({ ariaLabel, className, compact = false, label }: {
+export function GlauxAcknowledgements({ ariaLabel, className, compact = false, label }: {
   ariaLabel?: string;
   className?: string;
   compact?: boolean;
@@ -19,7 +19,7 @@ export function SophonAcknowledgements({ ariaLabel, className, compact = false, 
   return (
     <>
       <button
-        aria-label={visibleLabel ? undefined : ariaLabel ?? "About Sophon"}
+        aria-label={visibleLabel ? undefined : ariaLabel ?? "About Glaux"}
         aria-haspopup="dialog"
         className={cn(
           "inline-flex items-center justify-center gap-1.5 uppercase text-sophon-copy-primary transition-colors hover:text-sophon-signal-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-signal",
@@ -33,7 +33,7 @@ export function SophonAcknowledgements({ ariaLabel, className, compact = false, 
         onClick={() => setShowDialog(true)}
         data-typography-role={visibleLabel ? "action" : undefined}
         ref={triggerRef}
-        title={compact && !visibleLabel ? "About Sophon" : undefined}
+        title={compact && !visibleLabel ? "About Glaux" : undefined}
         type="button"
       >
         {compact ? <Info aria-hidden="true" className="size-4" /> : null}
@@ -42,7 +42,7 @@ export function SophonAcknowledgements({ ariaLabel, className, compact = false, 
 
       {showDialog ? (
         <Suspense fallback={<span className="sr-only" role="status">Opening acknowledgements</span>}>
-          <SophonAcknowledgementsDialog onDismiss={() => setShowDialog(false)} triggerRef={triggerRef} />
+          <GlauxAcknowledgementsDialog onDismiss={() => setShowDialog(false)} triggerRef={triggerRef} />
         </Suspense>
       ) : null}
     </>

@@ -6,7 +6,7 @@ import path from "node:path";
 import { chromium } from "playwright";
 
 const rootDir = path.resolve(import.meta.dirname, "..");
-const extensionDir = path.resolve(process.env.SOPHON_EXTENSION_DIR ?? path.join(rootDir, "dist", "chrome-extension"));
+const extensionDir = path.resolve(process.env.GLAUX_EXTENSION_DIR ?? path.join(rootDir, "dist", "chrome-extension"));
 const profileDir = await mkdtemp(path.join(os.tmpdir(), "sophon-extension-"));
 const runtimeErrors = [];
 let context;
@@ -48,7 +48,7 @@ try {
   });
   await page.goto(`chrome-extension://${extensionId}/index.html?sophon-product-test=ready`, { waitUntil: "domcontentloaded" });
   assert.equal(new URL(page.url()).protocol, "chrome-extension:");
-  await page.getByRole("heading", { name: "SOPHON", exact: true }).waitFor({ state: "visible", timeout: 30_000 });
+  await page.getByRole("heading", { name: "GLAUX", exact: true }).waitFor({ state: "visible", timeout: 30_000 });
   await page.getByTestId("first-run-welcome").waitFor({ state: "visible", timeout: 30_000 });
   assert.equal(await page.locator("[data-product-test-state]").count(), 0, "The packaged extension must ignore product-test query parameters.");
   assert.equal(await page.getByText("Recommendation", { exact: true }).count(), 0, "Fixture transcript content must not activate in the packaged extension.");
@@ -57,12 +57,12 @@ try {
   assert.equal(await privacyLink.getAttribute("href"), "/privacy.html");
   const firstRunTrustNav = page.getByTestId("first-run-trust-nav");
   await firstRunTrustNav.getByRole("button", { name: "About & licenses", exact: true }).click();
-  const aboutDialog = page.getByRole("dialog", { name: "About Sophon", exact: true });
+  const aboutDialog = page.getByRole("dialog", { name: "About Glaux", exact: true });
   await aboutDialog.waitFor({ state: "visible" });
   assert.equal(await aboutDialog.getByRole("link", { name: /Privacy policy.*Local data and network requests/ }).getAttribute("href"), "/privacy.html");
   assert.equal(await aboutDialog.getByRole("link", { name: /CC BY-NC 4\.0.*opens in a new tab/ }).getAttribute("href"), "https://creativecommons.org/licenses/by-nc/4.0/");
   assert.equal(await aboutDialog.getByRole("link", { name: /Cohere Labs AUP.*opens in a new tab/ }).getAttribute("href"), "https://docs.cohere.com/docs/cohere-labs-acceptable-use-policy");
-  assert.equal(await aboutDialog.getByRole("link", { name: /Project support.*opens in a new tab/ }).getAttribute("href"), "https://github.com/rangan39/sophon/issues");
+  assert.equal(await aboutDialog.getByRole("link", { name: /Project support.*opens in a new tab/ }).getAttribute("href"), "https://github.com/rangan39/glaux/issues");
   await page.keyboard.press("Escape");
   await aboutDialog.waitFor({ state: "hidden" });
   const privacyPage = await context.newPage();
@@ -72,7 +72,7 @@ try {
   });
   await privacyPage.goto(`chrome-extension://${extensionId}/privacy.html`, { waitUntil: "domcontentloaded" });
   await privacyPage.getByRole("heading", { name: "Privacy Policy", exact: true }).waitFor({ state: "visible" });
-  assert.equal(await privacyPage.getByRole("link", { name: "← Back to Sophon", exact: true }).getAttribute("href"), "/index.html");
+  assert.equal(await privacyPage.getByRole("link", { name: "← Back to Glaux", exact: true }).getAttribute("href"), "/index.html");
   await privacyPage.close();
   const modelLibrary = page.getByRole("complementary", { name: "Model library", exact: true });
   await modelLibrary.waitFor({ state: "visible" });

@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 import { chromium } from "playwright";
 
-const url = process.env.SOPHON_SMOKE_URL ?? process.argv[2] ?? "http://localhost:3000";
-const prompt = process.env.SOPHON_SMOKE_PROMPT ?? process.argv[3] ?? "The proof is";
-const modelId = process.env.SOPHON_SMOKE_MODEL ?? "tiny-aya-global";
-const timeoutMs = Number(process.env.SOPHON_SMOKE_TIMEOUT_MS ?? 30 * 60_000);
+const url = process.env.GLAUX_SMOKE_URL ?? process.argv[2] ?? "http://localhost:3000";
+const prompt = process.env.GLAUX_SMOKE_PROMPT ?? process.argv[3] ?? "The proof is";
+const modelId = process.env.GLAUX_SMOKE_MODEL ?? "tiny-aya-global";
+const timeoutMs = Number(process.env.GLAUX_SMOKE_TIMEOUT_MS ?? 30 * 60_000);
 
 let browser;
 let page;

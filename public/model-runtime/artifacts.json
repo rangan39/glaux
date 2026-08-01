@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "description": "Behavior-defining Tiny Aya files packaged with Sophon. Only external tensor-weight files are downloaded at runtime.",
+  "description": "Behavior-defining Tiny Aya files packaged with Glaux. Only external tensor-weight files are downloaded at runtime.",
   "artifacts": [
     {
       "bundledPath": "shared/model_q4f16.onnx",

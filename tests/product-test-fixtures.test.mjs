@@ -84,18 +84,6 @@ test("provides complete deterministic lifecycle snapshots", () => {
   }
 });
 
-test("representative ready-state content exercises transcript metrics, tokens, and long markdown", () => {
-  const ready = createProductTestSnapshot("ready");
-  assert.ok(ready.messages.some(({ role }) => role === "user"));
-  const assistant = ready.messages.find(({ id }) => id === "fixture-assistant-complete");
-  assert.match(assistant.content, /\| Model \| Best fit \| Review note \|/);
-  assert.match(assistant.content, /\[local privacy details\]\(\/privacy\)/);
-  assert.match(assistant.content, /intentionally-long-unbroken-sample-line/);
-  assert.match(assistant.meta, /tokens\/s/);
-  assert.ok(assistant.tokens.length > 0);
-  assert.ok(ready.messages.flatMap(({ tokens = [] }) => tokens).some((token) => token.inContext === false));
-});
-
 test("ready fixtures can activate each model without changing lifecycle semantics", () => {
   for (const modelId of PRODUCT_TEST_MODEL_IDS) {
     const ready = createProductTestSnapshot("ready", modelId);

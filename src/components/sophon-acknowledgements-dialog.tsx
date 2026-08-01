@@ -1,7 +1,7 @@
 "use client";
 
 import type { RefObject } from "react";
-import { CodeXml, FileText, HeartHandshake, Scale, X } from "lucide-react";
+import { CodeXml, FileText, HeartHandshake, MoonStar, Scale, X } from "lucide-react";
 import { ExternalLinkIndicator } from "@/components/external-link-indicator";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -71,12 +71,12 @@ const ACKNOWLEDGEMENT_SECTIONS = [
   }
 ] as const;
 
-interface SophonAcknowledgementsDialogProps {
+interface GlauxAcknowledgementsDialogProps {
   onDismiss: () => void;
   triggerRef: RefObject<HTMLButtonElement | null>;
 }
 
-export default function SophonAcknowledgementsDialog({ onDismiss, triggerRef }: SophonAcknowledgementsDialogProps) {
+export default function GlauxAcknowledgementsDialog({ onDismiss, triggerRef }: GlauxAcknowledgementsDialogProps) {
   function handleOpenChange(open: boolean) {
     if (open) return;
     triggerRef.current?.focus();
@@ -88,12 +88,12 @@ export default function SophonAcknowledgementsDialog({ onDismiss, triggerRef }: 
       <DialogContent aria-describedby={undefined} className="sophon-glass-strong flex max-h-[min(84svh,44rem)] w-[calc(100%-2rem)] max-w-xl flex-col gap-0 overflow-hidden rounded-2xl border-sophon-glass-border p-0 shadow-[0_28px_100px_var(--sophon-glass-shadow)] sm:w-full" id="sophon-acknowledgements" showCloseButton={false}>
         <section className="flex min-h-0 flex-1 flex-col" data-testid="acknowledgements-panel">
         <header className="flex shrink-0 items-start gap-3 border-b border-sophon-glass-border p-4 sm:p-5">
-          <span aria-hidden="true" className="sophon-glass-tile hidden size-10 shrink-0 place-items-center rounded-xl font-serif text-lg text-sophon-signal-soft min-[400px]:grid">Σ</span>
+          <span aria-hidden="true" className="sophon-glass-tile hidden size-10 shrink-0 place-items-center rounded-xl text-sophon-signal-soft min-[400px]:grid"><MoonStar className="size-5 stroke-[1.7]" /></span>
           <span className="min-w-0 flex-1">
             <span className="sophon-type-decorative block font-mono uppercase tracking-[0.12em] text-sophon-signal-soft" data-typography-role="decorative">Trust, terms & credits</span>
-            <DialogTitle className="mt-1 text-base font-semibold text-sophon-copy-primary sm:text-lg" id="about-sophon-title">About Sophon</DialogTitle>
+            <DialogTitle className="mt-1 text-base font-semibold text-sophon-copy-primary sm:text-lg" id="about-sophon-title">About Glaux</DialogTitle>
           </span>
-          <Button aria-label="Close About Sophon" className="size-11 shrink-0 rounded-xl sm:size-9" onClick={() => handleOpenChange(false)} size="icon" type="button" variant="sophon"><X aria-hidden="true" /></Button>
+          <Button aria-label="Close About Glaux" className="size-11 shrink-0 rounded-xl sm:size-9" onClick={() => handleOpenChange(false)} size="icon" type="button" variant="sophon"><X aria-hidden="true" /></Button>
         </header>
 
         <div className="min-h-0 overflow-y-auto p-4 sm:p-5">
@@ -101,7 +101,7 @@ export default function SophonAcknowledgementsDialog({ onDismiss, triggerRef }: 
             <section aria-labelledby="trust-support-title">
               <div className="mb-2 px-1">
                 <h3 className="sophon-type-decorative font-mono uppercase tracking-[0.12em] text-sophon-signal-soft" data-typography-role="decorative" id="trust-support-title">Licensing & support</h3>
-                <p className="sophon-type-metadata mt-0.5 text-sophon-copy-metadata" data-typography-role="metadata">Source and model terms for Sophon and Tiny Aya.</p>
+                <p className="sophon-type-metadata mt-0.5 text-sophon-copy-metadata" data-typography-role="metadata">Glaux source terms and links to model-specific licensing.</p>
               </div>
               <nav aria-label="Licensing and support">
                 <ul className="grid gap-2 sm:grid-cols-2" data-testid="trust-support-links">
@@ -110,7 +110,7 @@ export default function SophonAcknowledgementsDialog({ onDismiss, triggerRef }: 
                       <CodeXml aria-hidden="true" className="size-4 shrink-0 text-sophon-signal-soft" />
                       <span>
                         <span className="flex items-center gap-1.5 text-sm font-medium">Source code <ExternalLinkIndicator /></span>
-                        <span className="sophon-type-metadata mt-0.5 block text-sophon-copy-metadata" data-typography-role="metadata">Sophon is released under the MIT License</span>
+                        <span className="sophon-type-metadata mt-0.5 block text-sophon-copy-metadata" data-typography-role="metadata">Glaux is released under the MIT License</span>
                       </span>
                     </a>
                   </li>
@@ -118,8 +118,8 @@ export default function SophonAcknowledgementsDialog({ onDismiss, triggerRef }: 
                     <a className="sophon-glass-tile flex min-h-16 h-full items-center gap-3 rounded-xl px-3.5 py-3 text-sophon-copy-primary transition-colors hover:border-sophon-signal-bright/55 hover:bg-sophon-glass-strong hover:text-sophon-signal-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-signal" href={TINY_AYA_LICENSE_URL} rel="noreferrer" target="_blank">
                       <Scale aria-hidden="true" className="size-4 shrink-0 text-sophon-signal-soft" />
                       <span>
-                        <span className="flex items-center gap-1.5 text-sm font-medium">CC BY-NC 4.0 <ExternalLinkIndicator /></span>
-                        <span className="sophon-type-metadata mt-0.5 block text-sophon-copy-metadata" data-typography-role="metadata">Tiny Aya non-commercial license</span>
+                        <span className="flex items-center gap-1.5 text-sm font-medium">Tiny Aya license <ExternalLinkIndicator /></span>
+                        <span className="sophon-type-metadata mt-0.5 block text-sophon-copy-metadata" data-typography-role="metadata">Terms for Cohere Labs models</span>
                       </span>
                     </a>
                   </li>
@@ -176,7 +176,7 @@ export default function SophonAcknowledgementsDialog({ onDismiss, triggerRef }: 
           </div>
 
           <div className="sophon-type-metadata mt-4 border-t border-sophon-glass-border pt-4 text-sophon-copy-metadata" data-typography-role="metadata">
-            <p>Sophon’s code is MIT licensed. Tiny Aya weights are open weights under CC BY-NC 4.0 and the Cohere Labs Acceptable Use Policy; they are for non-commercial use.</p>
+            <p>Glaux’s code is MIT licensed. Community model files retain the licenses and usage terms published by their respective authors on Hugging Face.</p>
             <p className="mt-3 text-sophon-copy-body">Designed and built in Toronto, Canada by <a className="inline-flex items-center gap-1 text-sophon-copy-primary underline decoration-sophon-signal/30 underline-offset-4 transition-colors hover:text-sophon-signal-soft focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-signal" href="https://github.com/rangan39" rel="noreferrer" target="_blank">rangan39 <ExternalLinkIndicator className="text-sophon-copy-metadata" /></a>.</p>
           </div>
         </div>

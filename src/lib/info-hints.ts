@@ -2,12 +2,12 @@ export const INFO_HINTS = {
   modelSpecs: {
     label: "About model specifications",
     title: "Model specifications",
-    description: "3.35B is the parameter count. 4-bit (q4f16) compresses weights with 16-bit activations. Tiny Aya uses an 8,192-token context window on desktop and 2,048 tokens on mobile."
+    description: "Model size, quantization, context length, and supported execution providers come from the selected Hugging Face repository. Larger models generally need more download space, memory, and GPU capacity."
   },
   browserStorage: {
     label: "About browser storage",
     title: "Browser storage",
-    description: "The first value is Sophon’s current site usage; the second is the browser’s estimated quota, not reserved disk space. Persistent storage is protected from routine eviction; best effort data may be removed when space is low."
+    description: "The first value is Glaux’s current site usage; the second is the browser’s estimated quota, not reserved disk space. Persistent storage is protected from routine eviction; best effort data may be removed when space is low."
   },
   generationMetrics: {
     label: "About response metrics",
@@ -27,7 +27,7 @@ export const INFO_HINTS = {
   modelLicense: {
     label: "About model usage",
     title: "Model usage",
-    description: "Tiny Aya weights are available for non-commercial use under CC BY-NC 4.0 and remain subject to Cohere Labs’ Acceptable Use Policy."
+    description: "Each community model keeps its own license and usage terms. Review the selected model’s Hugging Face repository before downloading or using its files."
   }
 } as const;
 

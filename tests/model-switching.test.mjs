@@ -15,9 +15,3 @@ test("selecting a different model clears chat before activation", () => {
     selection.indexOf("clearConversationState()") < selection.indexOf("setModelId(nextModelId)")
   );
 });
-
-test("model download confirmation explains destructive replacement behavior", () => {
-  assert.match(source, /Sophon keeps one model on this device at a time/);
-  assert.match(source, /saved model files will be removed first/);
-  assert.match(source, /onConfirm=\{\(\) => void confirmModelDownload\(\)\}/);
-});

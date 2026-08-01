@@ -2,14 +2,14 @@
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
 
-const url = process.env.SOPHON_SMOKE_URL ?? "http://localhost:3000";
-const timeoutMs = Number(process.env.SOPHON_SMOKE_TIMEOUT_MS ?? 30_000);
+const url = process.env.GLAUX_SMOKE_URL ?? "http://localhost:3000";
+const timeoutMs = Number(process.env.GLAUX_SMOKE_TIMEOUT_MS ?? 30_000);
 const runtimeErrors = [];
 let browser;
 let activePage;
 
 try {
-  assert.ok(Number.isFinite(timeoutMs) && timeoutMs > 0, "SOPHON_SMOKE_TIMEOUT_MS must be a positive number.");
+  assert.ok(Number.isFinite(timeoutMs) && timeoutMs > 0, "GLAUX_SMOKE_TIMEOUT_MS must be a positive number.");
   browser = await chromium.launch({
     headless: true,
     args: ["--enable-unsafe-webgpu", "--enable-features=Vulkan", "--ignore-gpu-blocklist", "--disable-dev-shm-usage"]
@@ -19,7 +19,7 @@ try {
   activePage = await serverContext.newPage();
   await openPage(activePage);
   await assertVisible(activePage.getByRole("status").filter({ hasText: "Loading inference console" }), "SSR loading shell");
-  assert.equal(await activePage.locator("h1", { hasText: "SOPHON" }).count(), 1, "SSR response must contain the workbench shell.");
+  assert.equal(await activePage.locator("h1", { hasText: "GLAUX" }).count(), 1, "SSR response must contain the workbench shell.");
   await serverContext.close();
   console.log("✓ Server-rendered fallback and workbench shell exist without JavaScript");
 
@@ -29,26 +29,26 @@ try {
   captureRuntimeErrors(activePage);
   await openPage(activePage);
 
-  const heading = activePage.getByRole("heading", { name: "SOPHON", exact: true });
-  const textarea = activePage.getByRole("textbox", { name: "Message Sophon", exact: true });
+  const heading = activePage.getByRole("heading", { name: "GLAUX", exact: true });
+  const textarea = activePage.getByRole("textbox", { name: "Message Glaux", exact: true });
   const modelLibrary = activePage.getByRole("complementary", { name: "Model library", exact: true });
   const modelRadios = modelLibrary.getByRole("radio");
   const sendButton = activePage.getByRole("button", { name: "Send message", exact: true });
   const resetButton = activePage.getByRole("button", { name: "Reset conversation", exact: true });
   const aboutTrigger = activePage.getByRole("button", { name: "About", exact: true });
   const storageStatus = activePage.getByTestId("browser-storage");
-  await assertVisible(heading, "Sophon heading");
+  await assertVisible(heading, "Glaux heading");
   const firstRunWelcome = activePage.getByTestId("first-run-welcome");
   const firstRunPrimary = activePage.getByTestId("first-run-primary");
   await assertVisible(firstRunWelcome, "first-run welcome");
   await assertVisible(firstRunWelcome.getByRole("heading", { name: "Private AI, right in your browser", exact: true }), "first-run heading");
   assert.equal(await textarea.count(), 0, "The composer must stay hidden until the user chooses a model.");
   await assertVisible(modelLibrary, "desktop model library");
-  await assertVisible(aboutTrigger, "stable About Sophon control");
+  await assertVisible(aboutTrigger, "stable About Glaux control");
   assert.equal(await aboutTrigger.getAttribute("aria-haspopup"), "dialog");
   await aboutTrigger.click();
-  const acknowledgements = activePage.getByRole("dialog", { name: "About Sophon", exact: true });
-  await assertVisible(acknowledgements, "About Sophon dialog");
+  const acknowledgements = activePage.getByRole("dialog", { name: "About Glaux", exact: true });
+  await assertVisible(acknowledgements, "About Glaux dialog");
   const acknowledgementsPanel = acknowledgements.getByTestId("acknowledgements-panel");
   assert.equal(await acknowledgementsPanel.evaluate((element) => getComputedStyle(element).animationName), "sophon-dialog-in", "Acknowledgements should enter with the restrained panel transition.");
   assert.equal(await acknowledgementsPanel.evaluate((element) => getComputedStyle(element).animationDuration), "0.12s", "Acknowledgements transition should remain snappy.");
@@ -58,11 +58,11 @@ try {
   await assertVisible(acknowledgements.getByRole("heading", { name: "Privacy, licensing & support", exact: true }), "privacy, licensing, and support heading");
   await assertVisible(acknowledgements.getByRole("heading", { name: "Technical", exact: true }), "technical acknowledgements heading");
   await assertVisible(acknowledgements.getByRole("heading", { name: "Community", exact: true }), "community acknowledgements heading");
-  assert.equal(await trustSupportLinks.getByRole("link").count(), 4, "About Sophon must expose privacy, license, AUP, and support links.");
+  assert.equal(await trustSupportLinks.getByRole("link").count(), 4, "About Glaux must expose privacy, license, AUP, and support links.");
   assert.equal(await trustSupportLinks.getByRole("link", { name: /Privacy policy.*Local data and network requests/ }).getAttribute("href"), "/privacy");
   assert.equal(await trustSupportLinks.getByRole("link", { name: /CC BY-NC 4\.0.*opens in a new tab/ }).getAttribute("href"), "https://creativecommons.org/licenses/by-nc/4.0/");
   assert.equal(await trustSupportLinks.getByRole("link", { name: /Cohere Labs AUP.*opens in a new tab/ }).getAttribute("href"), "https://docs.cohere.com/docs/cohere-labs-acceptable-use-policy");
-  assert.equal(await trustSupportLinks.getByRole("link", { name: /Project support.*opens in a new tab/ }).getAttribute("href"), "https://github.com/rangan39/sophon/issues");
+  assert.equal(await trustSupportLinks.getByRole("link", { name: /Project support.*opens in a new tab/ }).getAttribute("href"), "https://github.com/rangan39/glaux/issues");
   assert.equal(await trustSupportLinks.locator('a[target="_blank"]').count(), 3, "Every external About link must open in a new tab.");
   assert.equal(await technicalAcknowledgements.locator("li").count(), 4, "Technical acknowledgements must include all four model/runtime credits.");
   assert.equal(await communityAcknowledgements.locator("li").count(), 3, "Community acknowledgements must include all three organizations.");
@@ -72,7 +72,7 @@ try {
   assert.equal(await acknowledgements.getByRole("link", { name: /rangan39.*opens in a new tab/ }).getAttribute("href"), "https://github.com/rangan39");
   await activePage.keyboard.press("Escape");
   await acknowledgements.waitFor({ state: "hidden", timeout: timeoutMs });
-  assert.equal(await aboutTrigger.evaluate((element) => document.activeElement === element), true, "Closing About Sophon must restore trigger focus.");
+  assert.equal(await aboutTrigger.evaluate((element) => document.activeElement === element), true, "Closing About Glaux must restore trigger focus.");
   await activePage.waitForFunction(() => {
     const radios = document.querySelectorAll('[data-model-surface="desktop"] input[type="radio"]');
     return radios.length === 4 && [...radios].every((radio) => !/(Checking browser GPU|Downloading)/.test(radio.getAttribute("aria-label") ?? ""));
@@ -121,7 +121,7 @@ try {
     await assertWithinViewport(aboutButton, width, `${width}px first-run About and licenses control`);
     await assertWithinViewport(supportLink, width, `${width}px first-run support link`);
     assert.equal(await privacyLink.getAttribute("href"), "/privacy");
-    assert.equal(await supportLink.getAttribute("href"), "https://github.com/rangan39/sophon/issues");
+    assert.equal(await supportLink.getAttribute("href"), "https://github.com/rangan39/glaux/issues");
     assert.equal(await supportLink.getAttribute("target"), "_blank");
     for (const [control, label] of [[privacyLink, "privacy"], [aboutButton, "About and licenses"], [supportLink, "support"]]) {
       const box = await control.boundingBox();
@@ -130,11 +130,11 @@ try {
       assert.equal(await control.evaluate((element) => document.activeElement === element), true, `${width}px first-run ${label} control must accept keyboard focus.`);
     }
     await aboutButton.click();
-    const responsiveAbout = activePage.getByRole("dialog", { name: "About Sophon", exact: true });
-    await assertVisible(responsiveAbout, `${width}px About Sophon dialog`);
-    await assertWithinViewport(responsiveAbout.getByTestId("acknowledgements-panel"), width, `${width}px About Sophon panel`);
+    const responsiveAbout = activePage.getByRole("dialog", { name: "About Glaux", exact: true });
+    await assertVisible(responsiveAbout, `${width}px About Glaux dialog`);
+    await assertWithinViewport(responsiveAbout.getByTestId("acknowledgements-panel"), width, `${width}px About Glaux panel`);
     await responsiveAbout.getByTestId("acknowledgements-panel").evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)));
-    await assertTypographyRoles(responsiveAbout, `${width}px About Sophon dialog`);
+    await assertTypographyRoles(responsiveAbout, `${width}px About Glaux dialog`);
     await activePage.keyboard.press("Escape");
     await responsiveAbout.waitFor({ state: "hidden", timeout: timeoutMs });
     assert.equal(await aboutButton.evaluate((element) => document.activeElement === element), true, `${width}px About dialog must restore first-run trigger focus.`);
@@ -148,7 +148,7 @@ try {
   const hostedPrivacyPage = await desktopContext.newPage();
   await hostedPrivacyPage.goto(new URL("/privacy", url).toString(), { waitUntil: "domcontentloaded" });
   await hostedPrivacyPage.getByRole("heading", { name: "Privacy Policy", exact: true }).waitFor({ state: "visible", timeout: timeoutMs });
-  assert.equal(await hostedPrivacyPage.getByRole("link", { name: "← Back to Sophon", exact: true }).getAttribute("href"), "/");
+  assert.equal(await hostedPrivacyPage.getByRole("link", { name: "← Back to Glaux", exact: true }).getAttribute("href"), "/");
   assert.equal(await hostedPrivacyPage.getByRole("link", { name: /public support tracker.*opens in a new tab/ }).getAttribute("target"), "_blank");
   await hostedPrivacyPage.close();
   console.log("✓ First-run header, recommendation, CTA, and single-scroll reflow pass from 320px through desktop");
@@ -270,12 +270,12 @@ try {
   await mobileDialog.waitFor({ state: "hidden", timeout: timeoutMs });
   assert.equal(await mobileTrigger.getAttribute("aria-expanded"), "false");
   assert.equal(await mobileTrigger.evaluate((element) => document.activeElement === element), true, "Closing the mobile sheet must restore trigger focus.");
-  await assertWithinViewport(aboutTrigger, 320, "mobile About Sophon control");
+  await assertWithinViewport(aboutTrigger, 320, "mobile About Glaux control");
   await aboutTrigger.click();
-  await assertWithinViewport(activePage.getByTestId("acknowledgements-panel"), 320, "mobile About Sophon dialog");
+  await assertWithinViewport(activePage.getByTestId("acknowledgements-panel"), 320, "mobile About Glaux dialog");
   await activePage.keyboard.press("Escape");
   await acknowledgements.waitFor({ state: "hidden", timeout: timeoutMs });
-  assert.equal(await aboutTrigger.evaluate((element) => document.activeElement === element), true, "Closing mobile About Sophon must restore trigger focus.");
+  assert.equal(await aboutTrigger.evaluate((element) => document.activeElement === element), true, "Closing mobile About Glaux must restore trigger focus.");
   await assertWithinViewport(storageStatus, 320, "mobile browser storage status");
   const widths = await activePage.evaluate(() => ({
     body: document.body.scrollWidth,
@@ -362,7 +362,7 @@ try {
   await assertVisible(progressBar, "model download progress bar");
   assert.equal(await progressBar.getAttribute("aria-valuenow"), null, "Progress must remain indeterminate until byte totals arrive.");
   assert.equal(await preloadModels.locator('[data-model-id="tiny-aya-earth"] input').isEnabled(), true, "Other model radios must remain enabled so another selection can cancel the download.");
-  const preloadPrompt = activePage.getByRole("textbox", { name: "Message Sophon", exact: true });
+  const preloadPrompt = activePage.getByRole("textbox", { name: "Message Glaux", exact: true });
   assert.equal(await preloadPrompt.isDisabled(), true, "The prompt must remain disabled while the selected model downloads.");
   assert.equal(await preloadPrompt.inputValue(), "", "The disabled prompt must not accept text during download.");
   assert.equal(await preloadSend.isDisabled(), true, "Send must remain disabled while the selected model downloads.");
@@ -498,10 +498,10 @@ try {
   await determinateProgress.waitFor({ state: "detached", timeout: timeoutMs });
   await activePage.getByText("Model ready", { exact: true }).waitFor({ state: "visible", timeout: timeoutMs });
 
-  await activePage.getByRole("textbox", { name: "Message Sophon", exact: true }).fill("Token lens fixture");
+  await activePage.getByRole("textbox", { name: "Message Glaux", exact: true }).fill("Token lens fixture");
   await activePage.getByRole("button", { name: "Send message", exact: true }).click();
   const userFixtureMessage = activePage.getByRole("article", { name: "Message from you", exact: true }).filter({ hasText: "Token lens fixture" });
-  const assistantFixtureMessage = activePage.getByRole("article", { name: "Message from Sophon", exact: true }).filter({ hasText: "Fixture response" });
+  const assistantFixtureMessage = activePage.getByRole("article", { name: "Message from Glaux", exact: true }).filter({ hasText: "Fixture response" });
   await assertVisible(userFixtureMessage, "generated fixture user message");
   await assertVisible(assistantFixtureMessage, "generated fixture assistant message");
   assert.equal(await assistantFixtureMessage.getByText(/5\.0 tokens\/s/).count(), 0, "Chat mode must hide response metrics.");
@@ -542,7 +542,7 @@ try {
   await assertTooltipContract(assistantTokenHint, tokenLensContent, "token display tooltip");
   await assertCenteredAbove(assistantTokenHint, tokenLensContent, "token display tooltip");
   assert.match((await tokenLensContent.textContent()) ?? "", /Tokens shows the model pieces and IDs.+Words groups them.+Outside context/s);
-  await activePage.getByRole("heading", { name: "SOPHON", exact: true }).hover();
+  await activePage.getByRole("heading", { name: "GLAUX", exact: true }).hover();
   await tokenLensContent.waitFor({ state: "hidden", timeout: timeoutMs });
   await userFixtureMessage.getByRole("button", { name: "tokens", exact: true }).click();
   await assertVisible(userFixtureMessage.getByRole("toolbar", { name: /3 inspectable token segments/ }), "user token toolbar");

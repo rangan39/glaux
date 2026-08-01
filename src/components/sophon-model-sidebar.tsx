@@ -57,11 +57,11 @@ function ModelPanel({ activeModelId, cacheSummaries = [], capabilities, communit
   const activeView: SidebarView = inspectMode ? "dev" : view;
   const models = [...MODEL_REGISTRY, ...communityModels];
   const visibleModelCards: ModelManifest[] = [];
-  const detailModel = models.find((model) => model.id === modelId)
-    ?? MODEL_REGISTRY.find((model) => model.id === recommendedModelId)
-    ?? MODEL_REGISTRY[0];
+  const detailModel = models.find((model) => model.id === modelId);
   const mobileProfile = capabilities?.hardwareTier === "mobile";
-  const detailProfile = getModelRuntimeProfile(detailModel, mobileProfile ? "mobile" : "desktop");
+  const detailProfile = detailModel
+    ? getModelRuntimeProfile(detailModel, mobileProfile ? "mobile" : "desktop")
+    : null;
   function selectView(nextView: SidebarView) {
     setView(nextView);
     onInspectModeChange?.(nextView === "dev");
@@ -144,7 +144,7 @@ function ModelPanel({ activeModelId, cacheSummaries = [], capabilities, communit
     </fieldset> : null}
     {expanded && activeView === "details" ? <ModelDetails model={detailModel} profile={detailProfile} /> : null}
     {expanded && activeView === "dev" ? <DeveloperTools inspectDisplayMode={inspectDisplayMode} inspectMetrics={inspectMetrics} onInspectDisplayModeChange={onInspectDisplayModeChange} /> : null}
-    {expanded && visibleModelCards.length > 0 ? (
+    {expanded && detailModel && detailProfile && visibleModelCards.length > 0 ? (
       <footer className="sophon-type-metadata shrink-0 border-t border-sophon-glass-border bg-sophon-panel-deep p-3 font-mono tracking-[0.03em] text-sophon-copy-metadata shadow-[inset_0_1px_0_rgb(255_255_255/0.8)]" data-typography-role="metadata">
         <div className="grid grid-cols-2 gap-1.5">
           <span className="inline-flex h-7 min-w-0 items-center rounded-md border border-sophon-glass-border bg-sophon-panel px-2 font-medium text-sophon-copy-body shadow-[inset_0_1px_0_var(--sophon-glass-highlight)]">{detailModel.parameterLabel} · 4-bit</span>
@@ -161,7 +161,10 @@ function ModelPanel({ activeModelId, cacheSummaries = [], capabilities, communit
   </>;
 }
 
-function ModelDetails({ model, profile }: { model: ModelManifest; profile: ReturnType<typeof getModelRuntimeProfile> }) {
+function ModelDetails({ model, profile }: { model?: ModelManifest; profile: ReturnType<typeof getModelRuntimeProfile> | null }) {
+  if (!model || !profile) {
+    return <section aria-label="Model details" className="min-h-0 flex-1 overflow-y-auto p-3"><div className="rounded-xl border border-sophon-glass-border bg-sophon-panel-deep p-3"><p className="text-sm font-medium text-sophon-copy-primary">No model selected</p><p className="mt-1 text-xs leading-5 text-sophon-copy-metadata">Choose a model in Search to review its files, license, and runtime requirements.</p></div></section>;
+  }
   if (model.source.kind !== "huggingface") {
     return <section aria-label="Model details" className="min-h-0 flex-1 overflow-y-auto p-3"><div className="rounded-xl border border-sophon-glass-border bg-sophon-panel-deep p-3"><p className="text-sm text-sophon-copy-metadata">Select a Hugging Face model to view its details.</p></div></section>;
   }
@@ -178,7 +181,7 @@ function ModelDetails({ model, profile }: { model: ModelManifest; profile: Retur
     <div className="rounded-lg border border-sophon-glass-border bg-sophon-panel-deep p-2.5">
       <p className="text-sm font-semibold text-sophon-copy-primary">{model.label}</p>
       <p className="mt-1 text-xs leading-5 text-sophon-copy-metadata">{model.description}</p>
-      <dl className="mt-2 divide-y divide-sophon-glass-border overflow-hidden rounded-md border border-sophon-glass-border bg-sophon-panel">{details.map(([label, value]) => <div className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-2 px-2 py-1.5" key={label}><dt className="text-[9px] font-medium uppercase tracking-[0.06em] text-sophon-copy-metadata">{label}</dt><dd className="min-w-0 break-words text-[11px] text-sophon-copy-primary">{value}</dd></div>)}</dl>
+      <dl className="mt-2 divide-y divide-sophon-glass-border overflow-hidden rounded-md border border-sophon-glass-border bg-sophon-panel">{details.map(([label, value]) => <div className="grid grid-cols-[4.75rem_minmax(0,1fr)] gap-2 px-2 py-2" key={label}><dt className="text-[10px] font-medium uppercase leading-4 tracking-[0.05em] text-sophon-copy-metadata">{label}</dt><dd className="min-w-0 break-words text-xs leading-4 text-sophon-copy-primary">{value}</dd></div>)}</dl>
       <Button asChild className="mt-3 w-full" size="sm" variant="sophon"><a href={`https://huggingface.co/${model.source.repo}`} rel="noreferrer" target="_blank"><ExternalLink aria-hidden="true" />View on Hugging Face</a></Button>
     </div>
   </section>;
@@ -241,7 +244,7 @@ function CommunityCatalog({ disabled, onAdded }: { disabled: boolean; onAdded?: 
       const descriptor = createCommunityModelDescriptor(details);
       await saveCommunityModelDescriptor(descriptor);
       onAdded?.(descriptor);
-      setStatus(`${model.name} is ready for review. Confirm the download from its model card.`);
+      setStatus(`${model.name} selected. Confirm the download in the open dialog.`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : `${model.name} could not be added.`);
     } finally {
@@ -252,7 +255,7 @@ function CommunityCatalog({ disabled, onAdded }: { disabled: boolean; onAdded?: 
   function submit(event: FormEvent) { event.preventDefault(); }
 
   return <section className="mb-2 rounded-lg border border-sophon-glass-border bg-sophon-panel-deep p-2" aria-label="ONNX Community catalog">
-    <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-sophon-copy-primary">Hugging Face ONNX Community</p>
+    <p className="text-[11px] font-semibold uppercase tracking-[0.07em] text-sophon-copy-primary">Hugging Face ONNX Community</p>
     <form className="relative mt-1.5" onSubmit={submit} role="search">
       <Search aria-hidden="true" className="absolute left-2 top-2 size-3.5 text-sophon-copy-metadata" />
       <input aria-label="Search ONNX Community models" className="h-8 w-full rounded-md border border-sophon-glass-border bg-sophon-panel pl-7 pr-2 text-xs text-sophon-copy-primary outline-none focus:border-sophon-signal-bright" disabled={disabled} onChange={(event) => {
@@ -263,11 +266,11 @@ function CommunityCatalog({ disabled, onAdded }: { disabled: boolean; onAdded?: 
       }} placeholder="Search models…" value={query} />
     </form>
     {status ? <p className="mt-2 text-xs leading-4 text-sophon-copy-metadata" role="status">{status}</p> : null}
-    {results.length > 0 ? <p className="mt-2 text-[9px] font-medium uppercase tracking-[0.08em] text-sophon-copy-metadata">{query.trim() ? "Search results" : "Popular models"}</p> : null}
+    {results.length > 0 ? <p className="mt-2 text-[10px] font-medium uppercase leading-4 tracking-[0.07em] text-sophon-copy-metadata">{query.trim() ? "Search results" : "Popular models"}</p> : null}
     <div className="mt-1 space-y-1">
       {results.map((model) => <button className="flex w-full items-center gap-1.5 rounded-md border border-sophon-glass-border bg-sophon-panel px-2 py-1.5 text-left hover:border-sophon-signal-bright/60 disabled:opacity-60" disabled={disabled || busyRepo !== null || !model.revision} key={model.repo} onClick={() => void addModel(model)} type="button">
         {busyRepo === model.repo ? <LoaderCircle aria-hidden="true" className="size-3.5 shrink-0 animate-spin" /> : <Download aria-hidden="true" className="size-3.5 shrink-0" />}
-        <span className="min-w-0"><span className="block truncate text-[11px] font-medium leading-4 text-sophon-copy-primary">{model.name}</span><span className="block truncate text-[9.5px] leading-3 text-sophon-copy-metadata">{model.downloads.toLocaleString()} downloads{model.license ? ` · ${model.license}` : ""}</span></span>
+        <span className="min-w-0"><span className="block truncate text-xs font-medium leading-4 text-sophon-copy-primary">{model.name}</span><span className="block truncate text-[10px] leading-4 text-sophon-copy-metadata">{model.downloads.toLocaleString()} downloads{model.license ? ` · ${model.license}` : ""}</span></span>
       </button>)}
     </div>
   </section>;

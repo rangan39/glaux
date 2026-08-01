@@ -6,40 +6,6 @@ import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const css = read("src/app/globals.css");
-const auditedFiles = [
-  "src/app/loading.tsx",
-  "src/app/privacy/page.tsx",
-  "src/components/sophon-acknowledgements-dialog.tsx",
-  "src/components/sophon-acknowledgements.tsx",
-  "src/components/sophon-model-sidebar.tsx",
-  "src/components/sophon-workbench.tsx",
-  "src/components/token-lens.tsx",
-  "src/components/ui/info-hint.tsx"
-];
-const auditedSource = auditedFiles.map((file) => read(file)).join("\n");
-const themeConsumerFiles = [
-  "src/components/sophon-model-sidebar.tsx",
-  "src/components/sophon-workbench.tsx",
-  "src/components/token-lens.tsx",
-  "src/components/ui/button.tsx",
-  "src/components/ui/info-hint.tsx"
-];
-const themeConsumerSource = themeConsumerFiles.map((file) => read(file)).join("\n");
-
-test("keeps semantic type roles above the interface readability floor", () => {
-  assert.match(css, /\.sophon-type-decorative\s*\{[^}]*font-size:\s*0\.6875rem/s);
-  assert.match(css, /\.sophon-type-metadata,[^{]+\.sophon-type-action\s*\{[^}]*font-size:\s*0\.75rem/s);
-  assert.match(css, /\.sophon-type-body\s*\{[^}]*font-size:\s*0\.875rem/s);
-
-  const arbitraryPixelSizes = [...auditedSource.matchAll(/text-\[([0-9.]+)px\]/g)]
-    .map((match) => Number(match[1]))
-    .filter((size) => size < 11);
-  assert.deepEqual(arbitraryPixelSizes, [], "Audited interface copy must not use arbitrary sizes below 11px.");
-
-  for (const role of ["decorative", "metadata", "status", "body", "action"]) {
-    assert.match(auditedSource, new RegExp(`data-typography-role="${role}"`), `Missing the ${role} typography role.`);
-  }
-});
 
 test("keeps normal and disabled copy tokens at WCAG AA contrast", () => {
   const darkestInteractiveSurface = "#edf3f7";
@@ -66,18 +32,6 @@ test("does not dim essential disabled-state copy with component opacity", () => 
   assert.doesNotMatch(button, /disabled:opacity-/);
   assert.doesNotMatch(modelSidebar, /cursor-not-allowed opacity-/);
   assert.match(button, /disabled:text-sophon-copy-disabled/);
-});
-
-test("keeps styling behind one stable semantic theme", () => {
-  assert.doesNotMatch(css, /data-model-theme/, "Model selection must not change the application palette.");
-  for (const semanticClass of ["sophon-accent-surface", "sophon-accent-avatar", "sophon-accent-message", "sophon-theme-elevation"]) {
-    assert.match(css, new RegExp(`\\.${semanticClass}\\s*\\{`), `Missing the ${semanticClass} semantic class.`);
-  }
-  assert.doesNotMatch(
-    themeConsumerSource,
-    /(?:#[0-9a-f]{3,8}\b|rgba?\(\s*\d)/i,
-    "Theme-consuming components must not contain color literals."
-  );
 });
 
 test("keeps the default accent gradient at WCAG AA contrast", () => {

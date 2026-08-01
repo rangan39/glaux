@@ -885,7 +885,7 @@ export function GlauxWorkbench() {
       <div aria-hidden="true" className="sophon-noise pointer-events-none absolute inset-0" />
       <div aria-hidden="true" className="sophon-grid pointer-events-none absolute inset-0 opacity-45" />
       <div className={cn("relative flex w-full flex-col bg-transparent", selectedModel ? "h-svh" : "min-h-svh")}>
-        <header className={cn("sophon-glass-strong sophon-reveal sophon-reveal-header relative z-20 shrink-0 items-center border-x-0 border-t-0", selectedModel ? "grid h-[calc(106px+env(safe-area-inset-top))] grid-cols-[minmax(0,1fr)_auto] grid-rows-[28px_44px] gap-x-2 gap-y-2 px-3 pb-[10px] pt-[calc(8px+env(safe-area-inset-top))] sm:h-[calc(120px+env(safe-area-inset-top))] sm:grid-rows-[40px_36px] sm:px-7 sm:pb-3 sm:pt-[calc(12px+env(safe-area-inset-top))] lg:flex lg:h-auto lg:justify-between lg:gap-0 lg:p-4" : "flex h-[calc(106px+env(safe-area-inset-top))] justify-between px-3 pb-8 pt-[env(safe-area-inset-top)] sm:h-auto sm:p-4")} data-testid="workbench-header">
+        <header className={cn("sophon-glass-strong sophon-reveal sophon-reveal-header relative z-20 shrink-0 items-center border-x-0 border-t-0", selectedModel ? "grid h-[calc(106px+env(safe-area-inset-top))] grid-cols-[minmax(0,1fr)_auto] grid-rows-[40px_28px] gap-x-2 gap-y-2 px-3 pb-[10px] pt-[calc(8px+env(safe-area-inset-top))] sm:h-[calc(120px+env(safe-area-inset-top))] sm:grid-rows-[40px_36px] sm:px-7 sm:pb-3 sm:pt-[calc(12px+env(safe-area-inset-top))] lg:flex lg:h-auto lg:justify-between lg:gap-0 lg:p-4" : "flex h-[calc(106px+env(safe-area-inset-top))] justify-between px-3 pb-8 pt-[env(safe-area-inset-top)] sm:h-auto sm:p-4")} data-testid="workbench-header">
           <div className="flex min-w-0 items-center gap-2 sm:gap-3" data-testid="workbench-brand">
             <div aria-label="Glaux logo" className="sophon-accent-surface sophon-mark relative grid size-10 shrink-0 place-items-center border border-sophon-signal-bright/60" role="img">
               <MoonStar aria-hidden="true" className="size-5 stroke-[1.7]" />
@@ -899,12 +899,12 @@ export function GlauxWorkbench() {
             </div>
           </div>
 
-          <div className={cn("sophon-glass-tile sophon-type-status flex min-w-0 items-center justify-center gap-2 rounded-full px-3 py-1 font-mono uppercase tracking-[0.08em] sm:py-1.5", selectedModel ? "col-span-2 sm:col-span-1 sm:justify-self-end lg:static lg:inset-auto lg:shrink-0" : "absolute inset-x-3 bottom-2 sm:static sm:inset-auto sm:shrink-0", runtimeStatus.className)} data-testid="workbench-status" data-typography-role="status">
+          <div className={cn("sophon-glass-tile sophon-type-status flex min-w-0 items-center justify-center gap-2 rounded-full px-3 py-1 font-mono uppercase tracking-[0.08em] sm:py-1.5", selectedModel ? "col-span-2 row-start-2 sm:col-span-1 sm:row-start-auto sm:justify-self-end lg:static lg:inset-auto lg:shrink-0" : "absolute inset-x-3 bottom-2 sm:static sm:inset-auto sm:shrink-0", runtimeStatus.className)} data-testid="workbench-status" data-typography-role="status">
             <span aria-hidden="true" className={cn("size-1.5 shrink-0 rounded-full", runtimeStatus.dotClassName)} />
             <span className="truncate">{runtimeStatus.label}{downloadPercentLabel ? ` · ${downloadPercentLabel}` : null}</span>
           </div>
 
-          <div className={cn("items-center [&_button:hover]:translate-y-0", selectedModel ? "col-span-2 flex w-full justify-end gap-1 [&_button]:gap-1 sm:gap-2 lg:col-span-1 lg:w-auto lg:shrink-0 lg:gap-3 lg:[&_button]:gap-2" : "flex shrink-0 gap-1.5 sm:gap-3")} data-testid="workbench-actions">
+          <div className={cn("items-center [&_button:hover]:translate-y-0", selectedModel ? "col-start-2 row-start-1 flex w-auto justify-end gap-1 [&_button]:gap-1 sm:col-span-2 sm:col-start-auto sm:row-start-auto sm:w-full sm:gap-2 lg:col-span-1 lg:w-auto lg:shrink-0 lg:gap-3 lg:[&_button]:gap-2" : "flex shrink-0 gap-1.5 sm:gap-3")} data-testid="workbench-actions">
             {generation.status === "loading" ? <Button aria-label={modelLoadCancelLabel} className="size-10 rounded-xl p-0" onClick={cancelModelLoad} size="sm" title={modelLoadCancelLabel} type="button" variant="sophon"><Square aria-hidden="true" className="size-3 fill-current" /><span className="sr-only">{modelLoadCancelText}</span></Button> : null}
             {modelLoadPaused && selectedModel ? <Button aria-label="Resume model download" className="size-10 rounded-xl p-0" onClick={resumeModelLoad} size="sm" title="Resume model download" type="button" variant="sophon"><Download aria-hidden="true" /><span className="sr-only">Resume</span></Button> : null}
             {canResetConversation && !isBusy ? (
@@ -1139,9 +1139,9 @@ export function GlauxWorkbench() {
           busy={replacingModel}
           busyLabel={getReplacementBusyLabel(modelReplacementPhase, pendingReplacementModels)}
           cancelAriaLabel={getModelActionCancelLabel(pendingModelPlan)}
-          cancelLabel="Keep"
+          cancelLabel={pendingModelPlan?.requiresReplacement ? "Keep current" : "Not now"}
           confirmAriaLabel={getModelActionLabel(pendingModelPlan)}
-          confirmLabel="Replace"
+          confirmLabel={getModelActionButtonLabel(pendingModelPlan)}
           confirmTone="default"
           description={getModelActionDescription(pendingModelDownload, pendingModelDownloadCache, browserStorage, pendingModelPlan)}
           details={pendingModelPlan?.requiresReplacement ? (
@@ -1240,7 +1240,7 @@ function FirstRunWelcome({ compatibility, notice, onDismissNotice, onOpenModels 
             <div className="mt-3 min-w-0 sm:mt-0" data-testid="first-run-recommended-details">
               <div className="flex flex-wrap items-center gap-1.5">
                 <h3 className="text-base font-semibold text-sophon-copy-primary">Hugging Face ONNX Community</h3>
-                <span aria-label="Community model search" className="sophon-verified-emphasis grid size-4 place-items-center rounded-full bg-sophon-verified-bright text-sophon-on-verified" title="Community model search">
+                <span aria-label="Community model search" className="grid size-4 place-items-center rounded-full bg-sophon-copy-primary text-sophon-panel" title="Community model search">
                   <Sparkles aria-hidden="true" className="size-2.5" />
                 </span>
               </div>
@@ -1264,7 +1264,7 @@ function FirstRunWelcome({ compatibility, notice, onDismissNotice, onOpenModels 
 
           <div className="mt-3 grid overflow-hidden rounded-xl border border-sophon-glass-border bg-sophon-glass-tile sm:grid-cols-2 sm:divide-x sm:divide-sophon-glass-border">
             <div className="flex items-start gap-2 px-3 py-2.5">
-              <span aria-hidden="true" className="sophon-verified-emphasis mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg bg-sophon-verified-bright">
+              <span aria-hidden="true" className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg bg-sophon-copy-primary text-sophon-panel">
                 <Hammer className="size-3.5" />
               </span>
               <span className="min-w-0">
@@ -1273,7 +1273,7 @@ function FirstRunWelcome({ compatibility, notice, onDismissNotice, onOpenModels 
               </span>
             </div>
             <div className="flex items-start gap-2 border-t border-sophon-glass-border px-3 py-2.5 sm:border-t-0">
-              <span aria-hidden="true" className="sophon-verified-emphasis mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg bg-sophon-verified-bright">
+              <span aria-hidden="true" className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg bg-sophon-copy-primary text-sophon-panel">
                 <Download className="size-3.5" />
               </span>
               <span className="min-w-0">
@@ -1666,6 +1666,13 @@ function getModelActionLabel(plan: ModelReplacementPlan | null) {
   return plan.requiresReplacement
     ? `Replace & ${action}`
     : plan.action === "activate" ? "Use model" : `${capitalize(action)} model`;
+}
+
+function getModelActionButtonLabel(plan: ModelReplacementPlan | null) {
+  if (!plan) return "Download";
+  if (plan.requiresReplacement) return "Replace";
+  if (plan.action === "activate") return "Use model";
+  return capitalize(plan.action);
 }
 
 function getModelActionCancelLabel(plan: ModelReplacementPlan | null) {

@@ -1,16 +1,11 @@
 "use client";
 
 import type { RefObject } from "react";
-import { CodeXml, FileText, HeartHandshake, MoonStar, Scale, X } from "lucide-react";
+import { CodeXml, HeartHandshake, MoonStar, Scale, X } from "lucide-react";
 import { ExternalLinkIndicator } from "@/components/external-link-indicator";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import {
-  COHERE_LABS_AUP_URL,
-  PROJECT_REPOSITORY_URL,
-  PROJECT_SUPPORT_URL,
-  TINY_AYA_LICENSE_URL
-} from "@/lib/trust-navigation";
+import { ONNX_COMMUNITY_URL, PROJECT_REPOSITORY_URL, PROJECT_SUPPORT_URL } from "@/lib/trust-navigation";
 
 const ACKNOWLEDGEMENT_SECTIONS = [
   {
@@ -19,16 +14,10 @@ const ACKNOWLEDGEMENT_SECTIONS = [
     description: "Open-source tooling and local inference stack.",
     items: [
       {
-        label: "Models",
-        name: "Cohere Labs · Tiny Aya",
-        description: "Multilingual Global, Earth, Fire, and Water model family.",
-        href: "https://huggingface.co/CohereLabs"
-      },
-      {
-        label: "Model format",
+        label: "Model catalog",
         name: "ONNX Community",
-        description: "Browser-ready ONNX conversions for local inference.",
-        href: "https://huggingface.co/onnx-community"
+        description: "Browser-ready community models with author-published licenses.",
+        href: ONNX_COMMUNITY_URL
       },
       {
         label: "Browser runtime",
@@ -115,20 +104,11 @@ export default function GlauxAcknowledgementsDialog({ onDismiss, triggerRef }: G
                     </a>
                   </li>
                   <li>
-                    <a className="sophon-glass-tile flex min-h-16 h-full items-center gap-3 rounded-xl px-3.5 py-3 text-sophon-copy-primary transition-colors hover:border-sophon-signal-bright/55 hover:bg-sophon-glass-strong hover:text-sophon-signal-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-signal" href={TINY_AYA_LICENSE_URL} rel="noreferrer" target="_blank">
+                    <a className="sophon-glass-tile flex min-h-16 h-full items-center gap-3 rounded-xl px-3.5 py-3 text-sophon-copy-primary transition-colors hover:border-sophon-signal-bright/55 hover:bg-sophon-glass-strong hover:text-sophon-signal-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-signal" href={ONNX_COMMUNITY_URL} rel="noreferrer" target="_blank">
                       <Scale aria-hidden="true" className="size-4 shrink-0 text-sophon-signal-soft" />
                       <span>
-                        <span className="flex items-center gap-1.5 text-sm font-medium">Tiny Aya license <ExternalLinkIndicator /></span>
-                        <span className="sophon-type-metadata mt-0.5 block text-sophon-copy-metadata" data-typography-role="metadata">Terms for Cohere Labs models</span>
-                      </span>
-                    </a>
-                  </li>
-                  <li>
-                    <a className="sophon-glass-tile flex min-h-16 h-full items-center gap-3 rounded-xl px-3.5 py-3 text-sophon-copy-primary transition-colors hover:border-sophon-signal-bright/55 hover:bg-sophon-glass-strong hover:text-sophon-signal-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-signal" href={COHERE_LABS_AUP_URL} rel="noreferrer" target="_blank">
-                      <FileText aria-hidden="true" className="size-4 shrink-0 text-sophon-signal-soft" />
-                      <span>
-                        <span className="flex items-center gap-1.5 text-sm font-medium">Cohere Labs AUP <ExternalLinkIndicator /></span>
-                        <span className="sophon-type-metadata mt-0.5 block text-sophon-copy-metadata" data-typography-role="metadata">Required acceptable-use terms</span>
+                        <span className="flex items-center gap-1.5 text-sm font-medium">Model licenses <ExternalLinkIndicator /></span>
+                        <span className="sophon-type-metadata mt-0.5 block text-sophon-copy-metadata" data-typography-role="metadata">Review the license on each model card</span>
                       </span>
                     </a>
                   </li>

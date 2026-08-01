@@ -68,10 +68,8 @@ test("does not dim essential disabled-state copy with component opacity", () => 
   assert.match(button, /disabled:text-sophon-copy-disabled/);
 });
 
-test("keeps model styling behind semantic theme tokens", () => {
-  for (const theme of ["water", "fire", "earth", "global"]) {
-    assert.match(css, new RegExp(`main\\[data-model-theme="${theme}"\\]\\s*\\{`), `Missing the ${theme} theme scope.`);
-  }
+test("keeps styling behind one stable semantic theme", () => {
+  assert.doesNotMatch(css, /data-model-theme/, "Model selection must not change the application palette.");
   for (const semanticClass of ["sophon-accent-surface", "sophon-accent-avatar", "sophon-accent-message", "sophon-theme-elevation"]) {
     assert.match(css, new RegExp(`\\.${semanticClass}\\s*\\{`), `Missing the ${semanticClass} semantic class.`);
   }
@@ -82,20 +80,13 @@ test("keeps model styling behind semantic theme tokens", () => {
   );
 });
 
-test("keeps every model accent gradient at WCAG AA contrast", () => {
-  for (const [theme, selector] of [
-    ["water", ":root"],
-    ["fire", 'main[data-model-theme="fire"]'],
-    ["earth", 'main[data-model-theme="earth"]'],
-    ["global", 'main[data-model-theme="global"]']
-  ]) {
-    const block = cssRuleBlock(css, selector);
-    const foreground = customPropertyHex(block, "--sophon-on-signal");
-    for (const token of ["--sophon-signal", "--sophon-signal-bright"]) {
-      const background = customPropertyHex(block, token);
-      const ratio = contrastRatio(foreground, background);
-      assert.ok(ratio >= 4.5, `${theme} ${token} has only ${ratio.toFixed(2)}:1 contrast.`);
-    }
+test("keeps the default accent gradient at WCAG AA contrast", () => {
+  const block = cssRuleBlock(css, ":root");
+  const foreground = customPropertyHex(block, "--sophon-on-signal");
+  for (const token of ["--sophon-signal", "--sophon-signal-bright"]) {
+    const background = customPropertyHex(block, token);
+    const ratio = contrastRatio(foreground, background);
+    assert.ok(ratio >= 4.5, `${token} has only ${ratio.toFixed(2)}:1 contrast.`);
   }
 });
 

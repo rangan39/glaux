@@ -1,7 +1,7 @@
 "use client";
 
 import type { RefObject } from "react";
-import { CodeXml, FileText, HeartHandshake, Scale, X } from "lucide-react";
+import { CodeXml, FileText, HeartHandshake, MoonStar, Scale, X } from "lucide-react";
 import { ExternalLinkIndicator } from "@/components/external-link-indicator";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -88,7 +88,7 @@ export default function GlauxAcknowledgementsDialog({ onDismiss, triggerRef }: G
       <DialogContent aria-describedby={undefined} className="sophon-glass-strong flex max-h-[min(84svh,44rem)] w-[calc(100%-2rem)] max-w-xl flex-col gap-0 overflow-hidden rounded-2xl border-sophon-glass-border p-0 shadow-[0_28px_100px_var(--sophon-glass-shadow)] sm:w-full" id="sophon-acknowledgements" showCloseButton={false}>
         <section className="flex min-h-0 flex-1 flex-col" data-testid="acknowledgements-panel">
         <header className="flex shrink-0 items-start gap-3 border-b border-sophon-glass-border p-4 sm:p-5">
-          <span aria-hidden="true" className="sophon-glass-tile hidden size-10 shrink-0 place-items-center rounded-xl font-serif text-lg text-sophon-signal-soft min-[400px]:grid">Σ</span>
+          <span aria-hidden="true" className="sophon-glass-tile hidden size-10 shrink-0 place-items-center rounded-xl text-sophon-signal-soft min-[400px]:grid"><MoonStar className="size-5 stroke-[1.7]" /></span>
           <span className="min-w-0 flex-1">
             <span className="sophon-type-decorative block font-mono uppercase tracking-[0.12em] text-sophon-signal-soft" data-typography-role="decorative">Trust, terms & credits</span>
             <DialogTitle className="mt-1 text-base font-semibold text-sophon-copy-primary sm:text-lg" id="about-sophon-title">About Glaux</DialogTitle>

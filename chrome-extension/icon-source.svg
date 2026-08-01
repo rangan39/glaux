@@ -9,6 +9,10 @@
   <g transform="translate(16 16) scale(.75)">
     <rect width="128" height="128" rx="28" fill="#090a0d"/>
     <rect x="6" y="6" width="116" height="116" rx="24" fill="url(#background)"/>
-    <path d="M91 28H39L66 63 38 100h55V85H67l20-23-19-20h23V28Z" fill="#210b07"/>
+    <g transform="translate(28 28) scale(3)" fill="none" stroke="#210b07" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9"/>
+      <path d="M20 3v4"/>
+      <path d="M22 5h-4"/>
+    </g>
   </g>
 </svg>

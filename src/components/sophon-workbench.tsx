@@ -1,7 +1,7 @@
 "use client";
 
 import { type FormEvent, type KeyboardEvent, type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { Check, CircleUserRound, Code2, Copy, Download, Gauge, Hammer, HardDrive, Languages, LifeBuoy, LoaderCircle, MessageCircle, PanelLeft, Pencil, RotateCcw, SendHorizontal, ShieldCheck, Sparkles, Square, Trash2 } from "lucide-react";
+import { Check, CircleUserRound, Code2, Copy, Download, Gauge, Hammer, HardDrive, Languages, LifeBuoy, LoaderCircle, MessageCircle, PanelLeft, Pencil, RotateCcw, Search, SendHorizontal, ShieldCheck, Sparkles, Square, Trash2 } from "lucide-react";
 import { SophonAcknowledgements } from "@/components/sophon-acknowledgements";
 import { MODEL_UI, SophonModelSidebar } from "@/components/sophon-model-sidebar";
 import { InspectableMessage, type InspectableToken, type TokenInspectMode } from "@/components/token-lens";
@@ -19,7 +19,8 @@ import {
   runPrompt,
   terminateRuntimeWorker
 } from "@/lib/interp-client";
-import { MODEL_REGISTRY, RECOMMENDED_MODEL_ID, resolveModelProvider, type ModelManifest } from "@/lib/onnx-models";
+import { communityDescriptorToManifest, MODEL_REGISTRY, RECOMMENDED_MODEL_ID, resolveModelProvider, type ModelManifest } from "@/lib/onnx-models";
+import { listSavedCommunityModelDescriptors, type CommunityModelDescriptor } from "@/lib/model-catalog";
 import type { GenerationTelemetryEvent, ModelCacheSummary, OnnxLogEvent, RuntimeCapabilities } from "@/lib/onnx-types";
 import {
   createModelReplacementPlan,
@@ -105,6 +106,7 @@ export function SophonWorkbench() {
   const [interfaceMode, setInterfaceMode] = useState<InterfaceMode>("chat");
   const [hoveredModelId, setHoveredModelId] = useState<string | null>(null);
   const [modelId, setModelId] = useState("");
+  const [communityModels, setCommunityModels] = useState<ModelManifest[]>([]);
   const [libraryModelId, setLibraryModelId] = useState("");
   const [modelSidebarOpen, setModelSidebarOpen] = useState(false);
   const [inspectDisplayMode, setInspectDisplayMode] = useState<TokenInspectMode | null>(null);
@@ -144,25 +146,26 @@ export function SophonWorkbench() {
   const downloadPercentLabel = formatDownloadPercent(isProbingModelFiles ? undefined : downloadProgress);
   const downloadStatus = getDownloadStageLabel(downloadProgress?.stage, true);
   const isNetworkDownload = downloadProgress?.stage === "download" || downloadProgress?.stage === "resume";
-  const selectedModel = MODEL_REGISTRY.find((model) => model.id === modelId) ?? null;
+  const availableModels = [...MODEL_REGISTRY, ...communityModels];
+  const selectedModel = availableModels.find((model) => model.id === modelId) ?? null;
   const ActiveModelIcon = selectedModel ? MODEL_UI[selectedModel.id]?.icon : undefined;
   const modelTheme = MODEL_THEME_BY_ID[hoveredModelId ?? (libraryModelId || selectedModel?.id || "")];
   const loadingModel = selectedModel;
   const modelLoadCancelLabel = isNetworkDownload ? "Pause model download" : "Cancel model loading";
   const modelLoadCancelText = isNetworkDownload ? "Pause" : "Cancel";
-  const recommendedModel = MODEL_REGISTRY.find((model) => model.id === RECOMMENDED_MODEL_ID)!;
+  const recommendedModel = availableModels.find((model) => model.id === RECOMMENDED_MODEL_ID)!;
   const recommendedCache = cacheSummaries.find((model) => model.modelId === RECOMMENDED_MODEL_ID);
   const recommendedCompatibility = getModelCompatibility(capabilities, recommendedModel);
-  const pendingModelDownload = MODEL_REGISTRY.find((model) => model.id === pendingModelDownloadId) ?? null;
+  const pendingModelDownload = availableModels.find((model) => model.id === pendingModelDownloadId) ?? null;
   const pendingModelDownloadCache = cacheSummaries.find((model) => model.modelId === pendingModelDownloadId);
   const pendingModelPlan = pendingModelDownloadId
     ? createModelReplacementPlan(pendingModelDownloadId, cacheSummaries)
     : null;
   const pendingReplacementModels: ModelManifest[] = pendingModelPlan?.sourceModelIds.flatMap((sourceModelId) => {
-    const source = MODEL_REGISTRY.find((model) => model.id === sourceModelId);
+    const source = availableModels.find((model) => model.id === sourceModelId);
     return source ? [source] : [];
   }) ?? [];
-  const pendingDeleteModel = MODEL_REGISTRY.find((model) => model.id === pendingDeleteModelId) ?? null;
+  const pendingDeleteModel = availableModels.find((model) => model.id === pendingDeleteModelId) ?? null;
   const pendingDeleteSummary = cacheSummaries.find((model) => model.modelId === pendingDeleteModelId);
   const pendingDeleteBytes = pendingDeleteSummary?.state === "partial" ? pendingDeleteSummary.resumableBytes : pendingDeleteSummary?.totalBytes;
   const modelCompatibility = getModelCompatibility(capabilities, selectedModel);
@@ -200,6 +203,17 @@ export function SophonWorkbench() {
   const storageReconciliationBlocked = startupCleanupStatus === "cleaning" || startupCleanupStatus === "failed";
 
   useDocumentScrollLock(blockingDialogOpen, dialogScrollSnapshotRef);
+
+  useEffect(() => {
+    if (productTestState !== null) return;
+    let active = true;
+    void listSavedCommunityModelDescriptors()
+      .then((descriptors) => {
+        if (active) setCommunityModels(descriptors.map(communityDescriptorToManifest));
+      })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [productTestState]);
 
   useEffect(() => {
     if (!PRODUCT_TESTING_BUILD) return;
@@ -454,8 +468,15 @@ export function SophonWorkbench() {
     setGeneration({ status: "idle" });
   }
 
+  function addCommunityModel(descriptor: CommunityModelDescriptor) {
+    const model = communityDescriptorToManifest(descriptor);
+    setCommunityModels((current) => current.some((entry) => entry.id === model.id) ? current : [...current, model]);
+    setLibraryModelId(model.id);
+    requestModelAction(model.id);
+  }
+
   function chooseLibraryModel(nextModelId: string) {
-    const target = MODEL_REGISTRY.find((model) => model.id === nextModelId);
+    const target = availableModels.find((model) => model.id === nextModelId);
     if (!target) return;
     const cache = cacheSummaries.find((model) => model.modelId === nextModelId);
     if (cache?.state === "cached") {
@@ -472,7 +493,7 @@ export function SophonWorkbench() {
   }
 
   function requestModelDownload(nextModelId: string) {
-    const target = MODEL_REGISTRY.find((model) => model.id === nextModelId);
+    const target = availableModels.find((model) => model.id === nextModelId);
     if (!target) return;
     const cache = cacheSummaries.find((model) => model.modelId === nextModelId);
     if (cache?.state === "cached") {
@@ -611,7 +632,7 @@ export function SophonWorkbench() {
   }
 
   function requestDeleteModelDownload(targetModelId: string) {
-    if (!MODEL_REGISTRY.some((model) => model.id === targetModelId)) return;
+    if (!availableModels.some((model) => model.id === targetModelId)) return;
     modelDeleteTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     modelDeleteFromMobileRef.current = modelSidebarOpen;
     captureDialogScrollSnapshot(dialogScrollSnapshotRef);
@@ -640,7 +661,7 @@ export function SophonWorkbench() {
   }
 
   async function deleteModelDownload(targetModelId: string) {
-    const target = MODEL_REGISTRY.find((model) => model.id === targetModelId);
+    const target = availableModels.find((model) => model.id === targetModelId);
     if (!target) return false;
     setDeletingModelId(targetModelId);
     setError(null);
@@ -904,8 +925,8 @@ export function SophonWorkbench() {
             ) : null}
             {modelReady ? (
               <ToggleGroup aria-label="Interface mode" className="h-10 gap-0 rounded-xl border border-sophon-glass-border bg-sophon-panel-deep p-0.5 shadow-[inset_0_1px_0_var(--sophon-glass-highlight)]" data-mode={interfaceMode} data-testid="interface-mode-toggle" onValueChange={(value) => { if (value === "chat" || value === "developer") setInterfaceMode(value); }} type="single" value={interfaceMode}>
-                <ToggleGroupItem aria-label="Chat mode" className="size-9 rounded-xl p-0 text-sophon-copy-metadata transition-colors duration-150 hover:bg-sophon-glass-tile hover:text-sophon-copy-primary data-[state=on]:bg-sophon-signal data-[state=on]:text-white data-[state=on]:shadow-[0_0_12px_var(--sophon-signal-shadow)]" title="Chat mode" value="chat"><MessageCircle aria-hidden="true" className="size-4" /><span className="sr-only">Chat</span></ToggleGroupItem>
-                <ToggleGroupItem aria-label="Developer mode" className="size-9 rounded-xl p-0 text-sophon-copy-metadata transition-colors duration-150 hover:bg-sophon-glass-tile hover:text-sophon-copy-primary data-[state=on]:bg-sophon-signal data-[state=on]:text-white data-[state=on]:shadow-[0_0_12px_var(--sophon-signal-shadow)]" title="Developer mode" value="developer"><Code2 aria-hidden="true" className="size-4" /><span className="sr-only">Developer</span></ToggleGroupItem>
+                <ToggleGroupItem aria-label="Chat mode" className="size-9 rounded-lg bg-transparent p-0 text-sophon-copy-metadata shadow-[inset_0_0_0_1px_var(--sophon-glass-border)] data-[state=on]:bg-sophon-signal data-[state=on]:text-white data-[state=on]:shadow-none" title="Chat mode" value="chat"><MessageCircle aria-hidden="true" className="size-4" /><span className="sr-only">Chat</span></ToggleGroupItem>
+                <ToggleGroupItem aria-label="Developer mode" className="size-9 rounded-lg bg-transparent p-0 text-sophon-copy-metadata shadow-[inset_0_0_0_1px_var(--sophon-glass-border)] data-[state=on]:bg-sophon-signal data-[state=on]:text-white data-[state=on]:shadow-none" title="Developer mode" value="developer"><Code2 aria-hidden="true" className="size-4" /><span className="sr-only">Developer</span></ToggleGroupItem>
               </ToggleGroup>
             ) : null}
             <SophonAcknowledgements className="size-10 rounded-xl p-0 sm:!size-10" compact />
@@ -917,7 +938,7 @@ export function SophonWorkbench() {
         <div aria-atomic="true" aria-live="polite" className="sr-only" role="status">{runtimeStatus.label}</div>
 
         <div className={cn("flex flex-1", selectedModel ? "min-h-0" : "min-h-fit")}>
-          <SophonModelSidebar activeModelId={modelId} cacheSummaries={cacheSummaries} capabilities={capabilities} deletingModelId={deletingModelId} disabled={isRunning || replacingModel || storageReconciliationBlocked} downloadPercent={downloadPercent} downloadPercentLabel={downloadPercentLabel} inspectMetrics={hoveredInspectMetrics} inspectMode={developerMode} inspectDisplayMode={inspectDisplayMode} loadedModelId={loadedModelId} loading={isModelLoading} loadingLabel={downloadStatus} mobileOpen={modelSidebarOpen} modelId={libraryModelId} onDelete={requestDeleteModelDownload} onDownload={requestModelDownload} onHoverModelChange={setHoveredModelId} onInspectDisplayModeChange={setInspectDisplayMode} onMobileOpenChange={setModelSidebarOpen} onSelect={chooseLibraryModel} recommendedModelId={RECOMMENDED_MODEL_ID} />
+          <SophonModelSidebar activeModelId={modelId} cacheSummaries={cacheSummaries} capabilities={capabilities} communityModels={communityModels} deletingModelId={deletingModelId} disabled={isRunning || replacingModel || storageReconciliationBlocked} downloadPercent={downloadPercent} downloadPercentLabel={downloadPercentLabel} inspectMetrics={hoveredInspectMetrics} inspectMode={developerMode} inspectDisplayMode={inspectDisplayMode} loadedModelId={loadedModelId} loading={isModelLoading} loadingLabel={downloadStatus} mobileOpen={modelSidebarOpen} modelId={libraryModelId} onCommunityModelAdded={addCommunityModel} onDelete={requestDeleteModelDownload} onDownload={requestModelDownload} onHoverModelChange={setHoveredModelId} onInspectDisplayModeChange={setInspectDisplayMode} onMobileOpenChange={setModelSidebarOpen} onSelect={chooseLibraryModel} recommendedModelId={RECOMMENDED_MODEL_ID} />
           <section aria-busy={isBusy} aria-label="Conversation" className={cn("sophon-reveal sophon-reveal-workspace relative flex min-w-0 flex-1 flex-col", selectedModel && "h-full min-h-0")}>
             <div className={cn("flex-1", selectedModel ? "min-h-0 overflow-y-auto overscroll-contain" : "overflow-visible")} data-testid="conversation-scroll">
               <div className="mx-auto flex min-w-0 w-full max-w-6xl flex-col px-4 py-6 sm:px-12 sm:py-9">
@@ -932,7 +953,6 @@ export function SophonWorkbench() {
                         notice={notice}
                         onDismissNotice={() => setNotice(null)}
                         onOpenModels={() => setModelSidebarOpen(true)}
-                        onSelectRecommended={() => requestModelDownload(RECOMMENDED_MODEL_ID)}
                       />
                     ) : (
                       <FirstRunCheck
@@ -1194,7 +1214,7 @@ function FirstRunCheck({ error, onRetry, status }: {
   );
 }
 
-function FirstRunWelcome({ cacheState, compatibility, mobileProfile, model, notice, onDismissNotice, onOpenModels, onSelectRecommended }: {
+function FirstRunWelcome({ compatibility, notice, onDismissNotice, onOpenModels }: {
   cacheState?: ModelCacheSummary["state"];
   compatibility: ReturnType<typeof getModelCompatibility>;
   mobileProfile: boolean;
@@ -1202,20 +1222,7 @@ function FirstRunWelcome({ cacheState, compatibility, mobileProfile, model, noti
   notice: string | null;
   onDismissNotice: () => void;
   onOpenModels: () => void;
-  onSelectRecommended: () => void;
 }) {
-  const canStart = compatibility === "compatible";
-  const modelName = model.label.split(" · ")[0];
-  const primaryLabel = cacheState === "cached"
-    ? `Use ${modelName}`
-    : cacheState === "partial"
-      ? "Continue model download"
-      : "Download recommended model";
-  const compactPrimaryLabel = cacheState === "cached"
-    ? "Use model"
-    : cacheState === "partial"
-      ? "Continue download"
-      : "Download";
 
   return (
     <section aria-labelledby="first-run-title" className="mx-auto w-full max-w-3xl" data-testid="first-run-welcome">
@@ -1233,7 +1240,7 @@ function FirstRunWelcome({ cacheState, compatibility, mobileProfile, model, noti
           </div>
           <h2 className="max-w-2xl font-serif text-[2rem] leading-[1.02] tracking-[-0.025em] text-sophon-copy-primary sm:text-[2.25rem] lg:text-[2.75rem]" id="first-run-title">Multilingual AI that runs locally</h2>
           <p className="sophon-type-body mt-2 max-w-2xl text-sophon-copy-body" data-typography-role="body">
-            Sophon is an open-source web tool for running Tiny Aya models locally with WebGPU. No account is needed, and your prompts and responses are not sent to an inference server.
+            Search Hugging Face ONNX Community models, then run a compatible model locally with WebGPU. No account is needed, and your prompts and responses are not sent to an inference server.
           </p>
 
           <div className="mt-4 rounded-xl border border-sophon-glass-border bg-sophon-glass-tile p-3 sm:grid sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:gap-3" data-testid="first-run-recommended">
@@ -1242,24 +1249,21 @@ function FirstRunWelcome({ cacheState, compatibility, mobileProfile, model, noti
             </span>
             <div className="mt-3 min-w-0 sm:mt-0" data-testid="first-run-recommended-details">
               <div className="flex flex-wrap items-center gap-1.5">
-                <h3 className="text-base font-semibold text-sophon-copy-primary">{modelName}</h3>
-                <span aria-label={mobileProfile ? "Mobile mode" : "Recommended model"} className="sophon-verified-emphasis grid size-4 place-items-center rounded-full bg-sophon-verified-bright text-sophon-on-verified" title={mobileProfile ? "Mobile mode" : "Recommended model"}>
+                <h3 className="text-base font-semibold text-sophon-copy-primary">Hugging Face ONNX Community</h3>
+                <span aria-label="Community model search" className="sophon-verified-emphasis grid size-4 place-items-center rounded-full bg-sophon-verified-bright text-sophon-on-verified" title="Community model search">
                   <Sparkles aria-hidden="true" className="size-2.5" />
                 </span>
               </div>
-              <p className="sophon-type-metadata mt-1 text-sophon-copy-metadata" data-typography-role="metadata">Global multilingual model · {model.format.sizeLabel}{mobileProfile ? " · 2K context" : ""}</p>
+              <p className="sophon-type-metadata mt-1 text-sophon-copy-metadata" data-typography-role="metadata">Search by model name, family, architecture, or base model.</p>
             </div>
             <Button
-              aria-label={compatibility === "probing" ? "Checking browser compatibility" : compatibility === "incompatible" ? "Browser GPU unavailable" : primaryLabel}
+              aria-label="Search Hugging Face ONNX Community"
               className="sophon-accent-surface mt-3 h-11 w-full shrink-0 rounded-lg px-3 sm:mt-0 sm:w-auto"
               data-testid="first-run-primary"
-              disabled={!canStart}
-              onClick={onSelectRecommended}
+              onClick={onOpenModels}
               type="button"
             >
-              {compatibility === "probing" ? <><LoaderCircle aria-hidden="true" className="animate-spin motion-reduce:animate-none" /> Checking browser…</>
-                : compatibility === "incompatible" ? "Browser GPU unavailable"
-                  : <><Download aria-hidden="true" /><span>{compactPrimaryLabel}</span></>}
+              <><Search aria-hidden="true" /><span>Search models</span></>
             </Button>
           </div>
           {compatibility === "incompatible" ? (
@@ -1284,17 +1288,17 @@ function FirstRunWelcome({ cacheState, compatibility, mobileProfile, model, noti
               </span>
               <span className="min-w-0">
                 <span className="block text-sm font-medium text-sophon-copy-primary">Download once</span>
-                <span className="sophon-type-metadata mt-0.5 block text-sophon-copy-metadata" data-typography-role="metadata">About {model.format.sizeLabel.replace("~", "")}, then reused on future visits.</span>
+                <span className="sophon-type-metadata mt-0.5 block text-sophon-copy-metadata" data-typography-role="metadata">Choose a compatible model and confirm its exact download size.</span>
               </span>
             </div>
           </div>
           <div className="sophon-type-metadata mt-3 flex flex-wrap items-center gap-x-1.5 gap-y-1 border-t border-sophon-glass-border pt-3 text-sophon-copy-metadata" data-typography-role="metadata">
             <span>Open weights</span>
             <span aria-hidden="true">·</span>
-            <span>{model.licenseLabel}</span>
+            <span>Model-specific licenses</span>
             <span aria-hidden="true">·</span>
             <span>Stores one model locally</span>
-            <Button className="h-11 rounded-lg px-2.5 sm:h-8 lg:hidden" onClick={onOpenModels} size="sm" type="button" variant="sophon">Compare all {MODEL_REGISTRY.length} models</Button>
+            <Button className="h-11 rounded-lg px-2.5 sm:h-8 lg:hidden" onClick={onOpenModels} size="sm" type="button" variant="sophon">Browse models</Button>
           </div>
           <nav aria-label="First-run resources" className="mt-3 flex items-center justify-between gap-3 border-t border-sophon-glass-border pt-3" data-testid="first-run-trust-nav">
             <p className="sophon-type-decorative shrink-0 font-mono font-semibold uppercase tracking-[0.1em] text-sophon-copy-decorative" data-typography-role="decorative">Resources</p>

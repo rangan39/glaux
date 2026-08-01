@@ -13,21 +13,28 @@ import {
 } from "@/lib/model-delivery/opfs-store";
 import type { ArtifactDownloadState } from "@/lib/model-delivery/range-downloader";
 import type { ModelCacheSummary } from "@/lib/onnx-types";
+import { listSavedCommunityModelDescriptors } from "@/lib/model-catalog/descriptor-store";
+import { getCommunityModelCacheSummary } from "@/lib/model-delivery/community-delivery";
 
 const TRANSFORMERS_CACHE_NAME = "transformers-cache";
 
 export async function getModelCacheStatus(): Promise<ModelCacheSummary[]> {
+  const communityDescriptors = await listSavedCommunityModelDescriptors().catch(() => []);
+  const community = Promise.all(communityDescriptors.map(getCommunityModelCacheSummary));
   if (!supportsPersistentModelDelivery()) {
-    return MODEL_DELIVERY_MANIFESTS.map((model) => ({
+    return [...MODEL_DELIVERY_MANIFESTS.map((model): ModelCacheSummary => ({
       modelId: model.modelId,
       state: "missing",
       resumableBytes: 0,
       verifiedBytes: 0,
       totalBytes: getManifestBytes(model)
-    }));
+    })), ...await community];
   }
   const states = await getAllArtifactStates();
-  return Promise.all(MODEL_DELIVERY_MANIFESTS.map((model) => inspectModelCache(model, states)));
+  return [
+    ...await Promise.all(MODEL_DELIVERY_MANIFESTS.map((model) => inspectModelCache(model, states))),
+    ...await community
+  ];
 }
 
 export async function inspectModelCache(

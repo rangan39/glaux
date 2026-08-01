@@ -1,5 +1,4 @@
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
-import type { ModelDeliveryArtifact, ModelDeliveryManifest } from "@/lib/model-delivery/manifest";
 import type { ArtifactDownloadState, ArtifactStateStore, PositionedFile } from "@/lib/model-delivery/range-downloader";
 import {
   ModelDeliveryUnavailableError,
@@ -28,6 +27,9 @@ export type OpenArtifactFile = {
   close: () => void;
 };
 
+type StoredModel = { modelId: string; revision: string };
+type StoredArtifact = { externalPath: string };
+
 let databasePromise: Promise<IDBPDatabase<DeliveryDatabase>> | null = null;
 
 export function supportsPersistentModelDelivery() {
@@ -42,7 +44,7 @@ export async function getAllArtifactStates() {
   return (await getDatabase()).getAll("artifacts");
 }
 
-export async function getArtifactFileSize(model: ModelDeliveryManifest, artifact: ModelDeliveryArtifact) {
+export async function getArtifactFileSize(model: StoredModel, artifact: StoredArtifact) {
   if (!supportsPersistentModelDelivery()) return 0;
   try {
     const root = await navigator.storage.getDirectory();
@@ -58,7 +60,7 @@ export async function getArtifactFileSize(model: ModelDeliveryManifest, artifact
   }
 }
 
-export async function deleteModelStorage(model: ModelDeliveryManifest) {
+export async function deleteModelStorage(model: StoredModel) {
   if (supportsPersistentModelDelivery()) {
     try {
       const root = await navigator.storage.getDirectory();
@@ -139,7 +141,7 @@ export async function commitArtifactStates(states: readonly ArtifactDownloadStat
   }
 }
 
-export async function openArtifactFile(model: ModelDeliveryManifest, artifact: ModelDeliveryArtifact): Promise<OpenArtifactFile> {
+export async function openArtifactFile(model: StoredModel, artifact: StoredArtifact): Promise<OpenArtifactFile> {
   if (!supportsPersistentModelDelivery()) throw new ModelDeliveryUnavailableError("Persistent model storage is unavailable in this browser.");
   try {
     const root = await navigator.storage.getDirectory();

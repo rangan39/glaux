@@ -2,7 +2,7 @@ import type { HardwareTier } from "@/lib/browser-runtime";
 
 export type ModelProvider = "webgpu" | "wasm";
 export type ModelVerification = "verified" | "experimental";
-export type ModelFamily = "cohere";
+export type ModelFamily = "cohere" | "community";
 export type { HardwareTier } from "@/lib/browser-runtime";
 
 type LocalModelSource = {
@@ -120,4 +120,43 @@ export function requireModelDefinition(id: string) {
   const model = MODEL_REGISTRY.find((candidate) => candidate.id === id);
   if (!model) throw new Error(`Unknown model identifier: ${id}`);
   return model;
+}
+
+export async function resolveModelDefinition(id: string): Promise<ModelManifest> {
+  const bundled = MODEL_REGISTRY.find((candidate) => candidate.id === id);
+  if (bundled) return bundled;
+  if (!id.startsWith("hf:")) throw new Error(`Unknown model identifier: ${id}`);
+  const { getSavedCommunityModelDescriptor } = await import("@/lib/model-catalog/descriptor-store");
+  const descriptor = await getSavedCommunityModelDescriptor(id);
+  if (!descriptor) throw new Error(`The community model descriptor is missing or invalid: ${id}`);
+  return communityDescriptorToManifest(descriptor);
+}
+
+export function communityDescriptorToManifest(
+  descriptor: import("@/lib/model-catalog/types").CommunityModelDescriptor
+): ModelManifest {
+  return {
+    id: descriptor.id,
+    label: descriptor.name,
+    family: "community",
+    description: `ONNX Community model pinned to ${descriptor.source.revision.slice(0, 8)}.`,
+    licenseLabel: descriptor.metadata.license ?? "License not specified",
+    parameterLabel: "Community",
+    verification: "experimental",
+    source: descriptor.source,
+    format: {
+      quantization: descriptor.format.dtype,
+      sizeLabel: formatModelBytes(descriptor.format.totalBytes),
+      sizeBytes: descriptor.format.totalBytes,
+      contextLength: null
+    },
+    runtime: { maxNewTokens: 128, mobileContextLength: 2048, mobileMaxNewTokens: 64 },
+    providers: ["webgpu"]
+  };
+}
+
+function formatModelBytes(bytes: number) {
+  return bytes >= 1024 ** 3
+    ? `${(bytes / 1024 ** 3).toFixed(2)} GB`
+    : `${Math.max(1, Math.round(bytes / 1024 ** 2))} MB`;
 }

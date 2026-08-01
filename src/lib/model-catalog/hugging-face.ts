@@ -83,18 +83,7 @@ export async function fetchOnnxCommunityCatalog(
 ): Promise<CommunityModelCatalogPage> {
   const url = buildOnnxCommunityCatalogUrl(query);
   const response = await request(url, query.signal, fetcher);
-  const payload = await readJson(response);
-  if (!Array.isArray(payload)) throw invalidResponse("The Hugging Face model catalog returned a non-list response.");
-  if (payload.length > MAX_PAGE_SIZE) throw invalidResponse("The Hugging Face model catalog exceeded the requested page limit.");
-
-  const seen = new Set<string>();
-  const models = payload.flatMap((entry) => {
-    const model = normalizeCommunityModelSummary(entry);
-    if (!model || model.gated || model.private || seen.has(model.repo)) return [];
-    seen.add(model.repo);
-    return [model];
-  });
-  return { models, nextCursor: readNextCursor(response.headers.get("link")) };
+  return readCatalogPage(response, "catalog");
 }
 
 export async function fetchOnnxCommunityIndexPage(
@@ -102,9 +91,13 @@ export async function fetchOnnxCommunityIndexPage(
   fetcher: CatalogFetch = globalThis.fetch as CatalogFetch
 ): Promise<CommunityModelCatalogPage> {
   const response = await request(buildOnnxCommunityIndexUrl(query), query.signal, fetcher);
+  return readCatalogPage(response, "index");
+}
+
+async function readCatalogPage(response: Response, source: "catalog" | "index"): Promise<CommunityModelCatalogPage> {
   const payload = await readJson(response);
-  if (!Array.isArray(payload)) throw invalidResponse("The Hugging Face model index returned a non-list response.");
-  if (payload.length > MAX_PAGE_SIZE) throw invalidResponse("The Hugging Face model index exceeded the requested page limit.");
+  if (!Array.isArray(payload)) throw invalidResponse(`The Hugging Face model ${source} returned a non-list response.`);
+  if (payload.length > MAX_PAGE_SIZE) throw invalidResponse(`The Hugging Face model ${source} exceeded the requested page limit.`);
   const seen = new Set<string>();
   const models = payload.flatMap((entry) => {
     const model = normalizeCommunityModelSummary(entry);
@@ -166,7 +159,7 @@ export async function fetchOnnxCommunityModelDetails(
   };
 }
 
-export function normalizeCommunityModelSummary(value: unknown): CommunityModelSummary | null {
+function normalizeCommunityModelSummary(value: unknown): CommunityModelSummary | null {
   if (!isRecord(value)) return null;
   const repo = normalizeOptionalString(value.id, 180);
   if (!repo || !REPOSITORY_PATTERN.test(repo)) return null;

@@ -24,6 +24,7 @@ interface CommunityCatalogDatabase extends DBSchema {
 
 let databasePromise: Promise<IDBPDatabase<CommunityCatalogDatabase>> | null = null;
 let refreshPromise: Promise<void> | null = null;
+let cachedModelsPromise: Promise<CommunityModelSummary[]> | null = null;
 const listeners = new Set<() => void>();
 
 export function subscribeCommunityCatalogIndex(listener: () => void) {
@@ -38,7 +39,7 @@ export async function refreshCommunityCatalogIndex() {
 
 export async function searchCommunityCatalogIndex(query: string, limit = 8) {
   const database = await getDatabase();
-  const entries = await database.getAll(MODEL_STORE);
+  const entries = await (cachedModelsPromise ??= database.getAll(MODEL_STORE));
   const terms = normalizeSearch(query).split(" ").filter(Boolean);
   return entries
     .filter(isDiscoverableTextModel)
@@ -64,6 +65,7 @@ async function runRefresh() {
     await reset.objectStore(MODEL_STORE).clear();
     await reset.objectStore(STATE_STORE).delete(SYNC_KEY);
     await reset.done;
+    cachedModelsPromise = null;
     state = undefined;
   }
 
@@ -80,6 +82,7 @@ async function runRefresh() {
       refreshedAt: now
     });
     await transaction.done;
+    cachedModelsPromise = null;
     for (const listener of listeners) listener();
     if (cursor === null) return;
   }

@@ -7,7 +7,7 @@ import type {
 } from "@/lib/model-catalog/types";
 import { ONNX_COMMUNITY_LIBRARY, ONNX_COMMUNITY_TASK } from "@/lib/model-catalog/types";
 
-export const DEFAULT_COMMUNITY_MODEL_SIZE_LIMIT = 8 * 1024 ** 3;
+const DEFAULT_COMMUNITY_MODEL_SIZE_LIMIT = 8 * 1024 ** 3;
 
 // Mirrors the text-only causal-LM mappings in @huggingface/transformers 4.2.
 // Review this contract whenever the runtime dependency is upgraded.

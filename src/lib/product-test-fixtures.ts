@@ -1,7 +1,7 @@
 import type { OnnxInputToken, OnnxToken } from "@/lib/onnx-types";
 
-export const PRODUCT_TEST_QUERY_KEY = "sophon-product-test";
-export const PRODUCT_TEST_MODEL_QUERY_KEY = "sophon-product-model";
+const PRODUCT_TEST_QUERY_KEY = "sophon-product-test";
+const PRODUCT_TEST_MODEL_QUERY_KEY = "sophon-product-model";
 export const PRODUCT_TEST_MODEL_IDS = [
   "tiny-aya-global",
   "tiny-aya-earth",

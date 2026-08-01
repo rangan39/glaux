@@ -57,11 +57,11 @@ export class InsufficientModelStorageError extends Error {
   }
 }
 
-export function isStorageQuotaError(error: unknown) {
+function isStorageQuotaError(error: unknown) {
   return error instanceof DOMException && error.name === "QuotaExceededError";
 }
 
-export function isCacheStorageWriteError(error: unknown) {
+function isCacheStorageWriteError(error: unknown) {
   return error instanceof Error
     && /Cache\.put\(\) encountered a network error/i.test(error.message);
 }

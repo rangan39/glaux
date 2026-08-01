@@ -109,7 +109,7 @@ export class RangeContractError extends Error {
   }
 }
 
-export class RetryableRangeError extends Error {
+class RetryableRangeError extends Error {
   readonly status?: number;
   readonly retryAfterMs: number;
 
@@ -119,10 +119,6 @@ export class RetryableRangeError extends Error {
     this.status = status;
     this.retryAfterMs = retryAfterMs;
   }
-}
-
-export function markArtifactVerifiedThisSession(key: string) {
-  verifiedThisSession.add(key);
 }
 
 export function getRangeDownloadProfile(

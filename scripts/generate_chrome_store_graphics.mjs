@@ -77,7 +77,7 @@ async function renderGraphic(width, height, output, layout) {
         <rect x="6" y="6" width="116" height="116" rx="24" fill="url(#brand)"/>
         <path d="M91 28H39L66 63 38 100h55V85H67l20-23-19-20h23V28Z" fill="#210b07"/>
       </g>
-      <text x="${layout.titleX}" y="${layout.titleY}" fill="#fff" font-family="Arial, Helvetica, sans-serif" font-size="${layout.titleSize}" font-weight="700" letter-spacing="${layout.titleSize * 0.08}">SOPHON</text>
+      <text x="${layout.titleX}" y="${layout.titleY}" fill="#fff" font-family="Arial, Helvetica, sans-serif" font-size="${layout.titleSize}" font-weight="700" letter-spacing="${layout.titleSize * 0.08}">GLAUX</text>
       <text x="${layout.subtitleX}" y="${layout.subtitleY}" fill="#ff9c87" font-family="Arial, Helvetica, sans-serif" font-size="${layout.subtitleSize}" font-weight="700" letter-spacing="${layout.subtitleSize * 0.13}">PRIVATE LOCAL AI</text>
       <text x="${layout.messageX}" y="${layout.messageY}" fill="#f4f0e9" font-family="Arial, Helvetica, sans-serif" font-size="${layout.messageSize}" font-weight="600">Multilingual AI. On your device.</text>
       <text x="${layout.detailX}" y="${layout.detailY}" fill="#f4f0e9" fill-opacity=".62" font-family="Arial, Helvetica, sans-serif" font-size="${layout.detailSize}">No account · No cloud inference · WebGPU</text>

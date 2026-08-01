@@ -1,6 +1,6 @@
 # Dependency audit policy
 
-Sophon treats production and development dependency findings separately because
+Glaux treats production and development dependency findings separately because
 only production dependencies can be bundled into the web application or Chrome
 extension.
 
@@ -26,7 +26,7 @@ the ESLint toolchain. The affected paths are development-only:
 - `eslint-plugin-react` → `minimatch@3` → `brace-expansion@1`
 
 The advisory is an availability risk: an attacker-controlled, extremely large
-brace expression can exhaust memory during glob expansion. Sophon runs ESLint
+brace expression can exhaust memory during glob expansion. Glaux runs ESLint
 with a fixed repository command and fixed configuration; it does not accept glob
 patterns from application users. These packages are not present in the
 production dependency audit and are not shipped in the extension.

@@ -115,7 +115,7 @@ export function terminateRuntimeWorker() {
 function getWorker() {
   if (runtimeWorker) return runtimeWorker;
   if (typeof window === "undefined" || typeof Worker === "undefined") {
-    throw new Error("Sophon requires Web Worker support for local inference.");
+    throw new Error("Glaux requires Web Worker support for local inference.");
   }
   runtimeWorker = new Worker(new URL("../workers/onnx-worker.ts", import.meta.url), { type: "module" });
   runtimeWorker.onmessage = (message: MessageEvent<unknown>) => {

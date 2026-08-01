@@ -28,8 +28,8 @@ await Promise.all([
 
 await run(process.execPath, [nextBin, "build"], {
   ...process.env,
-  SOPHON_CHROME_EXTENSION: "1",
-  NEXT_PUBLIC_SOPHON_CHROME_EXTENSION: "1"
+  GLAUX_CHROME_EXTENSION: "1",
+  NEXT_PUBLIC_GLAUX_CHROME_EXTENSION: "1"
 });
 
 await cp(exportDir, extensionDir, { recursive: true });

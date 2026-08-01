@@ -2,8 +2,8 @@
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
 
-const baseUrl = process.env.SOPHON_SMOKE_URL ?? "http://localhost:3000";
-const timeoutMs = Number(process.env.SOPHON_SMOKE_TIMEOUT_MS ?? 30_000);
+const baseUrl = process.env.GLAUX_SMOKE_URL ?? "http://localhost:3000";
+const timeoutMs = Number(process.env.GLAUX_SMOKE_TIMEOUT_MS ?? 30_000);
 const states = [
   "checking",
   "legacy-cleanup",
@@ -35,7 +35,7 @@ const modelThemes = [
   { id: "tiny-aya-global", name: "Global", theme: "global", signal: "#111", canvas: "#f7f7f6" }
 ];
 
-assert.ok(Number.isFinite(timeoutMs) && timeoutMs > 0, "SOPHON_SMOKE_TIMEOUT_MS must be a positive number.");
+assert.ok(Number.isFinite(timeoutMs) && timeoutMs > 0, "GLAUX_SMOKE_TIMEOUT_MS must be a positive number.");
 
 const browser = await chromium.launch({ headless: true });
 try {
@@ -218,10 +218,10 @@ async function assertState(page, state, viewport) {
   }
   if (state === "ready" || state === "retry-success") {
     await assertVisible(page.getByRole("article", { name: "Message from you" }), "representative user message");
-    const assistant = page.getByRole("article", { name: "Message from Sophon" }).filter({ hasText: "Recommendation" });
+    const assistant = page.getByRole("article", { name: "Message from Glaux" }).filter({ hasText: "Recommendation" });
     await assertVisible(assistant, "representative assistant message");
     await assertVisible(assistant.getByText(/local-only:\/\/review/), "long markdown fixture");
-    const textarea = page.getByRole("textbox", { name: "Message Sophon", exact: true });
+    const textarea = page.getByRole("textbox", { name: "Message Glaux", exact: true });
     await assertVisible(textarea, "ready composer");
     assert.equal(await textarea.isEnabled(), true, "The prompt must unlock when the selected model is ready.");
     await assertHeaderStatus(page, "Model ready", "text-sophon-verified");
@@ -231,7 +231,7 @@ async function assertState(page, state, viewport) {
     return;
   }
   if (state === "generating") {
-    const response = page.getByRole("article", { name: "Sophon is responding", exact: true });
+    const response = page.getByRole("article", { name: "Glaux is responding", exact: true });
     await assertVisible(response, "streaming response");
     await assertVisible(response.getByRole("button", { name: "Stop generation", exact: true }), "stop action");
     return;
@@ -276,7 +276,7 @@ async function assertInterfaceModes(page, assistant, viewport) {
   assert.equal(await inspectors.count(), 0, `${viewport.name} Chat mode must hide token inspection controls.`);
   assert.equal(await assistant.getByText(/8\.4 tokens\/s/).count(), 0, `${viewport.name} Chat mode must hide response metrics.`);
   await assertVisible(
-    page.getByRole("article", { name: "Message from Sophon" }).filter({ hasText: "no server inference" }),
+    page.getByRole("article", { name: "Message from Glaux" }).filter({ hasText: "no server inference" }),
     `${viewport.name} Chat mode privacy metadata`
   );
 
@@ -505,7 +505,7 @@ async function assertCompleteComposerMetadata(page, state) {
 }
 
 async function assertPromptLocked(page, state) {
-  const textarea = page.getByRole("textbox", { name: "Message Sophon", exact: true });
+  const textarea = page.getByRole("textbox", { name: "Message Glaux", exact: true });
   await assertVisible(textarea, `${state} prompt`);
   assert.equal(await textarea.isDisabled(), true, `The prompt must stay disabled while the model is ${state}.`);
   assert.equal(
@@ -518,7 +518,7 @@ async function assertPromptLocked(page, state) {
 async function assertMobileComposerGeometry(page, viewport, state) {
   const conversation = page.getByTestId("conversation-scroll");
   const composer = page.getByTestId("composer-panel");
-  const textarea = page.getByRole("textbox", { name: "Message Sophon", exact: true });
+  const textarea = page.getByRole("textbox", { name: "Message Glaux", exact: true });
   const [conversationBox, composerBox, textareaLayout] = await Promise.all([
     conversation.boundingBox(),
     composer.boundingBox(),

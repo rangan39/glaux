@@ -2,8 +2,8 @@
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
 
-const url = process.env.SOPHON_SMOKE_URL ?? "http://localhost:3000";
-const timeoutMs = Number(process.env.SOPHON_SMOKE_TIMEOUT_MS ?? 30_000);
+const url = process.env.GLAUX_SMOKE_URL ?? "http://localhost:3000";
+const timeoutMs = Number(process.env.GLAUX_SMOKE_TIMEOUT_MS ?? 30_000);
 const viewports = [
   { width: 320, height: 800 },
   { width: 390, height: 844 },
@@ -30,7 +30,7 @@ try {
     await trustNav.waitFor({ state: "visible", timeout: timeoutMs });
     await privacyLink.scrollIntoViewIfNeeded();
     assert.equal(await privacyLink.getAttribute("href"), "/privacy");
-    assert.equal(await supportLink.getAttribute("href"), "https://github.com/rangan39/sophon/issues");
+    assert.equal(await supportLink.getAttribute("href"), "https://github.com/rangan39/glaux/issues");
     assert.equal(await supportLink.getAttribute("target"), "_blank");
 
     for (const [control, label] of [
@@ -56,7 +56,7 @@ try {
     }
 
     await aboutButton.click();
-    const aboutDialog = page.getByRole("dialog", { name: "About Sophon", exact: true });
+    const aboutDialog = page.getByRole("dialog", { name: "About Glaux", exact: true });
     await aboutDialog.waitFor({ state: "visible", timeout: timeoutMs });
     assert.equal(
       await aboutDialog.getByRole("link", { name: /Privacy policy.*Local data and network requests/ }).getAttribute("href"),
@@ -72,7 +72,7 @@ try {
     );
     assert.equal(
       await aboutDialog.getByRole("link", { name: /Project support.*opens in a new tab/ }).getAttribute("href"),
-      "https://github.com/rangan39/sophon/issues"
+      "https://github.com/rangan39/glaux/issues"
     );
     const panelBox = await aboutDialog.getByTestId("acknowledgements-panel").boundingBox();
     assert.ok(
@@ -101,7 +101,7 @@ try {
   const privacyPage = await context.newPage();
   await privacyPage.goto(new URL("/privacy", url).toString(), { waitUntil: "domcontentloaded" });
   await privacyPage.getByRole("heading", { name: "Privacy Policy", exact: true }).waitFor({ state: "visible", timeout: timeoutMs });
-  assert.equal(await privacyPage.getByRole("link", { name: "← Back to Sophon", exact: true }).getAttribute("href"), "/");
+  assert.equal(await privacyPage.getByRole("link", { name: "← Back to Glaux", exact: true }).getAttribute("href"), "/");
   assert.equal(
     await privacyPage.getByRole("link", { name: /public support tracker.*opens in a new tab/ }).getAttribute("target"),
     "_blank"
@@ -109,7 +109,7 @@ try {
   await privacyPage.close();
 
   console.log("✓ Trust, legal, and support navigation passes at 320, 390, 716, and 1440 px");
-  console.log("✓ Hosted privacy navigation preserves a path back to Sophon");
+  console.log("✓ Hosted privacy navigation preserves a path back to Glaux");
 } finally {
   await browser?.close();
 }

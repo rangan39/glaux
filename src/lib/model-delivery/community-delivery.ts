@@ -346,7 +346,7 @@ async function downloadArtifact(
     });
   } catch (error) {
     if (error instanceof RangeDeliveryUnavailableError) {
-      throw new ModelDeliveryUnavailableError("The model host cannot provide the strong, resumable byte ranges Sophon requires.", { cause: error });
+      throw new ModelDeliveryUnavailableError("The model host cannot provide the strong, resumable byte ranges Glaux requires.", { cause: error });
     }
     throw error;
   } finally {

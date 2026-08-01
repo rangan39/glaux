@@ -2,9 +2,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
-const chromeExtensionBuild = process.env.SOPHON_CHROME_EXTENSION === "1";
+const chromeExtensionBuild = process.env.GLAUX_CHROME_EXTENSION === "1";
 const productTestingBuild = process.env.NODE_ENV === "development"
-  && process.env.SOPHON_PRODUCT_TESTING === "1"
+  && process.env.GLAUX_PRODUCT_TESTING === "1"
   && !chromeExtensionBuild;
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
@@ -17,7 +17,7 @@ const securityHeaders = [
 const nextConfig = {
   devIndicators: false,
   env: {
-    NEXT_PUBLIC_SOPHON_PRODUCT_TESTING: productTestingBuild ? "1" : "0"
+    NEXT_PUBLIC_GLAUX_PRODUCT_TESTING: productTestingBuild ? "1" : "0"
   },
   output: chromeExtensionBuild ? "export" : "standalone",
   ...(chromeExtensionBuild ? {

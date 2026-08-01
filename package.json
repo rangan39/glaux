@@ -1,5 +1,5 @@
 {
-  "name": "sophon",
+  "name": "glaux",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -17,7 +17,7 @@
     "build:extension": "node scripts/build_chrome_extension.mjs",
     "fetch:model-logic": "node scripts/fetch_packaged_model_logic.mjs",
     "package:extension": "node scripts/package_chrome_extension.mjs",
-    "product:ui": "SOPHON_PRODUCT_TESTING=1 next dev",
+    "product:ui": "GLAUX_PRODUCT_TESTING=1 next dev",
     "release:extension": "node scripts/release_chrome_extension.mjs",
     "test": "node --experimental-strip-types --test tests/*.test.mjs",
     "test:metrics": "node --experimental-strip-types --test tests/generation-metrics.test.mjs",

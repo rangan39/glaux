@@ -55,7 +55,7 @@ export async function prepareModelDelivery(
   const manifest = getModelDeliveryManifest(model.id);
   if (!manifest || model.source.kind !== "huggingface" || model.source.repo !== manifest.repo || model.source.revision !== manifest.revision) return null;
   if (!supportsPersistentModelDelivery()) {
-    throw new ModelDeliveryUnavailableError("This browser cannot securely store and resume Sophon's multi-gigabyte model files.");
+    throw new ModelDeliveryUnavailableError("This browser cannot securely store and resume Glaux's multi-gigabyte model files.");
   }
 
   return withModelLock(manifest.modelId, "shared", async () => {
@@ -90,7 +90,7 @@ export async function prepareModelDelivery(
       if (remainingProbeStateMs > 0) await new Promise<void>((resolve) => globalThis.setTimeout(resolve, remainingProbeStateMs));
     } catch (error) {
       if (error instanceof RangeDeliveryUnavailableError) {
-        throw new ModelDeliveryUnavailableError("The model host cannot provide the strong, resumable byte ranges Sophon requires.", { cause: error });
+        throw new ModelDeliveryUnavailableError("The model host cannot provide the strong, resumable byte ranges Glaux requires.", { cause: error });
       }
       throw error;
     }

@@ -91,14 +91,14 @@ export function assessCommunityModelCompatibility(
   if (!model.revision) addError(issues, "revision-missing", "The repository does not expose an immutable commit SHA.");
   if (model.gated) addError(issues, "gated-model", "Gated Hugging Face models are not supported in the first community catalog release.");
   if (model.private) addError(issues, "private-model", "Private Hugging Face models are not supported in the first community catalog release.");
-  if (model.pipelineTask && model.pipelineTask !== ONNX_COMMUNITY_TASK) addError(issues, "unsupported-task", "Only text-generation models can use Sophon's chat interface.");
+  if (model.pipelineTask && model.pipelineTask !== ONNX_COMMUNITY_TASK) addError(issues, "unsupported-task", "Only text-generation models can use Glaux's chat interface.");
   if (model.libraryName && model.libraryName !== ONNX_COMMUNITY_LIBRARY && !model.tags.includes(ONNX_COMMUNITY_LIBRARY)) {
     addError(issues, "unsupported-library", "The repository declares a library that is incompatible with Transformers.js.");
   }
   if (!model.architecture) {
     addError(issues, "architecture-missing", "The repository does not declare a model architecture.");
   } else if (!SUPPORTED_ARCHITECTURES.has(model.architecture)) {
-    addError(issues, "unsupported-architecture", `${model.architecture} is not in Sophon's supported text-generation architecture set.`);
+    addError(issues, "unsupported-architecture", `${model.architecture} is not in Glaux's supported text-generation architecture set.`);
   }
   if (!model.chatTemplate) addError(issues, "chat-template-missing", "The tokenizer does not provide a chat template.");
   if (!model.license) addWarning(issues, "license-missing", "The ONNX repository does not declare a license; users must review the source model card.");
@@ -117,7 +117,7 @@ export function assessCommunityModelCompatibility(
   }
   const maxDownloadBytes = normalizeLimit(options.maxDownloadBytes);
   if (estimatedDownloadBytes !== null && estimatedDownloadBytes > maxDownloadBytes) {
-    addError(issues, "model-too-large", `The selected ONNX graph exceeds Sophon's ${formatBytes(maxDownloadBytes)} safety limit.`);
+    addError(issues, "model-too-large", `The selected ONNX graph exceeds Glaux's ${formatBytes(maxDownloadBytes)} safety limit.`);
   }
 
   return {

@@ -43,7 +43,7 @@ export function createCommunityModelDescriptor(
       .filter((issue) => issue.severity === "error")
       .map((issue) => issue.message)
       .join(" ");
-    throw new CommunityModelDescriptorError("unsupported", reasons || "The community model is not compatible with Sophon.");
+    throw new CommunityModelDescriptorError("unsupported", reasons || "The community model is not compatible with Glaux.");
   }
 
   const descriptor = parseCommunityModelDescriptor({
@@ -61,7 +61,7 @@ export function createCommunityModelDescriptor(
     metadata: { baseModel: model.baseModel, license: model.license },
     files: model.files
   });
-  if (!descriptor) throw new CommunityModelDescriptorError("invalid", "Sophon could not create a valid immutable model descriptor.");
+  if (!descriptor) throw new CommunityModelDescriptorError("invalid", "Glaux could not create a valid immutable model descriptor.");
   return descriptor;
 }
 

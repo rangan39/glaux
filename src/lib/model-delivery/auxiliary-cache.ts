@@ -21,7 +21,7 @@ export async function putVerifiedAuxiliaryArtifact(
   artifact: ModelAuxiliaryArtifact,
   body: Blob
 ) {
-  if (typeof caches === "undefined") throw new ModelDeliveryUnavailableError("This browser cannot store the model files Sophon needs.");
+  if (typeof caches === "undefined") throw new ModelDeliveryUnavailableError("This browser cannot store the model files Glaux needs.");
   if (body.size !== artifact.size) throw new Error(`Verified model metadata size mismatch for ${artifact.path}.`);
   const cache = await caches.open(TRANSFORMERS_CACHE_NAME);
   const key = getArtifactUrl(model, artifact);
@@ -49,7 +49,7 @@ export async function ensureAuxiliaryArtifact(
   onProgress: (progress: DeliveryProgress) => void,
   signal?: AbortSignal
 ) {
-  if (typeof caches === "undefined") throw new ModelDeliveryUnavailableError("This browser cannot store the model files Sophon needs.");
+  if (typeof caches === "undefined") throw new ModelDeliveryUnavailableError("This browser cannot store the model files Glaux needs.");
   throwIfAborted(signal);
   const cache = await caches.open(TRANSFORMERS_CACHE_NAME);
   const key = getArtifactUrl(model, artifact);

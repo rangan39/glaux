@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Download, Flame, Languages, Mountain, PanelLeftClose, PanelLeftOpen, Sparkles, Trash2, Waves, X, type LucideIcon } from "lucide-react";
+import { FormEvent, useEffect, useState } from "react";
+import { Cpu, Download, Flame, Languages, LoaderCircle, Mountain, PanelLeftClose, PanelLeftOpen, Search, Sparkles, Trash2, Waves, X, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { InfoHint } from "@/components/ui/info-hint";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -9,8 +9,19 @@ import { getModelRuntimeProfile, MODEL_REGISTRY, type ModelManifest } from "@/li
 import type { ModelCacheSummary, RuntimeCapabilities } from "@/lib/onnx-types";
 import { cn } from "@/lib/utils";
 import type { TokenInspectMode } from "@/components/token-lens";
+import {
+  createCommunityModelDescriptor,
+  fetchOnnxCommunityModelDetails,
+  refreshCommunityCatalogIndex,
+  saveCommunityModelDescriptor,
+  searchCommunityCatalogIndex,
+  subscribeCommunityCatalogIndex,
+  type CommunityModelDescriptor,
+  type CommunityModelSummary
+} from "@/lib/model-catalog";
 
 type Props = {
+  communityModels?: ModelManifest[]; onCommunityModelAdded?: (descriptor: CommunityModelDescriptor) => void;
   activeModelId: string; cacheSummaries: ModelCacheSummary[]; capabilities: RuntimeCapabilities | null; deletingModelId?: string | null; disabled?: boolean; downloadPercent?: number; downloadPercentLabel?: string; loadedModelId: string | null;
   inspectDisplayMode?: TokenInspectMode | null; inspectMetrics?: string; inspectMode?: boolean; loading?: boolean; loadingLabel?: string; mobileOpen: boolean; modelId: string; onDelete: (modelId: string) => void; onDownload: (modelId: string) => void; onHoverModelChange?: (modelId: string | null) => void; onInspectDisplayModeChange?: (mode: TokenInspectMode | null) => void; onMobileOpenChange: (open: boolean) => void; onSelect: (modelId: string) => void; recommendedModelId: string;
 };
@@ -21,9 +32,9 @@ export const MODEL_UI: Record<string, { bestFor: string; icon: LucideIcon; name:
   "tiny-aya-water": { bestFor: "Europe + Asia Pacific", icon: Waves, name: "Water" }
 };
 
-export function SophonModelSidebar({ activeModelId, cacheSummaries = [], capabilities, deletingModelId = null, disabled = false, downloadPercent, downloadPercentLabel, inspectDisplayMode = null, inspectMetrics, inspectMode = false, loadedModelId, loading = false, loadingLabel = "Downloading", mobileOpen, modelId, onDelete, onDownload, onHoverModelChange, onInspectDisplayModeChange, onMobileOpenChange, onSelect, recommendedModelId }: Props) {
+export function SophonModelSidebar({ activeModelId, cacheSummaries = [], capabilities, communityModels = [], deletingModelId = null, disabled = false, downloadPercent, downloadPercentLabel, inspectDisplayMode = null, inspectMetrics, inspectMode = false, loadedModelId, loading = false, loadingLabel = "Downloading", mobileOpen, modelId, onCommunityModelAdded, onDelete, onDownload, onHoverModelChange, onInspectDisplayModeChange, onMobileOpenChange, onSelect, recommendedModelId }: Props) {
   const [expanded, setExpanded] = useState(true);
-  const panelProps = { activeModelId, cacheSummaries, capabilities, deletingModelId, disabled, downloadPercent, downloadPercentLabel, inspectDisplayMode, inspectMetrics, inspectMode, loadedModelId, loading, loadingLabel, modelId, onDelete, onDownload, onHoverModelChange, onInspectDisplayModeChange, onSelect, recommendedModelId };
+  const panelProps = { activeModelId, cacheSummaries, capabilities, communityModels, deletingModelId, disabled, downloadPercent, downloadPercentLabel, inspectDisplayMode, inspectMetrics, inspectMode, loadedModelId, loading, loadingLabel, modelId, onCommunityModelAdded, onDelete, onDownload, onHoverModelChange, onInspectDisplayModeChange, onSelect, recommendedModelId };
   return <>
     <aside aria-label="Model library" className={cn("sophon-glass-strong sophon-reveal sophon-reveal-sidebar hidden h-full shrink-0 flex-col overflow-hidden border-y-0 border-l-0 transition-[width] duration-200 motion-reduce:transition-none lg:flex lg:h-[calc(100svh-74px)]", expanded ? "w-72" : "w-[4.75rem]")} data-state={expanded ? "expanded" : "collapsed"} id="model-library-desktop">
       <ModelPanel {...panelProps} expanded={expanded} onToggle={() => setExpanded((value) => !value)} />
@@ -38,8 +49,10 @@ export function SophonModelSidebar({ activeModelId, cacheSummaries = [], capabil
 }
 
 type PanelProps = Omit<Props, "mobileOpen" | "onMobileOpenChange"> & { expanded: boolean; mobile?: boolean; onClose?: () => void; onToggle?: () => void };
-function ModelPanel({ activeModelId, cacheSummaries = [], capabilities, deletingModelId = null, disabled = false, downloadPercent, downloadPercentLabel, expanded, inspectDisplayMode = null, inspectMetrics, inspectMode = false, loadedModelId, loading, loadingLabel, mobile = false, modelId, onClose, onDelete, onDownload, onHoverModelChange, onInspectDisplayModeChange, onSelect, onToggle, recommendedModelId }: PanelProps) {
-  const detailModel = MODEL_REGISTRY.find((model) => model.id === modelId)
+function ModelPanel({ activeModelId, cacheSummaries = [], capabilities, communityModels = [], deletingModelId = null, disabled = false, downloadPercent, downloadPercentLabel, expanded, inspectDisplayMode = null, inspectMetrics, inspectMode = false, loadedModelId, loading, loadingLabel, mobile = false, modelId, onClose, onCommunityModelAdded, onDelete, onDownload, onHoverModelChange, onInspectDisplayModeChange, onSelect, onToggle, recommendedModelId }: PanelProps) {
+  const models = [...MODEL_REGISTRY, ...communityModels];
+  const visibleModelCards: ModelManifest[] = [];
+  const detailModel = models.find((model) => model.id === modelId)
     ?? MODEL_REGISTRY.find((model) => model.id === recommendedModelId)
     ?? MODEL_REGISTRY[0];
   const mobileProfile = capabilities?.hardwareTier === "mobile";
@@ -62,16 +75,17 @@ function ModelPanel({ activeModelId, cacheSummaries = [], capabilities, deleting
   </>;
   return <>
     <header className={cn("flex h-[74px] shrink-0 items-center border-b border-sophon-glass-border p-3", expanded ? "justify-between" : "justify-center")}>
-      {expanded ? <div className="min-w-0"><h2 className="sophon-type-status font-mono uppercase tracking-[0.12em] text-sophon-copy-primary" data-typography-role="status" id={mobile ? "model-library-mobile-title" : undefined}>Model library</h2><p className="sophon-type-metadata mt-1 font-mono uppercase tracking-[0.08em] text-sophon-copy-metadata" data-typography-role="metadata">{MODEL_REGISTRY.length} models</p></div> : null}
+      {expanded ? <div className="min-w-0"><h2 className="sophon-type-status font-mono uppercase tracking-[0.12em] text-sophon-copy-primary" data-typography-role="status" id={mobile ? "model-library-mobile-title" : undefined}>Model search</h2><p className="sophon-type-metadata mt-1 font-mono uppercase tracking-[0.08em] text-sophon-copy-metadata" data-typography-role="metadata">ONNX Community</p></div> : null}
       <Button aria-controls={mobile ? undefined : "model-library-desktop"} aria-expanded={mobile ? undefined : expanded} aria-label={mobile ? "Close model library" : expanded ? "Collapse model library" : "Expand model library"} className="size-11 shrink-0 rounded-xl lg:size-9" onClick={mobile ? onClose : onToggle} size="icon" type="button" variant="sophon">
         {mobile ? <X aria-hidden="true" /> : expanded ? <PanelLeftClose aria-hidden="true" /> : <PanelLeftOpen aria-hidden="true" />}
       </Button>
     </header>
     <fieldset className="min-h-0 min-w-0 w-full max-w-full flex-1 overflow-y-auto p-3" data-testid={mobile ? "mobile-model-list" : "desktop-model-list"} disabled={disabled || deletingModelId !== null}>
-      <legend className="sr-only">Tiny Aya models</legend>
+      <legend className="sr-only">Local text generation models</legend>
       <div className="min-w-0 w-full space-y-2">
-        {MODEL_REGISTRY.map((model) => {
-          const ui = MODEL_UI[model.id]!;
+        {expanded ? <CommunityCatalog disabled={disabled} onAdded={onCommunityModelAdded} /> : null}
+        {visibleModelCards.map((model) => {
+          const ui = MODEL_UI[model.id] ?? { bestFor: "ONNX Community", icon: Cpu, name: model.label };
           const Icon = ui.icon;
           const selected = model.id === modelId;
           const unavailable = modelAvailability(capabilities, model) === "Browser GPU required";
@@ -103,7 +117,7 @@ function ModelPanel({ activeModelId, cacheSummaries = [], capabilities, deleting
                 : cache?.state === "partial"
                   ? `${formatSavedBytes(cache.resumableBytes)} saved`
                   : modelAvailability(capabilities, model) === "Ready to download" ? "Ready" : modelAvailability(capabilities, model);
-          return <div className={cn("relative min-w-0", expanded && "rounded-xl border transition-colors duration-[2000ms] ease-in-out focus-within:ring-2 focus-within:ring-sophon-signal", expanded && (selected ? "border-sophon-signal-bright/70 bg-sophon-signal/10 shadow-[0_0_24px_var(--sophon-signal-shadow)]" : "border-sophon-glass-border bg-sophon-glass-tile hover:border-sophon-signal-bright/45 hover:bg-sophon-glass-strong"))} data-model-card data-selected={selected ? "true" : "false"} key={model.id} onPointerEnter={mobile ? undefined : () => onHoverModelChange?.(model.id)} onPointerLeave={mobile ? undefined : () => onHoverModelChange?.(null)} onPointerMove={mobile ? undefined : () => onHoverModelChange?.(model.id)}>
+          return <div className={cn("relative min-w-0", expanded && "rounded-xl border transition-colors duration-200 ease-out focus-within:ring-2 focus-within:ring-sophon-signal", expanded && (selected ? "border-sophon-signal-bright/70 bg-sophon-signal/10 shadow-[0_0_24px_var(--sophon-signal-shadow)]" : "border-sophon-glass-border bg-sophon-glass-tile hover:border-sophon-signal-bright/45 hover:bg-sophon-glass-strong"))} data-model-card data-selected={selected ? "true" : "false"} key={model.id} onPointerEnter={mobile ? undefined : () => onHoverModelChange?.(model.id)} onPointerLeave={mobile ? undefined : () => onHoverModelChange?.(null)} onPointerMove={mobile ? undefined : () => onHoverModelChange?.(model.id)}>
             <label className={cn("relative flex cursor-pointer", expanded ? mobile ? cn("min-h-[80px] items-start gap-3 p-3", (hasStoredData || (selected && !availableLocally && !active)) && "pr-12") : cn("min-h-[62px] items-start gap-2 p-2.5", (hasStoredData || (selected && !availableLocally && !active)) && "pr-10") : "mx-auto size-12 items-center justify-center rounded-xl border transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-sophon-signal", !expanded && (selected ? "border-sophon-signal-bright/70 bg-sophon-signal/10 shadow-[0_0_24px_var(--sophon-signal-shadow)]" : "border-sophon-glass-border bg-sophon-glass-tile hover:border-sophon-signal-bright/45 hover:bg-sophon-glass-strong"), (disabled || unavailable || deletingModelId !== null) && "cursor-not-allowed border-sophon-glass-border bg-sophon-panel-deep")} data-model-id={model.id} data-model-surface={mobile ? "mobile" : "desktop"} title={expanded ? undefined : `${ui.name} · ${status}`}>
               <input aria-label={`Choose ${model.label}. Best for ${ui.bestFor}. ${model.format.sizeLabel} download. ${accessibleStatus}.`} checked={selected} className="sr-only" disabled={unavailable} name={mobile ? "mobile-model" : "desktop-model"} onChange={() => onSelect(model.id)} type="radio" value={model.id} />
               {selected ? <span aria-hidden="true" className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-sophon-signal-bright shadow-[0_0_10px_var(--sophon-signal-bright)]" /> : null}
@@ -125,7 +139,7 @@ function ModelPanel({ activeModelId, cacheSummaries = [], capabilities, deleting
         })}
       </div>
     </fieldset>
-    {expanded ? (
+    {expanded && visibleModelCards.length > 0 ? (
       <footer className="sophon-type-metadata shrink-0 border-t border-sophon-glass-border bg-sophon-panel-deep p-3 font-mono tracking-[0.03em] text-sophon-copy-metadata shadow-[inset_0_1px_0_rgb(255_255_255/0.8)]" data-typography-role="metadata">
         <div className="grid grid-cols-2 gap-1.5">
           <span className="inline-flex h-7 min-w-0 items-center rounded-md border border-sophon-glass-border bg-sophon-panel px-2 font-medium text-sophon-copy-body shadow-[inset_0_1px_0_var(--sophon-glass-highlight)]">{detailModel.parameterLabel} · 4-bit</span>
@@ -140,6 +154,82 @@ function ModelPanel({ activeModelId, cacheSummaries = [], capabilities, deleting
       </footer>
     ) : null}
   </>;
+}
+
+function CommunityCatalog({ disabled, onAdded }: { disabled: boolean; onAdded?: (descriptor: CommunityModelDescriptor) => void }) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<readonly CommunityModelSummary[]>([]);
+  const [status, setStatus] = useState<string | null>(null);
+  const [busyRepo, setBusyRepo] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    if (!query.trim()) {
+      return () => { active = false; };
+    }
+    const updateResults = async () => {
+      const models = await searchCommunityCatalogIndex(query, 8);
+      if (!active) return models;
+      setResults(models);
+      if (models.length > 0) setStatus(null);
+      return models;
+    };
+    const unsubscribe = subscribeCommunityCatalogIndex(() => { void updateResults(); });
+    const timer = window.setTimeout(() => {
+      setStatus("Updating the on-device catalog…");
+      void updateResults()
+        .then(() => refreshCommunityCatalogIndex())
+        .then(updateResults)
+        .then((models) => {
+          if (active) setStatus(models.length === 0 ? "No matching text-generation models" : null);
+        })
+        .catch((error) => {
+          if (active) setStatus(error instanceof Error ? error.message : "Catalog indexing failed");
+        });
+    }, 300);
+    return () => { active = false; unsubscribe(); window.clearTimeout(timer); };
+  }, [query]);
+
+  async function addModel(model: CommunityModelSummary) {
+    if (!model.revision) return;
+    setBusyRepo(model.repo);
+    setStatus(`Checking ${model.name}…`);
+    try {
+      const details = await fetchOnnxCommunityModelDetails(model.repo, model.revision);
+      const descriptor = createCommunityModelDescriptor(details);
+      await saveCommunityModelDescriptor(descriptor);
+      onAdded?.(descriptor);
+      setStatus(`${model.name} is ready for review. Confirm the download from its model card.`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : `${model.name} could not be added.`);
+    } finally {
+      setBusyRepo(null);
+    }
+  }
+
+  function submit(event: FormEvent) { event.preventDefault(); }
+
+  return <section className="mb-3 rounded-xl border border-sophon-glass-border bg-sophon-panel-deep p-2.5" aria-label="ONNX Community catalog">
+    <p className="sophon-type-status font-mono uppercase tracking-[0.06em] text-sophon-copy-primary">Hugging Face ONNX Community</p>
+    <form className="relative mt-2" onSubmit={submit} role="search">
+      <Search aria-hidden="true" className="absolute left-2.5 top-2.5 size-4 text-sophon-copy-metadata" />
+      <input aria-label="Search ONNX Community models" className="h-9 w-full rounded-lg border border-sophon-glass-border bg-sophon-panel pl-8 pr-2 text-sm text-sophon-copy-primary outline-none focus:border-sophon-signal-bright" disabled={disabled} onChange={(event) => {
+        const value = event.target.value;
+        setQuery(value);
+        if (!value.trim()) {
+          setResults([]);
+          setStatus(null);
+        }
+      }} placeholder="Search models…" value={query} />
+    </form>
+    {status ? <p className="mt-2 text-xs leading-4 text-sophon-copy-metadata" role="status">{status}</p> : null}
+    <div className="mt-2 space-y-1.5">
+      {results.map((model) => <button className="flex w-full items-center gap-2 rounded-lg border border-sophon-glass-border bg-sophon-panel px-2 py-2 text-left hover:border-sophon-signal-bright/60 disabled:opacity-60" disabled={disabled || busyRepo !== null || !model.revision} key={model.repo} onClick={() => void addModel(model)} type="button">
+        {busyRepo === model.repo ? <LoaderCircle aria-hidden="true" className="size-4 shrink-0 animate-spin" /> : <Download aria-hidden="true" className="size-4 shrink-0" />}
+        <span className="min-w-0"><span className="block truncate text-xs font-medium text-sophon-copy-primary">{model.name}</span><span className="block text-[11px] text-sophon-copy-metadata">{model.downloads.toLocaleString()} downloads{model.license ? ` · ${model.license}` : ""}</span></span>
+      </button>)}
+    </div>
+  </section>;
 }
 
 function modelAvailability(capabilities: RuntimeCapabilities | null, model: ModelManifest) {

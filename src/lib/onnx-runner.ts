@@ -1,6 +1,6 @@
 import type { PreTrainedTokenizer, ProgressInfo, TextGenerationPipeline } from "@huggingface/transformers";
 import { getRuntimeCapabilities, type BrowserEngine } from "@/lib/browser-runtime";
-import { getModelRuntimeProfile, requireModelDefinition, resolveModelProvider, type ModelManifest, type ModelProvider } from "@/lib/onnx-models";
+import { getModelRuntimeProfile, resolveModelDefinition, resolveModelProvider, type ModelManifest, type ModelProvider } from "@/lib/onnx-models";
 import { calculateGenerationTiming, createGenerationTelemetryGate } from "@/lib/generation-metrics";
 import {
   deleteModelCache,
@@ -9,6 +9,13 @@ import {
   type DeliveryProgress,
   type PreparedModelDelivery
 } from "@/lib/model-delivery/index";
+import { getSavedCommunityModelDescriptor } from "@/lib/model-catalog/descriptor-store";
+import {
+  createCommunityModelCache,
+  deleteCommunityModelDelivery,
+  prepareCommunityModelDelivery,
+  type PreparedCommunityModelDelivery
+} from "@/lib/model-delivery/community-delivery";
 import { decodeTokenPieces, markActiveContext, sliceTokenPiecesByTextRange } from "@/lib/token-display";
 import type {
   ChatTurn,
@@ -59,7 +66,7 @@ export function readGeneratedText(output: unknown) {
 }
 
 export async function runOnnxTextModel(messages: readonly ChatTurn[], options: OnnxRunOptions): Promise<OnnxRunResponse> {
-  const model = requireModelDefinition(options.modelId);
+  const model = await resolveModelDefinition(options.modelId);
   if (options.signal?.aborted) return cancelled();
   const normalized = messages.filter((message) => message.content.trim());
   if (normalized.length === 0) {
@@ -69,7 +76,7 @@ export async function runOnnxTextModel(messages: readonly ChatTurn[], options: O
 }
 
 export async function preloadOnnxModel(modelId: string, onLog: (event: OnnxLogEvent) => void = () => undefined, signal?: AbortSignal) {
-  const model = requireModelDefinition(modelId);
+  const model = await resolveModelDefinition(modelId);
   await getPipeline(model, await resolveProvider(model), onLog, signal);
 }
 
@@ -78,7 +85,7 @@ export async function getOnnxModelCacheStatus() {
 }
 
 export async function deleteOnnxModelCache(modelId: string, signal?: AbortSignal) {
-  requireModelDefinition(modelId);
+  const model = await resolveModelDefinition(modelId);
   const matching = [...pipelineCache.entries()].filter(([key]) => key.startsWith(`${modelId}:`));
   for (const [key] of matching) pipelineCache.delete(key);
   await Promise.all(matching.map(async ([, loading]) => {
@@ -89,6 +96,12 @@ export async function deleteOnnxModelCache(modelId: string, signal?: AbortSignal
       // A failed or cancelled pipeline has no live session left to dispose.
     }
   }));
+  if (model.family === "community") {
+    const descriptor = await getSavedCommunityModelDescriptor(modelId);
+    if (!descriptor) throw new Error(`The community model descriptor is missing or invalid: ${modelId}`);
+    await deleteCommunityModelDelivery(descriptor, signal);
+    return { modelId, deleted: true as const };
+  }
   return deleteModelCache(modelId, signal);
 }
 
@@ -228,12 +241,25 @@ async function getPipeline(model: ModelManifest, provider: ModelProvider, log: (
     optimizeChromiumWebGpuEnvironment(env, capabilities.browserEngine);
     const allowLocalModels = env.allowLocalModels;
     const allowRemoteModels = env.allowRemoteModels;
+    const useCustomCache = env.useCustomCache;
+    const customCache = env.customCache;
     env.allowLocalModels = model.source.kind === "local";
     env.allowRemoteModels = model.source.kind === "huggingface";
     const remotePathTemplate = env.remotePathTemplate;
     if (model.source.kind === "huggingface") env.remotePathTemplate = `{model}/resolve/${model.source.revision}/`;
     try {
-      const delivery = await prepareModelDelivery(model, (progress) => {
+      const communityDescriptor = model.family === "community"
+        ? await getSavedCommunityModelDescriptor(model.id)
+        : null;
+      if (model.family === "community" && !communityDescriptor) {
+        throw new Error(`The community model descriptor is missing or invalid: ${model.id}`);
+      }
+      const communityDelivery = communityDescriptor
+        ? await prepareCommunityModelDelivery(communityDescriptor, (progress) => {
+          log({ level: "info", message: deliveryProgressMessage(progress), phase: "download", progress });
+        }, signal)
+        : null;
+      const delivery = communityDelivery ?? await prepareModelDelivery(model, (progress) => {
         log({ level: "info", message: deliveryProgressMessage(progress), phase: "download", progress });
       }, signal);
       throwIfCancelled(signal);
@@ -247,10 +273,28 @@ async function getPipeline(model: ModelManifest, provider: ModelProvider, log: (
         });
       }
       if (delivery) {
-        env.allowLocalModels = true;
-        env.allowRemoteModels = false;
+        if (communityDelivery) {
+          env.useCustomCache = true;
+          const fallbackCache = customCache ? {
+            async match(request: string) {
+              const response = await customCache.match(request);
+              return response instanceof Response ? response : undefined;
+            },
+            put: (request: string, response: Response) => customCache.put(request, response),
+            ...(customCache.delete ? { delete: (request: string) => customCache.delete!(request) } : {})
+          } : undefined;
+          env.customCache = createCommunityModelCache(communityDelivery, fallbackCache);
+          env.allowLocalModels = false;
+          env.allowRemoteModels = true;
+        } else {
+          env.allowLocalModels = true;
+          env.allowRemoteModels = false;
+        }
       }
-      const sessionOptions = getOptimizedSessionOptions(capabilities.browserEngine, delivery?.externalData);
+      const sessionOptions = getOptimizedSessionOptions(
+        capabilities.browserEngine,
+        communityDelivery ? communityDelivery.externalData : delivery?.externalData
+      );
       if (capabilities.browserEngine === "chromium") {
         log({
           level: "info",
@@ -264,7 +308,7 @@ async function getPipeline(model: ModelManifest, provider: ModelProvider, log: (
         dtype: model.format.quantization,
         progress_callback: delivery ? undefined : progressCallback,
         ...(delivery ? {
-          local_files_only: true,
+          local_files_only: !communityDelivery,
           use_external_data_format: false
         } : {}),
         ...(sessionOptions ? { session_options: sessionOptions } : {}),
@@ -277,6 +321,8 @@ async function getPipeline(model: ModelManifest, provider: ModelProvider, log: (
     } finally {
       env.allowLocalModels = allowLocalModels;
       env.allowRemoteModels = allowRemoteModels;
+      env.useCustomCache = useCustomCache;
+      env.customCache = customCache;
       env.remotePathTemplate = remotePathTemplate;
     }
   }).catch((error) => {
@@ -352,7 +398,7 @@ async function resolveProvider(model: ModelManifest): Promise<ModelProvider> {
 
 function getOptimizedSessionOptions(
   browserEngine: BrowserEngine,
-  externalData?: PreparedModelDelivery["externalData"]
+  externalData?: PreparedModelDelivery["externalData"] | PreparedCommunityModelDelivery["externalData"]
 ) {
   if (browserEngine !== "chromium" && !externalData) return null;
   return {

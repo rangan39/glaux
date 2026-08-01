@@ -42,6 +42,7 @@ export async function searchCommunityCatalogIndex(query: string, limit = 8) {
   const terms = normalizeSearch(query).split(" ").filter(Boolean);
   return entries
     .filter(isDiscoverableTextModel)
+    .filter((model) => terms.length > 0 || hasTextGenerationEvidence(model))
     .flatMap((model) => {
       const rank = rankModel(model, terms);
       return rank === null ? [] : [{ model, rank }];
@@ -82,6 +83,11 @@ async function runRefresh() {
     for (const listener of listeners) listener();
     if (cursor === null) return;
   }
+}
+
+function hasTextGenerationEvidence(model: CommunityModelSummary) {
+  return model.pipelineTask === "text-generation"
+    || model.tags.some((tag) => normalizeSearch(tag) === "text generation");
 }
 
 function isDiscoverableTextModel(model: CommunityModelSummary) {

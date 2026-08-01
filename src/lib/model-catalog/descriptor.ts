@@ -65,7 +65,7 @@ export function createCommunityModelDescriptor(
   return descriptor;
 }
 
-export function createCommunityModelDescriptorId(repo: string, revision: string, dtype: CommunityModelDtype) {
+function createCommunityModelDescriptorId(repo: string, revision: string, dtype: CommunityModelDtype) {
   if (!REPOSITORY_PATTERN.test(repo) || !REVISION_PATTERN.test(revision) || !(dtype in GRAPH_PATHS)) {
     throw new CommunityModelDescriptorError("invalid", "A valid ONNX Community repository, commit, and data type are required.");
   }

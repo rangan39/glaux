@@ -5,7 +5,6 @@ export {
   fetchOnnxCommunityIndexPage,
   fetchOnnxCommunityModelDetails,
   HuggingFaceCatalogError,
-  normalizeCommunityModelSummary,
   type CatalogFetch,
   type CommunityCatalogQuery,
   type CommunityIndexPageQuery
@@ -16,12 +15,10 @@ export {
   subscribeCommunityCatalogIndex
 } from "@/lib/model-catalog/browser-index";
 export {
-  assessCommunityModelCompatibility,
-  DEFAULT_COMMUNITY_MODEL_SIZE_LIMIT
+  assessCommunityModelCompatibility
 } from "@/lib/model-catalog/compatibility";
 export {
   createCommunityModelDescriptor,
-  createCommunityModelDescriptorId,
   CommunityModelDescriptorError,
   parseCommunityModelDescriptor
 } from "@/lib/model-catalog/descriptor";

@@ -127,20 +127,6 @@ export function createArtifactStateStore(): ArtifactStateStore {
   };
 }
 
-export async function commitArtifactStates(states: readonly ArtifactDownloadState[]) {
-  try {
-    const transaction = (await getDatabase()).transaction("artifacts", "readwrite", { durability: "strict" });
-    for (const state of states) await transaction.store.put(state);
-    await transaction.done;
-  } catch (error) {
-    throw toModelStorageOperationError(
-      error,
-      "The browser could not save resumable model-download checkpoints.",
-      "indexeddb-checkpoint"
-    );
-  }
-}
-
 export async function openArtifactFile(model: StoredModel, artifact: StoredArtifact): Promise<OpenArtifactFile> {
   if (!supportsPersistentModelDelivery()) throw new ModelDeliveryUnavailableError("Persistent model storage is unavailable in this browser.");
   try {

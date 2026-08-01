@@ -189,7 +189,7 @@ export function getCommunityGraphArtifact(value: CommunityModelDescriptor) {
   return toDeliveryArtifact(descriptor, file, getCommunityStorageModel(descriptor), "graph");
 }
 
-export function getCommunityStorageModel(value: CommunityModelDescriptor) {
+function getCommunityStorageModel(value: CommunityModelDescriptor) {
   const descriptor = requireDescriptor(value);
   const repositoryName = descriptor.source.repo.slice(descriptor.source.repo.indexOf("/") + 1);
   return {

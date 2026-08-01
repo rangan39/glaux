@@ -4,7 +4,6 @@ import { getModelRuntimeProfile, resolveModelDefinition, resolveModelProvider, t
 import { calculateGenerationTiming, createGenerationTelemetryGate } from "@/lib/generation-metrics";
 import {
   deleteModelCache,
-  getModelCacheStatus,
   prepareModelDelivery,
   type DeliveryProgress,
   type PreparedModelDelivery
@@ -78,10 +77,6 @@ export async function runOnnxTextModel(messages: readonly ChatTurn[], options: O
 export async function preloadOnnxModel(modelId: string, onLog: (event: OnnxLogEvent) => void = () => undefined, signal?: AbortSignal) {
   const model = await resolveModelDefinition(modelId);
   await getPipeline(model, await resolveProvider(model), onLog, signal);
-}
-
-export async function getOnnxModelCacheStatus() {
-  return { models: await getModelCacheStatus() };
 }
 
 export async function deleteOnnxModelCache(modelId: string, signal?: AbortSignal) {

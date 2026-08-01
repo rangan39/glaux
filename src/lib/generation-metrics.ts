@@ -11,7 +11,7 @@ export type GenerationTimingSnapshot = {
 
 export type GenerationTelemetryPhase = "prefill" | "decode" | "complete";
 
-export const LIVE_TELEMETRY_INTERVAL_MS = 100;
+const LIVE_TELEMETRY_INTERVAL_MS = 100;
 
 export function calculateGenerationTiming(
   startedAtMs: number,

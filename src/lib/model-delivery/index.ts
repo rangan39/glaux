@@ -189,7 +189,7 @@ async function ensureArtifact(
   return loading;
 }
 
-export async function ensureStorageHeadroom(model: ModelDeliveryManifest, totalBytes: number, states: ArtifactDownloadState[]) {
+async function ensureStorageHeadroom(model: ModelDeliveryManifest, totalBytes: number, states: ArtifactDownloadState[]) {
   const summary = await inspectModelCache(model, states);
   const estimate = await navigator.storage.estimate?.().catch(() => null);
   if (!estimate || estimate.quota === undefined || estimate.usage === undefined) return;
@@ -262,7 +262,7 @@ function createAggregateProgress(model: ModelDeliveryManifest, publish: (progres
   };
 }
 
-export async function withModelLock<T>(modelId: string, mode: "shared" | "exclusive", task: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+async function withModelLock<T>(modelId: string, mode: "shared" | "exclusive", task: () => Promise<T>, signal?: AbortSignal): Promise<T> {
   if (typeof navigator.locks?.request !== "function") return task();
   return navigator.locks.request(`sophon-model:${modelId}`, { mode, signal }, task);
 }
@@ -286,7 +286,6 @@ export {
   createCommunityModelCache,
   deleteCommunityModelDelivery,
   getCommunityGraphArtifact,
-  getCommunityStorageModel,
   prepareCommunityModelDelivery,
   resolveCommunityDeliveryPlan,
   type CommunityDeliveryArtifact,

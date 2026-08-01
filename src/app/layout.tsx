@@ -29,7 +29,7 @@ export const metadata: Metadata = {
     default: "Glaux",
     template: "%s · Glaux"
   },
-  description: "An open-source, multilingual AI web tool that runs locally in your browser with WebGPU.",
+  description: "An open-source web app for running compatible Hugging Face ONNX Community models locally with WebGPU.",
   category: "developer tools"
 };
 

@@ -42,6 +42,21 @@ test("finds external tensors nested inside node graph attributes and deduplicate
   );
 });
 
+test("skips valid 64-bit protobuf integers without converting them to JavaScript numbers", async () => {
+  const signedInt64 = Uint8Array.from([0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x01]);
+  const attribute = message(
+    Uint8Array.from([...varint(3 << 3), ...signedInt64]),
+    bytesField(5, message(externalDataEntry("location", "model_q4.onnx_data")))
+  );
+  const node = message(bytesField(5, attribute));
+  const model = message(bytesField(7, message(bytesField(1, node))));
+
+  assert.deepEqual(
+    await readOnnxExternalDataLocations(new Blob([model])),
+    ["model_q4.onnx_data"]
+  );
+});
+
 test("rejects unsafe external-data locations", async () => {
   const tensor = message(externalDataEntry("location", "../private/model.bin"));
   const model = message(bytesField(7, message(bytesField(5, tensor))));

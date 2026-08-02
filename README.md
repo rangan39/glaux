@@ -26,7 +26,7 @@ The application is MIT licensed. Model weights retain the license published by e
 - Enough browser storage for the selected model’s exact confirmed download size
 - Node.js 22 for local development
 
-Model compatibility and performance vary by architecture, graph, tokenizer, browser, and hardware. Glaux fails closed when a model cannot satisfy its browser-runtime contract.
+Model compatibility and performance vary by architecture, graph, tokenizer, browser, and hardware. Glaux fails closed when a model cannot satisfy its browser-runtime contract. Community downloads must be public, non-gated ONNX Community text-generation repositories with a chat template, a supported graph, file-size and SHA-256 metadata, and a total selected graph size of at most 8 GiB.
 
 ## Run locally
 
@@ -41,13 +41,13 @@ Open [http://localhost:3000](http://localhost:3000).
 Common validation commands:
 
 ```bash
-npm run typecheck
-npm run lint
-npm test
-npm run build
-npm run budget:bundle
-npm run audit:production
+npm run check             # lint, type-check, unit tests, and unused-code check
+npm run build             # production Next.js build
+npm run budget:bundle     # client bundle-size guard
+npm run audit:production  # production dependency audit
 ```
+
+Browser smoke tests expect a running local app. In a second terminal, run `npm run dev` (or start the product-test server below), then use `npm run smoke:ui`, `npm run smoke:trust`, `npm run smoke:markdown`, or `npm run smoke:prompt`. Run the Playwright suite with `npm run test:e2e`.
 
 ## Browser-only architecture
 
@@ -80,7 +80,7 @@ Start deterministic development fixtures without downloading a model:
 npm run product:ui
 ```
 
-Fixture URLs use `?glaux-product-test=<state>`. Available states include `checking`, `confirmation`, `downloading`, `paused`, `verifying`, `ready`, `generating`, `stopped`, `error`, and `reset`.
+Fixture URLs use `?sophon-product-test=<state>`. Available states are `checking`, `legacy-cleanup`, `legacy-cleanup-error`, `confirmation`, `replacement-confirmation`, `replacement-deleting`, `downloading`, `paused`, `verifying`, `ready`, `retry-success`, `generating`, `stopped`, `error`, and `reset`. Add `&sophon-product-model=` with one of `tiny-aya-global`, `tiny-aya-earth`, `tiny-aya-fire`, or `tiny-aya-water` to select a fixture theme.
 
 ```bash
 npm run smoke:product-ui
@@ -105,6 +105,12 @@ See [chrome-extension/README.md](chrome-extension/README.md) for packaging and r
 ```bash
 docker build -f Dockerfile.frontend -t glaux .
 docker run --rm -p 3000:3000 glaux
+```
+
+For a bind-mounted development container, copy `.env.example` to `.env` if you need a different host port, then run:
+
+```bash
+docker compose up --build
 ```
 
 ## Project layout

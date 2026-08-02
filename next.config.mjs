@@ -35,9 +35,7 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_GLAUX_PRODUCT_TESTING: productTestingBuild ? "1" : "0"
   },
-  output: "standalone",
   ...(productTestingBuild ? { distDir: productTestingDistDir } : {}),
-  outputFileTracingRoot: rootDir,
   poweredByHeader: false,
   reactStrictMode: true,
   turbopack: { root: rootDir },

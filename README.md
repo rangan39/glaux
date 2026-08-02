@@ -88,13 +88,6 @@ npm run smoke:product-ui
 
 Fixture mode does not create the inference worker, contact model hosts, or write model bytes.
 
-## Container
-
-```bash
-docker build -f Dockerfile.frontend -t glaux .
-docker run --rm -p 3000:3000 glaux
-```
-
 ## Project layout
 
 ```text

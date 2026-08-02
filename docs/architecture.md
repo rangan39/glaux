@@ -45,9 +45,6 @@ Repository revisions and file contracts are pinned before model installation. Do
 
 Some source filenames, CSS classes, DOM IDs, and browser-storage keys still use the historical lowercase `sophon` namespace. They are intentionally retained as internal compatibility identifiers so the Glaux rename does not invalidate existing browser storage or styling contracts. They are not current product branding.
 
-## Deployment surfaces
+## Deployment surface
 
-The same browser runtime is delivered as:
-
-- a Next.js web application hosted on Vercel;
-- a containerized frontend for self-hosting.
+Glaux is delivered as a Next.js web application hosted on Vercel.

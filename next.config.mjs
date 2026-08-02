@@ -6,7 +6,25 @@ const chromeExtensionBuild = process.env.GLAUX_CHROME_EXTENSION === "1";
 const productTestingBuild = process.env.NODE_ENV === "development"
   && process.env.GLAUX_PRODUCT_TESTING === "1"
   && !chromeExtensionBuild;
+const productTestingDistDir = process.env.GLAUX_PRODUCT_TEST_DIST_DIR ?? ".next-product-test";
+const developmentBuild = process.env.NODE_ENV !== "production";
+const contentSecurityPolicy = [
+  "default-src 'self'",
+  `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'${developmentBuild ? " 'unsafe-eval'" : ""}`,
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' blob: data:",
+  "font-src 'self'",
+  "connect-src 'self' https://huggingface.co https://*.huggingface.co https://*.hf.co https://*.xethub.hf.co",
+  "worker-src 'self' blob:",
+  "manifest-src 'self'",
+  "media-src 'self' blob:",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'"
+].join("; ");
 const securityHeaders = [
+  { key: "Content-Security-Policy-Report-Only", value: contentSecurityPolicy },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "DENY" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
@@ -25,7 +43,7 @@ const nextConfig = {
     generateBuildId: async () => "sophon-extension",
     images: { unoptimized: true }
   } : {
-    ...(productTestingBuild ? { distDir: ".next-product-test" } : {}),
+    ...(productTestingBuild ? { distDir: productTestingDistDir } : {}),
     outputFileTracingRoot: rootDir
   }),
   poweredByHeader: false,

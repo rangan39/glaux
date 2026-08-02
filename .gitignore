@@ -1,4 +1,5 @@
 .next/
+.next-e2e/
 .next-extension/
 .next-product-test/
 out/
@@ -11,6 +12,8 @@ node_modules/
 
 dist/
 coverage/
+playwright-report/
+test-results/
 artifacts/models/
 artifacts/model-build-venv/
 artifacts/chrome-web-store/

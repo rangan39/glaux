@@ -37,22 +37,58 @@ export async function refreshCommunityCatalogIndex() {
   return refreshPromise;
 }
 
-export async function searchCommunityCatalogIndex(query: string, limit = 8) {
+export type CommunityCatalogSort = "popular" | "lightweight" | "alphabetical";
+
+export async function searchCommunityCatalogIndexPage(query: string, { limit = 8, offset = 0, sort = "popular" }: { limit?: number; offset?: number; sort?: CommunityCatalogSort } = {}) {
   const database = await getDatabase();
   const entries = await (cachedModelsPromise ??= database.getAll(MODEL_STORE));
   const terms = normalizeSearch(query).split(" ").filter(Boolean);
-  return entries
+  const ranked = entries
     .filter(isDiscoverableTextModel)
     .filter((model) => terms.length > 0 || hasTextGenerationEvidence(model))
     .flatMap((model) => {
       const rank = rankModel(model, terms);
       return rank === null ? [] : [{ model, rank }];
     })
-    .sort((left, right) => right.rank - left.rank
-      || right.model.downloads - left.model.downloads
-      || left.model.name.localeCompare(right.model.name))
-    .slice(0, Math.max(1, Math.min(50, Math.trunc(limit))))
-    .map(({ model }) => model);
+    .sort((left, right) => {
+      if (sort === "alphabetical") {
+        return left.model.name.localeCompare(right.model.name)
+          || left.model.repo.localeCompare(right.model.repo);
+      }
+      if (sort === "lightweight") {
+        return compareOptionalNumbers(estimateParameterCount(left.model), estimateParameterCount(right.model))
+          || right.model.downloads - left.model.downloads
+          || left.model.name.localeCompare(right.model.name)
+          || left.model.repo.localeCompare(right.model.repo);
+      }
+      return right.rank - left.rank
+        || right.model.downloads - left.model.downloads
+        || left.model.name.localeCompare(right.model.name)
+        || left.model.repo.localeCompare(right.model.repo);
+    });
+  const pageSize = Math.max(1, Math.min(50, Math.trunc(limit)));
+  const pageOffset = Math.max(0, Math.trunc(offset));
+  return {
+    models: ranked.slice(pageOffset, pageOffset + pageSize).map(({ model }) => model),
+    total: ranked.length
+  };
+}
+
+function compareOptionalNumbers(left: number | null, right: number | null) {
+  if (left === null) return right === null ? 0 : 1;
+  if (right === null) return -1;
+  return left - right;
+}
+
+export function estimateParameterCount(model: CommunityModelSummary) {
+  if (typeof model.parameterCount === "number" && model.parameterCount > 0) return model.parameterCount;
+  const matches = [model.name, model.repo, ...model.tags].flatMap((value) => {
+    const match = value.match(/(?:^|[^a-z0-9])(\d+(?:\.\d+)?)\s*([bm])(?:$|[^a-z0-9])/i);
+    if (!match) return [];
+    const amount = Number(match[1]);
+    return Number.isFinite(amount) && amount > 0 ? [amount * (match[2]?.toLowerCase() === "b" ? 1_000_000_000 : 1_000_000)] : [];
+  });
+  return matches.length > 0 ? Math.min(...matches) : null;
 }
 
 async function runRefresh() {

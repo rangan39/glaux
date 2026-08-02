@@ -225,7 +225,7 @@ async function assertState(page, state, viewport) {
     await assertVisible(textarea, "ready composer");
     assert.equal(await textarea.isEnabled(), true, "The prompt must unlock when the selected model is ready.");
     await assertHeaderStatus(page, "Model ready", "text-sophon-verified");
-    if (state === "ready") await assertInterfaceModes(page, assistant, viewport);
+    if (state === "ready") await assertDeveloperModeNavigation(page, assistant, viewport);
     if (state === "ready" && viewport.width === 1440 && viewport.height === 900) await assertDesktopModelGeometry(page);
     await assertCachedModelChoiceFlow(page, viewport);
     return;
@@ -266,31 +266,34 @@ async function assertState(page, state, viewport) {
   }
 }
 
-async function assertInterfaceModes(page, assistant, viewport) {
-  const modeToggle = page.getByTestId("interface-mode-toggle");
+async function assertDeveloperModeNavigation(page, assistant, viewport) {
+  const mobile = viewport.width < 1024;
+  if (mobile) await page.getByRole("button", { name: "Open model library", exact: true }).click();
+  const library = mobile
+    ? page.getByRole("dialog", { name: "Model library", exact: true })
+    : page.getByRole("complementary", { name: "Model library", exact: true });
+  const developerModeButton = library.getByRole("button", { name: "Dev Mode", exact: true });
   const inspectors = page.locator('button[aria-label^="Inspect "][aria-label$=" message tokens"]');
-  await assertVisible(modeToggle, `${viewport.name} interface-mode toggle`);
-  assert.equal(await modeToggle.getAttribute("data-mode"), "chat", `${viewport.name} must default to Chat mode.`);
-  assert.equal(await modeToggle.getAttribute("aria-label"), "Switch to developer mode. Chat mode is active");
-  assert.equal((await modeToggle.textContent())?.trim(), "Developer", `${viewport.name} Chat mode must offer Developer mode.`);
-  assert.equal(await inspectors.count(), 0, `${viewport.name} Chat mode must hide token inspection controls.`);
-  assert.equal(await assistant.getByText(/8\.4 tokens\/s/).count(), 0, `${viewport.name} Chat mode must hide response metrics.`);
+  await assertVisible(developerModeButton, `${viewport.name} sidebar developer-mode control`);
+  assert.equal(await developerModeButton.getAttribute("aria-pressed"), "false", `${viewport.name} must default to Model Details.`);
+  assert.equal(await inspectors.count(), 0, `${viewport.name} standard view must hide token inspection controls.`);
+  assert.equal(await assistant.getByText(/8\.4 tokens\/s/).count(), 0, `${viewport.name} standard view must hide response metrics.`);
   await assertVisible(
     page.getByRole("article", { name: "Message from Glaux" }).filter({ hasText: "no server inference" }),
-    `${viewport.name} Chat mode privacy metadata`
+    `${viewport.name} standard-view privacy metadata`
   );
 
-  await modeToggle.click();
-  assert.equal(await modeToggle.getAttribute("data-mode"), "developer", `${viewport.name} must switch to Developer mode.`);
-  assert.equal(await modeToggle.getAttribute("aria-label"), "Switch to chat mode. Developer mode is active");
-  assert.equal((await modeToggle.textContent())?.trim(), "Chat", `${viewport.name} Developer mode must offer Chat mode.`);
+  await developerModeButton.click();
+  assert.equal(await developerModeButton.getAttribute("aria-pressed"), "true", `${viewport.name} must switch to Developer mode.`);
+  if (mobile) await library.getByRole("button", { name: "Close model library", exact: true }).click();
   assert.equal(await inspectors.count(), 2, `${viewport.name} Developer mode must expose both token inspectors.`);
   await assertVisible(assistant.getByText(/8\.4 tokens\/s/), `${viewport.name} Developer mode generation metrics`);
 
-  await modeToggle.click();
-  assert.equal(await modeToggle.getAttribute("data-mode"), "chat", `${viewport.name} must switch back to Chat mode.`);
-  assert.equal(await inspectors.count(), 0, `${viewport.name} Chat mode must hide token inspectors after switching back.`);
-  assert.equal(await assistant.getByText(/8\.4 tokens\/s/).count(), 0, `${viewport.name} Chat mode must hide metrics after switching back.`);
+  if (mobile) await page.getByRole("button", { name: "Open model library", exact: true }).click();
+  await library.getByRole("button", { name: "Model Details", exact: true }).click();
+  if (mobile) await library.getByRole("button", { name: "Close model library", exact: true }).click();
+  assert.equal(await inspectors.count(), 0, `${viewport.name} leaving Dev Mode must hide token inspectors.`);
+  assert.equal(await assistant.getByText(/8\.4 tokens\/s/).count(), 0, `${viewport.name} leaving Dev Mode must hide metrics.`);
 }
 
 async function assertCachedModelChoiceFlow(page, viewport) {

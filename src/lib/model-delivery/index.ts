@@ -280,23 +280,5 @@ function now() {
   return globalThis.performance?.now?.() ?? Date.now();
 }
 
-export { MODEL_DELIVERY_MANIFESTS } from "@/lib/model-delivery/manifest";
-export { getModelCacheStatus } from "@/lib/model-delivery/cache-status";
-export {
-  createCommunityModelCache,
-  deleteCommunityModelDelivery,
-  getCommunityGraphArtifact,
-  prepareCommunityModelDelivery,
-  resolveCommunityDeliveryPlan,
-  type CommunityDeliveryArtifact,
-  type CommunityDeliveryPlan,
-  type CommunityModelCache,
-  type PreparedCommunityModelDelivery
-} from "@/lib/model-delivery/community-delivery";
-export {
-  isSafeExternalLocation,
-  OnnxExternalDataError,
-  readOnnxExternalDataLocations
-} from "@/lib/model-delivery/onnx-external-data";
 export type { DeliveryProgress } from "@/lib/model-delivery/range-downloader";
 export type { ModelCacheSummary } from "@/lib/onnx-types";

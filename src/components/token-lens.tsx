@@ -108,7 +108,7 @@ function MarkdownMessage({ content, role }: Pick<InspectableMessageProps, "conte
         "[&_hr]:my-4 [&_hr]:border-0 [&_hr]:border-t",
         "[&_li]:pl-1 [&_li]:marker:font-mono [&_ol]:my-3 [&_ol]:list-decimal [&_ol]:space-y-1 [&_ol]:pl-5 [&_ul]:my-3 [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-5",
         "[&_p]:my-3 [&_p]:whitespace-pre-wrap [&_p:first-child]:mt-0 [&_p:last-child]:mb-0",
-        "[&_pre]:my-3 [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:border [&_pre]:p-3 [&_pre]:text-xs [&_pre]:leading-5 [&_pre_code]:rounded-none [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:text-inherit",
+        "[&_pre]:my-3 [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:border [&_pre]:p-3 [&_pre]:text-xs [&_pre]:leading-5 [&_pre:focus-visible]:outline-none [&_pre:focus-visible]:ring-2 [&_pre:focus-visible]:ring-sophon-signal [&_pre_code]:rounded-none [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:text-inherit",
         "[&_table]:my-3 [&_table]:min-w-full [&_table]:border-collapse [&_table]:text-left [&_table]:text-xs [&_td]:border [&_td]:p-2 [&_th]:border [&_th]:p-2 [&_th]:font-semibold",
         role === "user"
           ? "[&_a]:text-sophon-on-signal [&_blockquote]:border-sophon-on-signal/45 [&_code]:bg-sophon-on-signal/10 [&_code]:text-sophon-on-signal [&_hr]:border-sophon-on-signal/30 [&_li]:marker:text-sophon-on-signal/70 [&_pre]:border-sophon-on-signal/35 [&_pre]:bg-sophon-code-inverse/95 [&_pre]:text-sophon-code-inverse-copy [&_td]:border-sophon-on-signal/25 [&_th]:border-sophon-on-signal/35 [&_th]:bg-sophon-on-signal/10"

@@ -14,6 +14,7 @@ export type CommunityModelSummary = {
   private: boolean;
   downloads: number;
   likes: number;
+  parameterCount: number | null;
   updatedAt: string | null;
   tags: readonly string[];
   license: string | null;
@@ -92,4 +93,10 @@ export type CommunityModelDescriptor = {
     readonly license: string | null;
   };
   readonly files: readonly CommunityModelFile[];
+};
+
+export type CommunityModelPreviewSelection = {
+  readonly details: CommunityModelDetails;
+  readonly compatibility: CommunityModelCompatibility;
+  readonly descriptor: CommunityModelDescriptor | null;
 };

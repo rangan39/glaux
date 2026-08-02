@@ -1,0 +1,21 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "chrome-extension/background.js",
+    "scripts/**/*.mjs",
+    "tests/**/*.mjs",
+    "e2e/**/*.ts"
+  ],
+  "project": [
+    "src/**/*.{ts,tsx,css}",
+    "e2e/**/*.ts"
+  ],
+  "ignoreExportsUsedInFile": true,
+  "include": [
+    "files",
+    "dependencies",
+    "unlisted",
+    "unresolved",
+    "exports"
+  ]
+}

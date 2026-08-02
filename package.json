@@ -13,6 +13,7 @@
     "budget:bundle": "node scripts/check_bundle_budget.mjs",
     "audit:production": "npm audit --omit=dev --audit-level=high",
     "audit:extension": "node scripts/audit_chrome_extension.mjs",
+    "check:dead": "knip",
     "assets:extension": "node scripts/generate_chrome_store_graphics.mjs && node scripts/capture_chrome_extension_store_assets.mjs",
     "build:extension": "node scripts/build_chrome_extension.mjs",
     "fetch:model-logic": "node scripts/fetch_packaged_model_logic.mjs",
@@ -20,6 +21,7 @@
     "product:ui": "GLAUX_PRODUCT_TESTING=1 next dev",
     "release:extension": "node scripts/release_chrome_extension.mjs",
     "test": "node --experimental-strip-types --test tests/*.test.mjs",
+    "test:e2e": "playwright test",
     "test:metrics": "node --experimental-strip-types --test tests/generation-metrics.test.mjs",
     "smoke:ui": "node scripts/smoke_ui.mjs",
     "smoke:trust": "node scripts/smoke_trust_navigation.mjs",
@@ -30,13 +32,12 @@
     "start": "next start",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit --incremental false",
-    "check": "npm run lint && npm run typecheck && npm test"
+    "check": "npm run lint && npm run typecheck && npm test && npm run check:dead"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.2.0",
     "@radix-ui/react-dialog": "^1.1.23",
     "@radix-ui/react-slot": "^1.3.3",
-    "@radix-ui/react-toggle-group": "^1.1.19",
     "@radix-ui/react-tooltip": "^1.2.16",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -53,13 +54,16 @@
     "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4.3.2",
     "@types/node": "^22.10.2",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.2.12",
-    "playwright": "^1.61.1",
+    "knip": "^6.31.0",
+    "playwright": "^1.62.1",
     "postcss": "^8.5.16",
     "sharp": "0.35.3",
     "tailwindcss": "^4.3.2",

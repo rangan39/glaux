@@ -1,7 +1,5 @@
 import {
-  ONNX_COMMUNITY_LIBRARY,
   ONNX_COMMUNITY_NAMESPACE,
-  ONNX_COMMUNITY_TASK,
   type CommunityModelCatalogPage,
   type CommunityModelDetails,
   type CommunityModelFile,
@@ -10,18 +8,10 @@ import {
 
 const HUB_ORIGIN = "https://huggingface.co";
 const MAX_PAGE_SIZE = 50;
-const MAX_SEARCH_LENGTH = 100;
 const MAX_CURSOR_LENGTH = 4_096;
 const MAX_REPOSITORY_FILES = 2_048;
 const REVISION_PATTERN = /^[a-f0-9]{40}$/;
 const REPOSITORY_PATTERN = /^onnx-community\/[A-Za-z0-9][A-Za-z0-9._-]{0,159}$/;
-
-export type CommunityCatalogQuery = {
-  search?: string;
-  cursor?: string;
-  limit?: number;
-  signal?: AbortSignal;
-};
 
 export type CommunityIndexPageQuery = {
   cursor?: string;
@@ -45,25 +35,6 @@ export class HuggingFaceCatalogError extends Error {
   }
 }
 
-export function buildOnnxCommunityCatalogUrl(query: Omit<CommunityCatalogQuery, "signal"> = {}) {
-  const url = new URL("/api/models", HUB_ORIGIN);
-  url.searchParams.set("author", ONNX_COMMUNITY_NAMESPACE);
-  url.searchParams.set("filter", ONNX_COMMUNITY_LIBRARY);
-  url.searchParams.set("pipeline_tag", ONNX_COMMUNITY_TASK);
-  url.searchParams.set("gated", "false");
-  url.searchParams.set("sort", "downloads");
-  url.searchParams.set("direction", "-1");
-  url.searchParams.set("full", "true");
-  url.searchParams.set("limit", String(clampInteger(query.limit ?? 24, 1, MAX_PAGE_SIZE)));
-
-  const search = normalizeOptionalString(query.search, MAX_SEARCH_LENGTH);
-  if (search) url.searchParams.set("search", search);
-
-  const cursor = normalizeOptionalString(query.cursor, MAX_CURSOR_LENGTH);
-  if (cursor) url.searchParams.set("cursor", cursor);
-  return url;
-}
-
 export function buildOnnxCommunityIndexUrl(query: Omit<CommunityIndexPageQuery, "signal"> = {}) {
   const url = new URL("/api/models", HUB_ORIGIN);
   url.searchParams.set("author", ONNX_COMMUNITY_NAMESPACE);
@@ -75,15 +46,6 @@ export function buildOnnxCommunityIndexUrl(query: Omit<CommunityIndexPageQuery, 
   const cursor = normalizeOptionalString(query.cursor, MAX_CURSOR_LENGTH);
   if (cursor) url.searchParams.set("cursor", cursor);
   return url;
-}
-
-export async function fetchOnnxCommunityCatalog(
-  query: CommunityCatalogQuery = {},
-  fetcher: CatalogFetch = globalThis.fetch as CatalogFetch
-): Promise<CommunityModelCatalogPage> {
-  const url = buildOnnxCommunityCatalogUrl(query);
-  const response = await request(url, query.signal, fetcher);
-  return readCatalogPage(response, "catalog");
 }
 
 export async function fetchOnnxCommunityIndexPage(
@@ -165,6 +127,7 @@ function normalizeCommunityModelSummary(value: unknown): CommunityModelSummary |
   if (!repo || !REPOSITORY_PATTERN.test(repo)) return null;
   const tags = normalizeStringArray(value.tags, 200, 160);
   const cardData = isRecord(value.cardData) ? value.cardData : null;
+  const safetensors = isRecord(value.safetensors) ? value.safetensors : null;
   const revision = normalizeOptionalString(value.sha, 40);
   return {
     repo,
@@ -176,10 +139,15 @@ function normalizeCommunityModelSummary(value: unknown): CommunityModelSummary |
     private: value.private === true,
     downloads: normalizeNonNegativeInteger(value.downloads),
     likes: normalizeNonNegativeInteger(value.likes),
+    parameterCount: normalizePositiveInteger(safetensors?.total),
     updatedAt: normalizeDate(value.lastModified ?? value.last_modified),
     tags,
     license: readLicense(cardData, tags)
   };
+}
+
+function normalizePositiveInteger(value: unknown) {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : null;
 }
 
 function normalizeFile(value: unknown): CommunityModelFile | null {

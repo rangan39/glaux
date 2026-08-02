@@ -18,7 +18,6 @@ type ConversationMessagesProps = {
   copiedMessageId: string | null;
   developerMode: boolean;
   inspectDisplayMode: TokenInspectMode | null;
-  interfaceMode: "chat" | "developer";
   isBusy: boolean;
   messages: readonly WorkbenchMessage[];
   onCopy: (message: WorkbenchMessage) => void;
@@ -27,7 +26,7 @@ type ConversationMessagesProps = {
   onRegenerate: (index: number) => void;
 };
 
-export function WorkbenchConversationMessages({ copiedMessageId, developerMode, inspectDisplayMode, interfaceMode, isBusy, messages, onCopy, onEdit, onInspectHover, onRegenerate }: ConversationMessagesProps) {
+export function WorkbenchConversationMessages({ copiedMessageId, developerMode, inspectDisplayMode, isBusy, messages, onCopy, onEdit, onInspectHover, onRegenerate }: ConversationMessagesProps) {
   return messages.map((message, index) => (
     <ConversationMessage
       canEdit={!isBusy && message.role === "user" && message.id !== "assistant-welcome"}
@@ -36,7 +35,6 @@ export function WorkbenchConversationMessages({ copiedMessageId, developerMode, 
       developerMode={developerMode}
       index={index}
       inspectDisplayMode={inspectDisplayMode}
-      interfaceMode={interfaceMode}
       key={message.id}
       message={message}
       onCopy={onCopy}
@@ -54,7 +52,6 @@ type ConversationMessageProps = {
   developerMode: boolean;
   index: number;
   inspectDisplayMode: TokenInspectMode | null;
-  interfaceMode: "chat" | "developer";
   message: WorkbenchMessage;
   onCopy: (message: WorkbenchMessage) => void;
   onEdit: (message: WorkbenchMessage, index: number) => void;
@@ -62,7 +59,7 @@ type ConversationMessageProps = {
   onRegenerate: (index: number) => void;
 };
 
-const ConversationMessage = memo(function ConversationMessage({ canEdit, canRegenerate, copied, developerMode, index, inspectDisplayMode, interfaceMode, message, onCopy, onEdit, onInspectHover, onRegenerate }: ConversationMessageProps) {
+const ConversationMessage = memo(function ConversationMessage({ canEdit, canRegenerate, copied, developerMode, index, inspectDisplayMode, message, onCopy, onEdit, onInspectHover, onRegenerate }: ConversationMessageProps) {
   return (
     <article aria-label={message.role === "user" ? "Message from you" : "Message from Glaux"} className={cn("group/message relative flex w-full min-w-0 gap-3 text-sm", message.role === "user" && "flex-row-reverse")}>
       <div className={cn("flex size-8 shrink-0 items-center justify-center self-end overflow-hidden", message.role === "user" ? "sophon-accent-avatar !self-start mt-1 rounded-xl border border-sophon-signal-bright/50" : "sophon-glass-tile !self-start mt-1 rounded-xl text-sophon-signal-soft")}>
@@ -74,7 +71,7 @@ const ConversationMessage = memo(function ConversationMessage({ canEdit, canRege
           content={message.content}
           developerMode={developerMode}
           inspectMode={developerMode ? inspectDisplayMode : null}
-          key={`${message.id}-${interfaceMode}`}
+          key={`${message.id}-${developerMode ? "developer" : "chat"}`}
           meta={message.meta}
           onInspectHover={onInspectHover}
           role={message.role}
@@ -91,7 +88,6 @@ const ConversationMessage = memo(function ConversationMessage({ canEdit, canRege
   && previous.developerMode === next.developerMode
   && previous.index === next.index
   && previous.inspectDisplayMode === next.inspectDisplayMode
-  && previous.interfaceMode === next.interfaceMode
   && previous.message === next.message
 ));
 

@@ -504,17 +504,13 @@ try {
   const assistantFixtureMessage = activePage.getByRole("article", { name: "Message from Glaux", exact: true }).filter({ hasText: "Fixture response" });
   await assertVisible(userFixtureMessage, "generated fixture user message");
   await assertVisible(assistantFixtureMessage, "generated fixture assistant message");
-  assert.equal(await assistantFixtureMessage.getByText(/5\.0 tokens\/s/).count(), 0, "Chat mode must hide response metrics.");
-  assert.equal(await userFixtureMessage.getByRole("button", { name: "Inspect 3 message tokens", exact: true }).count(), 0, "Chat mode must hide token inspection.");
-  const interfaceModeToggle = activePage.getByTestId("interface-mode-toggle");
-  await assertVisible(interfaceModeToggle, "interface-mode toggle");
-  assert.equal(await interfaceModeToggle.getAttribute("data-mode"), "chat", "Chat mode must be the default.");
-  assert.equal(await interfaceModeToggle.getAttribute("aria-label"), "Switch to developer mode. Chat mode is active");
-  assert.equal((await interfaceModeToggle.textContent())?.trim(), "Developer", "Chat mode must offer Developer mode.");
-  await interfaceModeToggle.click();
-  assert.equal(await interfaceModeToggle.getAttribute("data-mode"), "developer", "The interface must switch to Developer mode.");
-  assert.equal(await interfaceModeToggle.getAttribute("aria-label"), "Switch to chat mode. Developer mode is active");
-  assert.equal((await interfaceModeToggle.textContent())?.trim(), "Chat", "Developer mode must offer Chat mode.");
+  assert.equal(await assistantFixtureMessage.getByText(/5\.0 tokens\/s/).count(), 0, "The standard view must hide response metrics.");
+  assert.equal(await userFixtureMessage.getByRole("button", { name: "Inspect 3 message tokens", exact: true }).count(), 0, "The standard view must hide token inspection.");
+  const developerLibrary = activePage.getByRole("complementary", { name: "Model library", exact: true });
+  const developerModeButton = developerLibrary.getByRole("button", { name: "Dev Mode", exact: true });
+  await assertVisible(developerModeButton, "sidebar developer-mode control");
+  await developerModeButton.click();
+  assert.equal(await developerModeButton.getAttribute("aria-pressed"), "true", "The sidebar must switch to Developer mode.");
   await assertVisible(assistantFixtureMessage.getByText("WebGPU · 2/3 → 2 tokens · 5.0 tokens/s · first token 120 ms · 1 earlier tokens omitted", { exact: true }), "plain-language response metrics");
   await userFixtureMessage.getByRole("button", { name: "Inspect 3 message tokens", exact: true }).click();
   await assistantFixtureMessage.getByRole("button", { name: "Inspect 2 message tokens", exact: true }).click();
@@ -549,10 +545,9 @@ try {
   assert.equal(await userFixtureMessage.locator('[data-context="omitted"]').count(), 1, "The token lens must preserve outside-context state.");
   await assistantFixtureMessage.getByRole("button", { name: "tokens", exact: true }).click();
   await assertVisible(assistantFixtureMessage.getByRole("toolbar", { name: /2 inspectable token segments/ }), "assistant token toolbar");
-  await interfaceModeToggle.click();
-  assert.equal(await interfaceModeToggle.getAttribute("data-mode"), "chat", "The interface must switch back to Chat mode.");
-  assert.equal(await activePage.locator('[role="toolbar"][aria-label*="inspectable token segments"]').count(), 0, "Chat mode must close open token inspectors.");
-  assert.equal(await assistantFixtureMessage.getByText(/5\.0 tokens\/s/).count(), 0, "Chat mode must hide response metrics after switching back.");
+  await developerLibrary.getByRole("button", { name: "Model Details", exact: true }).click();
+  assert.equal(await activePage.locator('[role="toolbar"][aria-label*="inspectable token segments"]').count(), 0, "Leaving Dev Mode must close open token inspectors.");
+  assert.equal(await assistantFixtureMessage.getByText(/5\.0 tokens\/s/).count(), 0, "Leaving Dev Mode must hide response metrics.");
 
   const deleteCached = activePage.getByRole("button", { name: "Delete downloaded files for Tiny Aya Global 3.35B · non-commercial", exact: true });
   await assertVisible(deleteCached, "downloaded model deletion control");

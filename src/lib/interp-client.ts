@@ -19,8 +19,6 @@ import {
   type WorkerResultMap
 } from "@/lib/onnx-worker-protocol";
 
-export type { OnnxLogEvent as RuntimeLogEvent, OnnxRunResponse as RunPromptResult } from "@/lib/onnx-types";
-
 type PendingRequest = {
   resolve: (value: unknown) => void;
   reject: (error: Error) => void;

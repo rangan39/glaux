@@ -1,7 +1,7 @@
 "use client";
 
 import type { RefObject } from "react";
-import { CodeXml, HeartHandshake, MoonStar, Scale, X } from "lucide-react";
+import { MoonStar, X } from "lucide-react";
 import { ExternalLinkIndicator } from "@/components/external-link-indicator";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -74,7 +74,7 @@ export default function GlauxAcknowledgementsDialog({ onDismiss, triggerRef }: G
 
   return (
     <Dialog defaultOpen onOpenChange={handleOpenChange}>
-      <DialogContent aria-describedby={undefined} className="sophon-glass-strong flex max-h-[min(84svh,44rem)] w-[calc(100%-2rem)] max-w-xl flex-col gap-0 overflow-hidden rounded-2xl border-sophon-glass-border p-0 shadow-[0_28px_100px_var(--sophon-glass-shadow)] sm:w-full" id="sophon-acknowledgements" showCloseButton={false}>
+      <DialogContent aria-describedby={undefined} className="sophon-glass-strong flex max-h-[min(84svh,44rem)] w-[calc(100%-2rem)] max-w-xl flex-col gap-0 overflow-hidden rounded-2xl border-sophon-glass-border p-0 shadow-[0_28px_100px_var(--sophon-glass-shadow)] sm:w-full" id="sophon-acknowledgements">
         <section className="flex min-h-0 flex-1 flex-col" data-testid="acknowledgements-panel">
         <header className="flex shrink-0 items-start gap-3 border-b border-sophon-glass-border p-4 sm:p-5">
           <span aria-hidden="true" className="sophon-glass-tile hidden size-10 shrink-0 place-items-center rounded-xl text-sophon-signal-soft min-[400px]:grid"><MoonStar className="size-5 stroke-[1.7]" /></span>
@@ -87,39 +87,63 @@ export default function GlauxAcknowledgementsDialog({ onDismiss, triggerRef }: G
 
         <div className="min-h-0 overflow-y-auto p-4 sm:p-5">
           <div className="space-y-5">
+            <section aria-labelledby="how-glaux-works-title">
+              <div className="mb-2 px-1">
+                <h3 className="sophon-type-decorative font-mono uppercase tracking-[0.12em] text-sophon-signal-soft" data-typography-role="decorative" id="how-glaux-works-title">How Glaux works</h3>
+                <p className="sophon-type-metadata mt-0.5 text-sophon-copy-metadata" data-typography-role="metadata">Glaux helps you find a compatible model, store it safely, and chat without cloud inference.</p>
+              </div>
+              <ol className="space-y-2" data-testid="how-glaux-works">
+                <li className="sophon-glass-tile rounded-xl px-3.5 py-3">
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                    <p className="text-sm font-medium text-sophon-copy-primary">Choose a model</p>
+                    <span className="sophon-type-decorative rounded-md border border-sophon-glass-border bg-sophon-panel-deep px-2 py-1 font-mono uppercase tracking-[0.06em] text-sophon-copy-decorative" data-typography-role="decorative">Step 1</span>
+                  </div>
+                  <p className="sophon-type-metadata mt-1.5 text-sophon-copy-metadata" data-typography-role="metadata">Glaux loads the ONNX Community catalog from Hugging Face. When you choose a model, it checks the required files, download size, license information, and whether the model can run in your browser.</p>
+                </li>
+                <li className="sophon-glass-tile rounded-xl px-3.5 py-3">
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                    <p className="text-sm font-medium text-sophon-copy-primary">Download it once</p>
+                    <span className="sophon-type-decorative rounded-md border border-sophon-glass-border bg-sophon-panel-deep px-2 py-1 font-mono uppercase tracking-[0.06em] text-sophon-copy-decorative" data-typography-role="decorative">Step 2</span>
+                  </div>
+                  <p className="sophon-type-metadata mt-1.5 text-sophon-copy-metadata" data-typography-role="metadata">After you approve the download, Glaux saves the model directly in browser storage and checks that every file arrived correctly. Interrupted downloads can resume, and Glaux keeps one downloaded model at a time.</p>
+                </li>
+                <li className="sophon-glass-tile rounded-xl px-3.5 py-3">
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                    <p className="text-sm font-medium text-sophon-copy-primary">Run it locally</p>
+                    <span className="sophon-type-decorative rounded-md border border-sophon-glass-border bg-sophon-panel-deep px-2 py-1 font-mono uppercase tracking-[0.06em] text-sophon-copy-decorative" data-typography-role="decorative">Step 3</span>
+                  </div>
+                  <p className="sophon-type-metadata mt-1.5 text-sophon-copy-metadata" data-typography-role="metadata">Glaux loads the saved model and uses WebGPU to generate responses on your device. Your prompts and responses stay in the current browser session and are not sent to Glaux, Hugging Face, or a cloud inference service.</p>
+                </li>
+              </ol>
+            </section>
+
             <section aria-labelledby="trust-support-title">
               <div className="mb-2 px-1">
                 <h3 className="sophon-type-decorative font-mono uppercase tracking-[0.12em] text-sophon-signal-soft" data-typography-role="decorative" id="trust-support-title">Licensing & support</h3>
                 <p className="sophon-type-metadata mt-0.5 text-sophon-copy-metadata" data-typography-role="metadata">Glaux source terms and links to model-specific licensing.</p>
               </div>
               <nav aria-label="Licensing and support">
-                <ul className="grid gap-2 sm:grid-cols-2" data-testid="trust-support-links">
-                  <li>
-                    <a className="sophon-glass-tile flex min-h-16 h-full items-center gap-3 rounded-xl px-3.5 py-3 text-sophon-copy-primary transition-colors hover:border-sophon-signal-bright/55 hover:bg-sophon-glass-strong hover:text-sophon-signal-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-signal" href={PROJECT_REPOSITORY_URL} rel="noreferrer" target="_blank">
-                      <CodeXml aria-hidden="true" className="size-4 shrink-0 text-sophon-signal-soft" />
-                      <span>
-                        <span className="flex items-center gap-1.5 text-sm font-medium">Source code <ExternalLinkIndicator /></span>
-                        <span className="sophon-type-metadata mt-0.5 block text-sophon-copy-metadata" data-typography-role="metadata">Glaux is released under the MIT License</span>
-                      </span>
-                    </a>
+                <ul className="space-y-2" data-testid="trust-support-links">
+                  <li className="sophon-glass-tile rounded-xl px-3.5 py-3 transition-colors hover:border-sophon-signal-bright/55 hover:bg-sophon-glass-strong">
+                    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                      <a className="break-words text-sm font-medium text-sophon-copy-primary transition-colors hover:text-sophon-signal-soft focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-signal" href={PROJECT_REPOSITORY_URL} rel="noreferrer" target="_blank"><span className="inline-flex items-center gap-1.5">Source code <ExternalLinkIndicator className="text-sophon-copy-metadata" /></span></a>
+                      <span className="sophon-type-decorative rounded-md border border-sophon-glass-border bg-sophon-panel-deep px-2 py-1 font-mono uppercase tracking-[0.06em] text-sophon-copy-decorative" data-typography-role="decorative">Source</span>
+                    </div>
+                    <p className="sophon-type-metadata mt-1.5 text-sophon-copy-metadata" data-typography-role="metadata">Glaux is released under the MIT License.</p>
                   </li>
-                  <li>
-                    <a className="sophon-glass-tile flex min-h-16 h-full items-center gap-3 rounded-xl px-3.5 py-3 text-sophon-copy-primary transition-colors hover:border-sophon-signal-bright/55 hover:bg-sophon-glass-strong hover:text-sophon-signal-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-signal" href={ONNX_COMMUNITY_URL} rel="noreferrer" target="_blank">
-                      <Scale aria-hidden="true" className="size-4 shrink-0 text-sophon-signal-soft" />
-                      <span>
-                        <span className="flex items-center gap-1.5 text-sm font-medium">Model licenses <ExternalLinkIndicator /></span>
-                        <span className="sophon-type-metadata mt-0.5 block text-sophon-copy-metadata" data-typography-role="metadata">Review the license on each model card</span>
-                      </span>
-                    </a>
+                  <li className="sophon-glass-tile rounded-xl px-3.5 py-3 transition-colors hover:border-sophon-signal-bright/55 hover:bg-sophon-glass-strong">
+                    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                      <a className="break-words text-sm font-medium text-sophon-copy-primary transition-colors hover:text-sophon-signal-soft focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-signal" href={ONNX_COMMUNITY_URL} rel="noreferrer" target="_blank"><span className="inline-flex items-center gap-1.5">Model licenses <ExternalLinkIndicator className="text-sophon-copy-metadata" /></span></a>
+                      <span className="sophon-type-decorative rounded-md border border-sophon-glass-border bg-sophon-panel-deep px-2 py-1 font-mono uppercase tracking-[0.06em] text-sophon-copy-decorative" data-typography-role="decorative">Licenses</span>
+                    </div>
+                    <p className="sophon-type-metadata mt-1.5 text-sophon-copy-metadata" data-typography-role="metadata">Review the license published with each model.</p>
                   </li>
-                  <li>
-                    <a className="sophon-glass-tile flex min-h-16 h-full items-center gap-3 rounded-xl px-3.5 py-3 text-sophon-copy-primary transition-colors hover:border-sophon-signal-bright/55 hover:bg-sophon-glass-strong hover:text-sophon-signal-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-signal" href={PROJECT_SUPPORT_URL} rel="noreferrer" target="_blank">
-                      <HeartHandshake aria-hidden="true" className="size-4 shrink-0 text-sophon-signal-soft" />
-                      <span>
-                        <span className="flex items-center gap-1.5 text-sm font-medium">Project support <ExternalLinkIndicator /></span>
-                        <span className="sophon-type-metadata mt-0.5 block text-sophon-copy-metadata" data-typography-role="metadata">Questions and issue reports</span>
-                      </span>
-                    </a>
+                  <li className="sophon-glass-tile rounded-xl px-3.5 py-3 transition-colors hover:border-sophon-signal-bright/55 hover:bg-sophon-glass-strong">
+                    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                      <a className="break-words text-sm font-medium text-sophon-copy-primary transition-colors hover:text-sophon-signal-soft focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-signal" href={PROJECT_SUPPORT_URL} rel="noreferrer" target="_blank"><span className="inline-flex items-center gap-1.5">Project support <ExternalLinkIndicator className="text-sophon-copy-metadata" /></span></a>
+                      <span className="sophon-type-decorative rounded-md border border-sophon-glass-border bg-sophon-panel-deep px-2 py-1 font-mono uppercase tracking-[0.06em] text-sophon-copy-decorative" data-typography-role="decorative">Support</span>
+                    </div>
+                    <p className="sophon-type-metadata mt-1.5 text-sophon-copy-metadata" data-typography-role="metadata">Questions and issue reports.</p>
                   </li>
                 </ul>
               </nav>

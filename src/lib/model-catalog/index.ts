@@ -1,18 +1,17 @@
 export {
-  buildOnnxCommunityCatalogUrl,
   buildOnnxCommunityIndexUrl,
-  fetchOnnxCommunityCatalog,
   fetchOnnxCommunityIndexPage,
   fetchOnnxCommunityModelDetails,
   HuggingFaceCatalogError,
   type CatalogFetch,
-  type CommunityCatalogQuery,
   type CommunityIndexPageQuery
 } from "@/lib/model-catalog/hugging-face";
 export {
   refreshCommunityCatalogIndex,
-  searchCommunityCatalogIndex,
-  subscribeCommunityCatalogIndex
+  estimateParameterCount,
+  searchCommunityCatalogIndexPage,
+  subscribeCommunityCatalogIndex,
+  type CommunityCatalogSort
 } from "@/lib/model-catalog/browser-index";
 export {
   assessCommunityModelCompatibility

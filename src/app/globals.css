@@ -25,7 +25,6 @@
   --color-sophon-canvas: var(--sophon-canvas);
   --color-sophon-panel: var(--sophon-panel);
   --color-sophon-panel-deep: var(--sophon-panel-deep);
-  --color-sophon-field: var(--sophon-field);
   --color-sophon-signal: var(--sophon-signal);
   --color-sophon-signal-bright: var(--sophon-signal-bright);
   --color-sophon-signal-soft: var(--sophon-signal-soft);
@@ -33,7 +32,6 @@
   --color-sophon-on-signal: var(--sophon-on-signal);
   --color-sophon-verified: var(--sophon-verified);
   --color-sophon-verified-bright: var(--sophon-verified-bright);
-  --color-sophon-on-verified: var(--sophon-on-verified);
   --color-sophon-warning: var(--sophon-warning);
   --color-sophon-glass: var(--sophon-glass);
   --color-sophon-glass-strong: var(--sophon-glass-strong);
@@ -45,7 +43,6 @@
   --color-sophon-copy-metadata: var(--sophon-copy-metadata);
   --color-sophon-copy-decorative: var(--sophon-copy-decorative);
   --color-sophon-copy-disabled: var(--sophon-copy-disabled);
-  --color-sophon-disabled-primary: var(--sophon-disabled-primary);
   --color-sophon-disabled-surface: var(--sophon-disabled-surface);
   --color-sophon-backdrop: var(--sophon-backdrop);
   --color-sophon-code-inverse: var(--sophon-code-inverse);
@@ -84,7 +81,6 @@
   --sophon-canvas: #ffffff;
   --sophon-panel: #ffffff;
   --sophon-panel-deep: #fafafa;
-  --sophon-field: #ffffff;
   --sophon-signal: #171717;
   --sophon-signal-bright: #262626;
   --sophon-signal-soft: #404040;
@@ -102,15 +98,12 @@
   --sophon-glass-fallback: #ffffff;
   --sophon-glass-strong-fallback: #ffffff;
   --sophon-glass-tile-fallback: #fafafa;
-  --sophon-disabled-primary: #d4d4d4;
   --sophon-disabled-surface: #f5f5f5;
   --sophon-backdrop: rgb(23 23 23 / 0.24);
   --sophon-code-inverse: #171717;
   --sophon-code-inverse-copy: #ffffff;
   --sophon-verified: #08784f;
   --sophon-verified-bright: #00a85a;
-  --sophon-on-verified: #043d2a;
-  --sophon-verified-glow: rgb(8 120 79 / 0.16);
   --sophon-warning: #b45309;
   --sophon-copy-primary: #171717;
   --sophon-copy-body: #303030;
@@ -153,11 +146,6 @@
   box-shadow:
     inset 0 1px 0 var(--sophon-glass-highlight),
     0 14px 36px var(--sophon-glass-shadow);
-}
-
-.sophon-verified-emphasis {
-  color: var(--sophon-on-verified);
-  box-shadow: 0 0 12px var(--sophon-verified-glow);
 }
 
 * {
@@ -362,6 +350,12 @@ body {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sophon-reveal {
+    animation: none;
   }
 }
 

@@ -3,7 +3,12 @@ import remarkGfm from "remark-gfm";
 
 export default function MarkdownContent({ content }: { content: string }) {
   return (
-    <ReactMarkdown disallowedElements={["img"]} remarkPlugins={[remarkGfm]} skipHtml>
+    <ReactMarkdown
+      components={{ pre: (properties) => <pre tabIndex={0} {...properties} /> }}
+      disallowedElements={["img"]}
+      remarkPlugins={[remarkGfm]}
+      skipHtml
+    >
       {content}
     </ReactMarkdown>
   );

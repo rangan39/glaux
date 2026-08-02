@@ -46,7 +46,7 @@ test("browser capability probing does not start the inference worker", async () 
 });
 
 test("preload uses an idle watchdog refreshed only by meaningful progress plus an overall ceiling", async () => {
-  const loading = preloadModel("tiny-aya-global");
+  const loading = preloadModel("hf:fixture-alpha");
   assert.equal(lastRequest.type, "preload");
   assert.deepEqual(scheduled.map(({ delay }) => delay), [2 * 60_000, 6 * 60 * 60_000]);
 

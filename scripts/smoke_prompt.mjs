@@ -3,7 +3,7 @@ import { chromium } from "playwright";
 
 const url = process.env.GLAUX_SMOKE_URL ?? process.argv[2] ?? "http://localhost:3000";
 const prompt = process.env.GLAUX_SMOKE_PROMPT ?? process.argv[3] ?? "The proof is";
-const modelId = process.env.GLAUX_SMOKE_MODEL ?? "tiny-aya-global";
+const modelId = process.env.GLAUX_SMOKE_MODEL;
 const timeoutMs = Number(process.env.GLAUX_SMOKE_TIMEOUT_MS ?? 30 * 60_000);
 
 let browser;
@@ -11,6 +11,7 @@ let page;
 const browserMessages = [];
 
 try {
+  if (!modelId) throw new Error("Set GLAUX_SMOKE_MODEL to the saved Hugging Face model ID to exercise.");
   browser = await chromium.launch({
     headless: true,
     args: [

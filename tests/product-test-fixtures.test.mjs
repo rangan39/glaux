@@ -25,7 +25,7 @@ test("recognizes the four model fixtures and rejects unknown model IDs", () => {
     PRODUCT_TEST_MODEL_IDS.map((modelId) => parseProductTestModelId(modelId)),
     [...PRODUCT_TEST_MODEL_IDS]
   );
-  assert.equal(parseProductTestModelId("tiny-aya-air"), null);
+  assert.equal(parseProductTestModelId("hf:unknown-fixture"), null);
   assert.equal(parseProductTestModelId(null), null);
 });
 
@@ -52,19 +52,19 @@ test("provides complete deterministic lifecycle snapshots", () => {
   assert.equal(snapshots.get("legacy-cleanup").cacheInventoryResolved, false);
   assert.equal(snapshots.get("legacy-cleanup-error").startupCleanupStatus, "failed");
   assert.match(snapshots.get("legacy-cleanup-error").error, /could not remove/i);
-  assert.equal(snapshots.get("confirmation").pendingModelDownloadId, "tiny-aya-global");
-  assert.equal(snapshots.get("replacement-confirmation").pendingModelDownloadId, "tiny-aya-earth");
-  assert.equal(snapshots.get("replacement-confirmation").modelId, "tiny-aya-global");
+  assert.equal(snapshots.get("confirmation").pendingModelDownloadId, "hf:fixture-alpha");
+  assert.equal(snapshots.get("replacement-confirmation").pendingModelDownloadId, "hf:fixture-beta");
+  assert.equal(snapshots.get("replacement-confirmation").modelId, "hf:fixture-alpha");
   assert.equal(snapshots.get("replacement-deleting").modelReplacementPhase, "deleting");
   assert.equal(snapshots.get("downloading").generation.status, "loading");
   assert.equal(snapshots.get("downloading").generation.activity.progress.stage, "download");
   assert.equal(snapshots.get("paused").modelLoadPaused, true);
   assert.equal(snapshots.get("verifying").generation.activity.progress.stage, "verify");
-  assert.equal(snapshots.get("ready").loadedModelId, "tiny-aya-global");
-  assert.equal(snapshots.get("retry-success").loadedModelId, "tiny-aya-global");
+  assert.equal(snapshots.get("ready").loadedModelId, "hf:fixture-alpha");
+  assert.equal(snapshots.get("retry-success").loadedModelId, "hf:fixture-alpha");
   assert.equal(snapshots.get("retry-success").failedTurn, null);
   assert.equal(snapshots.get("generating").generation.status, "running");
-  assert.match(snapshots.get("generating").generation.draft, /Global/);
+  assert.match(snapshots.get("generating").generation.draft, /Fixture A/);
   assert.match(snapshots.get("stopped").failedTurn.reason, /stopped/i);
   assert.match(snapshots.get("error").failedTurn.reason, /Retry/);
   assert.equal(snapshots.get("reset").resetConfirmationOpen, true);

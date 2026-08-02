@@ -29,10 +29,10 @@ const viewports = [
   { name: "mobile", width: 375, height: 812 }
 ];
 const modelThemes = [
-  { id: "tiny-aya-water", name: "Water", theme: "water", signal: "#008cff", canvas: "#f8fbff" },
-  { id: "tiny-aya-fire", name: "Fire", theme: "fire", signal: "#e85d04", canvas: "#fff8f2" },
-  { id: "tiny-aya-earth", name: "Earth", theme: "earth", signal: "#9a8264", canvas: "#f5f2eb" },
-  { id: "tiny-aya-global", name: "Global", theme: "global", signal: "#111", canvas: "#f7f7f6" }
+  { id: "hf:fixture-delta", name: "Fixture D", theme: "water", signal: "#008cff", canvas: "#f8fbff" },
+  { id: "hf:fixture-gamma", name: "Fixture C", theme: "fire", signal: "#e85d04", canvas: "#fff8f2" },
+  { id: "hf:fixture-beta", name: "Fixture B", theme: "earth", signal: "#9a8264", canvas: "#f5f2eb" },
+  { id: "hf:fixture-alpha", name: "Fixture A", theme: "global", signal: "#111", canvas: "#f7f7f6" }
 ];
 
 assert.ok(Number.isFinite(timeoutMs) && timeoutMs > 0, "GLAUX_SMOKE_TIMEOUT_MS must be a positive number.");
@@ -140,7 +140,7 @@ async function assertModelThemes(browser) {
     });
     assert.deepEqual(values, { canvas: model.canvas, signal: model.signal }, `${model.name} must resolve its centralized theme tokens.`);
     assert.equal(
-      await page.getByRole("radio", { name: new RegExp(`Choose Tiny Aya ${model.name}`) }).isChecked(),
+      await page.getByRole("radio", { name: new RegExp(`Choose ${model.name}`) }).isChecked(),
       true,
       `${model.name} must be the selected ready model.`
     );
@@ -167,32 +167,32 @@ async function assertState(page, state, viewport) {
     return;
   }
   if (state === "confirmation") {
-    const dialog = page.getByRole("dialog", { name: "Download Tiny Aya Global 3.35B?", exact: true });
+    const dialog = page.getByRole("dialog", { name: "Download Fixture A?", exact: true });
     await assertVisible(dialog, "download confirmation");
     await assertVisible(dialog.getByRole("button", { name: "Download model", exact: true }), "download confirmation action");
-    assert.match(await dialog.textContent() ?? "", /non-commercial use under CC BY-NC 4\.0/);
+    assert.match(await dialog.textContent() ?? "", /Review the selected model’s license and repository terms before use/);
     await assertHeaderStatus(page, "Choose model", "text-sophon-copy-metadata");
     return;
   }
   if (state === "replacement-confirmation") {
-    const dialog = page.getByRole("dialog", { name: "Replace Tiny Aya Global 3.35B with Tiny Aya Earth 3.35B?", exact: true });
+    const dialog = page.getByRole("dialog", { name: "Replace Fixture A with Fixture B?", exact: true });
     await assertVisible(dialog, "model replacement confirmation");
-    await assertVisible(dialog.getByRole("button", { name: "Keep Tiny Aya Global 3.35B", exact: true }), "keep installed model action");
+    await assertVisible(dialog.getByRole("button", { name: "Keep Fixture A", exact: true }), "keep installed model action");
     await assertVisible(dialog.getByRole("button", { name: "Replace & download", exact: true }), "replace and download action");
     assert.match(await dialog.textContent() ?? "", /keeps one model on this device at a time/i);
     assert.match(await dialog.textContent() ?? "", /Switching back will require another download/i);
     return;
   }
   if (state === "replacement-deleting") {
-    const dialog = page.getByRole("dialog", { name: "Replace Tiny Aya Global 3.35B with Tiny Aya Earth 3.35B?", exact: true });
+    const dialog = page.getByRole("dialog", { name: "Replace Fixture A with Fixture B?", exact: true });
     await assertVisible(dialog, "model replacement deletion progress");
-    const removing = dialog.getByRole("button", { name: "Removing Tiny Aya Global 3.35B…", exact: true });
+    const removing = dialog.getByRole("button", { name: "Removing Fixture A…", exact: true });
     await assertVisible(removing, "model replacement busy state");
     assert.equal(await removing.isDisabled(), true, "Replacement progress must not be actionable.");
     return;
   }
   if (state === "downloading") {
-    const progress = page.getByRole("progressbar", { name: /Loading Tiny Aya Global/ });
+    const progress = page.getByRole("progressbar", { name: /Loading Fixture A/ });
     await assertVisible(progress, "download progress");
     assert.equal(await progress.getAttribute("aria-valuenow"), "38.8");
     await assertVisible(page.getByRole("button", { name: "Pause model download", exact: true }), "pause action");
@@ -207,7 +207,7 @@ async function assertState(page, state, viewport) {
     return;
   }
   if (state === "verifying") {
-    const progress = page.getByRole("progressbar", { name: /Loading Tiny Aya Global/ });
+    const progress = page.getByRole("progressbar", { name: /Loading Fixture A/ });
     await assertVisible(progress, "verification progress");
     assert.match(await progress.getAttribute("aria-valuetext") ?? "", /verified/);
     const promptHelp = page.locator("#prompt-help");
@@ -305,18 +305,18 @@ async function assertCachedModelChoiceFlow(page, viewport) {
   await assertVisible(library, `${viewport.name} ready-state model library`);
   await assertNoOfflineImport(library, viewport);
 
-  await library.locator('[data-model-id="tiny-aya-earth"]').click();
+  await library.locator('[data-model-id="hf:fixture-beta"]').click();
   assert.equal(
-    await library.getByRole("radio", { name: /Choose Tiny Aya Earth/ }).isChecked(),
+    await library.getByRole("radio", { name: /Choose Fixture B/ }).isChecked(),
     true,
     `${viewport.name} uncached comparison choice must remain in the library.`
   );
 
-  await library.locator('[data-model-id="tiny-aya-global"]').click();
-  const globalRadio = page.locator(`${mobile ? "#model-library-mobile" : "#model-library-desktop"} input[value="tiny-aya-global"]`);
+  await library.locator('[data-model-id="hf:fixture-alpha"]').click();
+  const globalRadio = page.locator(`${mobile ? "#model-library-mobile" : "#model-library-desktop"} input[value="hf:fixture-alpha"]`);
   assert.equal(await globalRadio.isChecked(), true, `${viewport.name} cached model selection must switch immediately.`);
   assert.equal(
-    await page.getByRole("dialog", { name: /Download Tiny Aya/ }).count(),
+    await page.getByRole("dialog", { name: /Download Fixture/ }).count(),
     0,
     `${viewport.name} cached model selection must not request download confirmation.`
   );
@@ -387,22 +387,22 @@ async function assertModelChoiceFlow(page, viewport) {
     `${viewport.name} model cards must expose visible radio affordances.`
   );
 
-  const earth = library.getByRole("radio", { name: /Choose Tiny Aya Earth/ });
-  await library.locator('[data-model-id="tiny-aya-earth"]').click();
+  const earth = library.getByRole("radio", { name: /Choose Fixture B/ });
+  await library.locator('[data-model-id="hf:fixture-beta"]').click();
   assert.equal(await earth.isChecked(), true, `${viewport.name} uncached model selection must update the radio.`);
   assert.equal(
-    await page.getByRole("dialog", { name: "Download Tiny Aya Earth 3.35B?", exact: true }).count(),
+    await page.getByRole("dialog", { name: "Download Fixture B?", exact: true }).count(),
     0,
     `${viewport.name} selection alone must not open confirmation.`
   );
 
-  const download = library.getByRole("button", { name: "Download Earth · ~2.35 GB", exact: true });
+  const download = library.getByRole("button", { name: "Download Fixture B · 2.19 GB", exact: true });
   await assertVisible(download, `${viewport.name} selected-model download action`);
   await download.click();
 
-  const confirmation = page.getByRole("dialog", { name: "Download Tiny Aya Earth 3.35B?", exact: true });
+  const confirmation = page.getByRole("dialog", { name: "Download Fixture B?", exact: true });
   await assertVisible(confirmation, `${viewport.name} selected-model download confirmation`);
-  assert.match(await confirmation.textContent() ?? "", /non-commercial use under CC BY-NC 4\.0/);
+  assert.match(await confirmation.textContent() ?? "", /Review the selected model’s license and repository terms before use/);
   await confirmation.getByRole("button", { name: "Not now", exact: true }).click();
   await confirmation.waitFor({ state: "hidden", timeout: timeoutMs });
   if (mobile) {
@@ -570,7 +570,7 @@ async function assertDocumentScrollLock(page, viewport, state) {
   );
   if (state !== "confirmation") return;
 
-  const dialog = page.getByRole("dialog", { name: "Download Tiny Aya Global 3.35B?", exact: true });
+  const dialog = page.getByRole("dialog", { name: "Download Fixture A?", exact: true });
   await dialog.getByRole("button", { name: "Not now", exact: true }).click();
   await dialog.waitFor({ state: "hidden", timeout: timeoutMs });
 

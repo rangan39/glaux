@@ -19,7 +19,7 @@ import {
   runPrompt,
   terminateRuntimeWorker
 } from "@/lib/interp-client";
-import { communityDescriptorToManifest, MODEL_REGISTRY, RECOMMENDED_MODEL_ID, resolveModelProvider, type ModelManifest } from "@/lib/onnx-models";
+import { communityDescriptorToManifest, resolveModelProvider, type ModelManifest } from "@/lib/onnx-models";
 import { deleteSavedCommunityModelDescriptor, listSavedCommunityModelDescriptors, saveCommunityModelDescriptor, type CommunityModelPreviewSelection } from "@/lib/model-catalog";
 import type { GenerationTelemetryEvent, ModelCacheSummary, OnnxLogEvent, RuntimeCapabilities } from "@/lib/onnx-types";
 import {
@@ -35,6 +35,7 @@ import {
   createFixtureDownloadActivity,
   createFixtureGenerationActivity,
   createProductTestSnapshot,
+  PRODUCT_TEST_MODELS,
   PRODUCT_TESTING_BUILD,
   readProductTestModelId,
   readProductTestState,
@@ -132,14 +133,12 @@ export function GlauxWorkbench() {
   const isNetworkDownload = downloadProgress?.stage === "download" || downloadProgress?.stage === "resume";
   const previewDescriptor = previewSelection?.descriptor ?? null;
   const previewModel = previewDescriptor ? communityDescriptorToManifest(previewDescriptor) : null;
-  const availableModels = [...MODEL_REGISTRY, ...communityModels, ...(previewModel && !communityModels.some((model) => model.id === previewModel.id) ? [previewModel] : [])];
+  const fixtureModels = productTestState ? PRODUCT_TEST_MODELS : [];
+  const availableModels = [...fixtureModels, ...communityModels, ...(previewModel && !communityModels.some((model) => model.id === previewModel.id) ? [previewModel] : [])];
   const selectedModel = availableModels.find((model) => model.id === modelId) ?? null;
   const loadingModel = selectedModel;
   const modelLoadCancelLabel = isNetworkDownload ? "Pause model download" : "Cancel model loading";
   const modelLoadCancelText = isNetworkDownload ? "Pause" : "Cancel";
-  const recommendedModel = availableModels.find((model) => model.id === RECOMMENDED_MODEL_ID)!;
-  const recommendedCache = cacheSummaries.find((model) => model.modelId === RECOMMENDED_MODEL_ID);
-  const recommendedCompatibility = getModelCompatibility(capabilities, recommendedModel);
   const pendingModelDownload = availableModels.find((model) => model.id === pendingModelDownloadId) ?? null;
   const pendingDeleteModel = communityModels.find((model) => model.id === pendingDeleteModelId) ?? null;
   const libraryModelCache = cacheSummaries.find((model) => model.modelId === libraryModelId);
@@ -331,6 +330,7 @@ export function GlauxWorkbench() {
       const restorableModelId = models.some((model) => model.modelId === rememberedModelId && model.state === "cached")
         ? rememberedModelId
         : null;
+      if (rememberedModelId && !restorableModelId) forgetRememberedModelId(rememberedModelId);
       setModelId((current) => {
         if (current || !autoRestoreEnabled) return current;
         return restorableModelId ?? current;
@@ -888,10 +888,6 @@ export function GlauxWorkbench() {
                   ) : !selectedModel ? (
                     cacheInventoryResolved ? (
                       <FirstRunWelcome
-                        cacheState={recommendedCache?.state}
-                        compatibility={recommendedCompatibility}
-                        model={recommendedModel}
-                        mobileProfile={capabilities?.hardwareTier === "mobile"}
                         notice={notice}
                         onDismissNotice={() => setNotice(null)}
                         onOpenModels={() => setModelSidebarOpen(true)}
@@ -1193,11 +1189,7 @@ function ModelPreview({ compatibility, model, onDownload, selection }: {
   );
 }
 
-function FirstRunWelcome({ compatibility, notice, onDismissNotice, onOpenModels }: {
-  cacheState?: ModelCacheSummary["state"];
-  compatibility: ReturnType<typeof getModelCompatibility>;
-  mobileProfile: boolean;
-  model: ModelManifest;
+function FirstRunWelcome({ notice, onDismissNotice, onOpenModels }: {
   notice: string | null;
   onDismissNotice: () => void;
   onOpenModels: () => void;
@@ -1245,12 +1237,6 @@ function FirstRunWelcome({ compatibility, notice, onDismissNotice, onOpenModels 
               </a>
             </Button>
           </div>
-          {compatibility === "incompatible" ? (
-            <p className="mt-3 rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm leading-5 text-destructive" role="alert">
-              This device does not expose the browser GPU support required to run this model locally.
-            </p>
-          ) : null}
-
           <div className="mt-3 grid overflow-hidden rounded-xl border border-sophon-glass-border bg-sophon-glass-tile sm:grid-cols-2 sm:divide-x sm:divide-sophon-glass-border">
             <div className="flex items-start gap-2 px-3 py-2.5">
               <span aria-hidden="true" className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg bg-sophon-copy-primary text-sophon-panel">
@@ -1682,7 +1668,7 @@ function getReplacementBusyLabel(
 
 function modelName(modelId: string | undefined) {
   if (!modelId) return "current model";
-  return MODEL_REGISTRY.find((model) => model.id === modelId)?.label.split(" · ")[0] ?? "current model";
+  return modelId.startsWith("hf:") ? modelId.slice(3).split("@")[0] ?? "current model" : "current model";
 }
 
 function capitalize(value: string) {

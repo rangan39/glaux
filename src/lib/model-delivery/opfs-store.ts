@@ -22,6 +22,10 @@ type SyncFileHandle = FileSystemFileHandle & {
   createSyncAccessHandle?: () => Promise<SyncAccessHandle>;
 };
 
+type IterableDirectoryHandle = FileSystemDirectoryHandle & {
+  entries: () => AsyncIterableIterator<[string, FileSystemHandle]>;
+};
+
 export type OpenArtifactFile = {
   file: PositionedFile;
   close: () => void;
@@ -90,6 +94,69 @@ export async function deleteModelStorage(model: StoredModel) {
       "The browser could not remove old model checkpoints.",
       "indexeddb-checkpoint"
     );
+  }
+}
+
+export async function reconcileModelStorage(allowedModelIds: ReadonlySet<string>) {
+  if (!supportsPersistentModelDelivery()) return [];
+  const removed = new Set<string>();
+  try {
+    const root = await navigator.storage.getDirectory();
+    const app = await root.getDirectoryHandle("sophon-models");
+    const version = await app.getDirectoryHandle("v1") as IterableDirectoryHandle;
+    for await (const [modelId, handle] of version.entries()) {
+      if (handle.kind !== "directory" || allowedModelIds.has(modelId)) continue;
+      await version.removeEntry(modelId, { recursive: true });
+      removed.add(modelId);
+    }
+  } catch (error) {
+    if (!(error instanceof DOMException && error.name === "NotFoundError")) {
+      throw toModelStorageOperationError(
+        error,
+        "The browser could not remove orphaned model files from browser storage.",
+        "opfs-delete"
+      );
+    }
+  }
+  try {
+    const database = await getDatabase();
+    const transaction = database.transaction("artifacts", "readwrite", { durability: "strict" });
+    for (const key of await transaction.store.getAllKeys()) {
+      const modelId = key.slice(0, key.indexOf(":"));
+      if (!modelId || allowedModelIds.has(modelId)) continue;
+      await transaction.store.delete(key);
+      removed.add(modelId);
+    }
+    await transaction.done;
+  } catch (error) {
+    throw toModelStorageOperationError(
+      error,
+      "The browser could not remove orphaned model checkpoints.",
+      "indexeddb-checkpoint"
+    );
+  }
+  if (typeof caches !== "undefined") {
+    try {
+      const runtimeCache = await caches.open("transformers-cache");
+      for (const request of await runtimeCache.keys()) {
+        if (isLegacyBundledModelRequest(request.url)) await runtimeCache.delete(request);
+      }
+    } catch (error) {
+      throw toModelStorageOperationError(
+        error,
+        "The browser could not remove obsolete bundled model files.",
+        "cache-delete"
+      );
+    }
+  }
+  return [...removed].sort();
+}
+
+export function isLegacyBundledModelRequest(url: string) {
+  try {
+    return new URL(url, "https://glaux.invalid").pathname.startsWith("/model-runtime/");
+  } catch {
+    return false;
   }
 }
 

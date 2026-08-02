@@ -7,7 +7,7 @@ test("accepts valid generation requests and rejects malformed numeric options", 
     type: "generate",
     requestId: "request-1",
     messages: [{ role: "user", content: "The signal is" }],
-    modelId: "tiny-aya-global",
+    modelId: "hf:fixture-alpha",
     options: { maxNewTokens: 24, temperature: 0.8, topK: 40 }
   }), true);
 
@@ -15,7 +15,7 @@ test("accepts valid generation requests and rejects malformed numeric options", 
     type: "generate",
     requestId: "request-2",
     messages: [{ role: "user", content: "The signal is" }],
-    modelId: "tiny-aya-global",
+    modelId: "hf:fixture-alpha",
     options: { maxNewTokens: "24" }
   }), false);
 
@@ -23,7 +23,7 @@ test("accepts valid generation requests and rejects malformed numeric options", 
     type: "generate",
     requestId: "request-3",
     messages: [{ role: "tool", content: "not supported" }],
-    modelId: "tiny-aya-global",
+    modelId: "hf:fixture-alpha",
     options: {}
   }), false);
 });
@@ -59,7 +59,7 @@ test("accepts targeted cancellation requests and validates acknowledgements", ()
 });
 
 test("accepts explicit model preloads and validates completion", () => {
-  assert.equal(isWorkerRequest({ type: "preload", requestId: "preload-1", modelId: "tiny-aya-global" }), true);
+  assert.equal(isWorkerRequest({ type: "preload", requestId: "preload-1", modelId: "hf:fixture-alpha" }), true);
   assert.equal(isWorkerRequest({ type: "preload", requestId: "preload-2", modelId: "" }), false);
   assert.equal(isWorkerResult("preload", { ok: true }), true);
 });
@@ -67,22 +67,22 @@ test("accepts explicit model preloads and validates completion", () => {
 test("validates model cache inventory and deletion operations", () => {
   assert.equal(isWorkerRequest({ type: "cache-status", requestId: "status-1" }), true);
   assert.equal(isWorkerResult("cache-status", { models: [{
-    modelId: "tiny-aya-global",
+    modelId: "hf:fixture-alpha",
     state: "partial",
     resumableBytes: 64,
     verifiedBytes: 0,
     totalBytes: 100
   }] }), true);
   assert.equal(isWorkerResult("cache-status", { models: [{ modelId: "bad", state: "partial", resumableBytes: 101, verifiedBytes: 0, totalBytes: 100 }] }), false);
-  assert.equal(isWorkerRequest({ type: "delete-cache", requestId: "delete-1", modelId: "tiny-aya-global" }), true);
+  assert.equal(isWorkerRequest({ type: "delete-cache", requestId: "delete-1", modelId: "hf:fixture-alpha" }), true);
   assert.equal(isWorkerRequest({ type: "delete-cache", requestId: "delete-2", modelId: "" }), false);
-  assert.equal(isWorkerResult("delete-cache", { modelId: "tiny-aya-global", deleted: true }), true);
+  assert.equal(isWorkerResult("delete-cache", { modelId: "hf:fixture-alpha", deleted: true }), true);
 });
 
 test("rejects retired offline model-pack operations", () => {
   const file = new Blob([Uint8Array.of(1, 2, 3)]);
   assert.equal(isWorkerRequest({ type: "inspect-pack", requestId: "inspect-1", file }), false);
-  assert.equal(isWorkerRequest({ type: "import-pack", requestId: "import-1", file, expectedModelId: "tiny-aya-global" }), false);
+  assert.equal(isWorkerRequest({ type: "import-pack", requestId: "import-1", file, expectedModelId: "hf:fixture-alpha" }), false);
 });
 
 test("validates worker events before dispatching them", () => {

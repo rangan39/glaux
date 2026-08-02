@@ -1,13 +1,35 @@
 import type { OnnxInputToken, OnnxToken } from "@/lib/onnx-types";
+import type { ModelManifest } from "@/lib/onnx-models";
 
 const PRODUCT_TEST_QUERY_KEY = "sophon-product-test";
 const PRODUCT_TEST_MODEL_QUERY_KEY = "sophon-product-model";
 export const PRODUCT_TEST_MODEL_IDS = [
-  "tiny-aya-global",
-  "tiny-aya-earth",
-  "tiny-aya-fire",
-  "tiny-aya-water"
+  "hf:fixture-alpha",
+  "hf:fixture-beta",
+  "hf:fixture-gamma",
+  "hf:fixture-delta"
 ] as const;
+export const PRODUCT_TEST_MODELS: readonly ModelManifest[] = PRODUCT_TEST_MODEL_IDS.map((id, index) => ({
+  id,
+  label: `Fixture ${String.fromCharCode(65 + index)}`,
+  description: "Deterministic ONNX Community product-test model.",
+  licenseLabel: "Test fixture",
+  parameterLabel: "Fixture",
+  verification: "experimental",
+  source: {
+    kind: "huggingface",
+    repo: `onnx-community/glaux-fixture-${index + 1}`,
+    revision: String(index + 1).repeat(40)
+  },
+  format: {
+    quantization: "q4f16",
+    sizeLabel: "2.19 GB",
+    sizeBytes: 2_354_413_407,
+    contextLength: 8192
+  },
+  runtime: { maxNewTokens: 128, mobileContextLength: 2048, mobileMaxNewTokens: 64 },
+  providers: ["webgpu"]
+}));
 export const PRODUCT_TEST_STATES = [
   "checking",
   "legacy-cleanup",
@@ -101,7 +123,7 @@ type ProductTestCacheSummary = {
   totalBytes: number;
 };
 
-const MODEL_ID = "tiny-aya-global";
+const MODEL_ID: ProductTestModelId = "hf:fixture-alpha";
 const MODEL_BYTES = 2_354_413_407;
 const MIB = 1024 ** 2;
 const GIB = 1024 ** 3;
@@ -137,14 +159,14 @@ const ASSISTANT_TOKENS: OnnxToken[] = [
 const LONG_USER_PROMPT = "Compare several browser-compatible ONNX language models for a multilingual community help desk. Explain the trade-offs, recommend a default, and preserve enough detail to exercise wrapping in a narrow composer without sending anything off-device.";
 const ASSISTANT_RESPONSE = `## Recommendation
 
-Start with **Global** for mixed-language traffic, then route stable regional workloads to the matching model.
+Start with **Fixture A** for the deterministic test, then compare it with the other fixtures.
 
 | Model | Best fit | Review note |
 | --- | --- | --- |
-| Global | Broad multilingual coverage | Safest default |
-| Earth | European and nearby language groups | Validate language mix |
-| Fire | South and West Asian language groups | Review transliteration |
-| Water | East and Southeast Asian language groups | Check script coverage |
+| Fixture A | Primary test path | Safest default |
+| Fixture B | Replacement flow | Validate switching |
+| Fixture C | Alternate selection | Review catalog state |
+| Fixture D | Alternate selection | Check narrow layouts |
 
 \`\`\`text
 local-only://review/this-intentionally-long-unbroken-sample-line-keeps-horizontal-content-contained-within-the-message-bubble
@@ -235,7 +257,7 @@ export function createProductTestSnapshot(state: ProductTestState, activeModelId
 
   if (state === "legacy-cleanup" || state === "legacy-cleanup-error") {
     const legacyCaches = cacheSummaries("cached", MODEL_BYTES, MODEL_BYTES, MODEL_ID).map((summary) => (
-      summary.modelId === "tiny-aya-earth"
+      summary.modelId === "hf:fixture-beta"
         ? { ...summary, state: "cached" as const, resumableBytes: MODEL_BYTES, verifiedBytes: MODEL_BYTES }
         : summary
     ));
@@ -265,7 +287,7 @@ export function createProductTestSnapshot(state: ProductTestState, activeModelId
       loadedModelId: MODEL_ID,
       messages: cloneMessages(BASE_MESSAGES),
       modelReplacementPhase: state === "replacement-deleting" ? "deleting" : null,
-      pendingModelDownloadId: "tiny-aya-earth",
+      pendingModelDownloadId: "hf:fixture-beta",
       cacheSummaries: cacheSummaries("cached", MODEL_BYTES, MODEL_BYTES, MODEL_ID)
     };
   }
@@ -358,7 +380,7 @@ export function createProductTestSnapshot(state: ProductTestState, activeModelId
           detail: "31 generated · 8.1 tokens/s",
           phase: "decode"
         },
-        draft: "Voici la recommandation en bref : utilisez **Global** comme modèle par défaut pour les conversations multilingues, puis",
+        draft: "Voici la recommandation en bref : utilisez **Fixture A** comme modèle de test par défaut, puis",
         turn: {
           messageId: PENDING_MESSAGE.id,
           text: PENDING_MESSAGE.content
@@ -418,7 +440,7 @@ export function createFixtureGenerationActivity(): ProductTestActivity {
 }
 
 export function createFixtureAssistantDraft() {
-  return "I’ll keep this local. The broad multilingual default is **Global**; use a regional variant after validating the help desk’s language mix.";
+  return "I’ll keep this local. **Fixture A** exercises the primary path; use another fixture to validate model switching.";
 }
 
 function baseSnapshot(state: ProductTestState): ProductTestSnapshot {

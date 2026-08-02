@@ -1,13 +1,8 @@
-import type { PreTrainedTokenizer, ProgressInfo, TextGenerationPipeline } from "@huggingface/transformers";
+import type { PreTrainedTokenizer, TextGenerationPipeline } from "@huggingface/transformers";
 import { getRuntimeCapabilities, type BrowserEngine } from "@/lib/browser-runtime";
 import { getModelRuntimeProfile, resolveModelDefinition, resolveModelProvider, type ModelManifest, type ModelProvider } from "@/lib/onnx-models";
 import { calculateGenerationTiming, createGenerationTelemetryGate } from "@/lib/generation-metrics";
-import {
-  deleteModelCache,
-  prepareModelDelivery,
-  type DeliveryProgress,
-  type PreparedModelDelivery
-} from "@/lib/model-delivery/index";
+import type { DeliveryProgress } from "@/lib/model-delivery/range-downloader";
 import { getSavedCommunityModelDescriptor } from "@/lib/model-catalog/descriptor-store";
 import {
   createCommunityModelCache,
@@ -31,8 +26,6 @@ type PipelineLike = TextGenerationPipeline;
 type PreparedGenerationInput = ChatTurn[];
 
 const pipelineCache = new Map<string, Promise<PipelineLike>>();
-const TINY_AYA_LANGUAGE_PREAMBLE = "You have been trained on data in English, Dutch, French, Italian, Portuguese, Romanian, Spanish, Czech, Polish, Ukrainian, Russian, Greek, German, Danish, Swedish, Norwegian, Catalan, Galician, Welsh, Irish, Basque, Croatian, Latvian, Lithuanian, Slovak, Slovenian, Estonian, Finnish, Hungarian, Serbian, Bulgarian, Arabic, Persian, Urdu, Turkish, Maltese, Hebrew, Hindi, Marathi, Bengali, Gujarati, Punjabi, Tamil, Telugu, Nepali, Tagalog, Malay, Indonesian, Vietnamese, Javanese, Khmer, Thai, Lao, Chinese, Burmese, Japanese, Korean, Amharic, Hausa, Igbo, Malagasy, Shona, Swahili, Wolof, Xhosa, Yoruba and Zulu but have the ability to speak many more languages.";
-const COMPACT_TINY_AYA_LANGUAGE_PREAMBLE = "You have multilingual training and can respond in many languages.";
 
 export { getRuntimeCapabilities } from "@/lib/browser-runtime";
 
@@ -41,10 +34,6 @@ export function prepareGenerationInput(messages: readonly ChatTurn[]): PreparedG
     const content = message.content.trim();
     return content ? [{ role: message.role, content }] : [];
   });
-}
-
-export function compactTinyAyaChatTemplate(template: string) {
-  return template.replace(TINY_AYA_LANGUAGE_PREAMBLE, COMPACT_TINY_AYA_LANGUAGE_PREAMBLE);
 }
 
 export function readGeneratedText(output: unknown) {
@@ -80,7 +69,6 @@ export async function preloadOnnxModel(modelId: string, onLog: (event: OnnxLogEv
 }
 
 export async function deleteOnnxModelCache(modelId: string, signal?: AbortSignal) {
-  const model = await resolveModelDefinition(modelId);
   const matching = [...pipelineCache.entries()].filter(([key]) => key.startsWith(`${modelId}:`));
   for (const [key] of matching) pipelineCache.delete(key);
   await Promise.all(matching.map(async ([, loading]) => {
@@ -91,13 +79,10 @@ export async function deleteOnnxModelCache(modelId: string, signal?: AbortSignal
       // A failed or cancelled pipeline has no live session left to dispose.
     }
   }));
-  if (model.family === "community") {
-    const descriptor = await getSavedCommunityModelDescriptor(modelId);
-    if (!descriptor) throw new Error(`The community model descriptor is missing or invalid: ${modelId}`);
-    await deleteCommunityModelDelivery(descriptor, signal);
-    return { modelId, deleted: true as const };
-  }
-  return deleteModelCache(modelId, signal);
+  const descriptor = await getSavedCommunityModelDescriptor(modelId);
+  if (!descriptor) throw new Error(`The community model descriptor is missing or invalid: ${modelId}`);
+  await deleteCommunityModelDelivery(descriptor, signal);
+  return { modelId, deleted: true as const };
 }
 
 async function runTransformersJsModel(
@@ -220,16 +205,7 @@ async function getPipeline(model: ModelManifest, provider: ModelProvider, log: (
     return cached;
   }
   const capabilities = await getRuntimeCapabilities();
-  const source = model.source.kind === "local" ? model.source.baseUrl : model.source.repo;
-  let lastProgress = -1;
-  const progressCallback = (event: ProgressInfo) => {
-    if (event.status !== "progress_total" || !Number.isFinite(event.loaded) || !Number.isFinite(event.total) || event.total <= 0) return;
-    const loaded = Math.min(event.total, Math.max(0, event.loaded));
-    const progress = Math.floor(loaded / event.total * 100);
-    if (progress === lastProgress) return;
-    lastProgress = progress;
-    log({ level: "info", message: "Loading model", phase: "download", progress: { loaded, total: event.total } });
-  };
+  const source = model.source.repo;
   log({ level: "info", message: "Loading model", detail: `${model.label} · ${model.format.sizeLabel}`, phase: "download" });
   const loading = import("@huggingface/transformers").then(async ({ env, pipeline }) => {
     throwIfCancelled(signal);
@@ -238,57 +214,39 @@ async function getPipeline(model: ModelManifest, provider: ModelProvider, log: (
     const allowRemoteModels = env.allowRemoteModels;
     const useCustomCache = env.useCustomCache;
     const customCache = env.customCache;
-    env.allowLocalModels = model.source.kind === "local";
-    env.allowRemoteModels = model.source.kind === "huggingface";
+    env.allowLocalModels = false;
+    env.allowRemoteModels = true;
     const remotePathTemplate = env.remotePathTemplate;
-    if (model.source.kind === "huggingface") env.remotePathTemplate = `{model}/resolve/${model.source.revision}/`;
+    env.remotePathTemplate = `{model}/resolve/${model.source.revision}/`;
     try {
-      const communityDescriptor = model.family === "community"
-        ? await getSavedCommunityModelDescriptor(model.id)
-        : null;
-      if (model.family === "community" && !communityDescriptor) {
+      const communityDescriptor = await getSavedCommunityModelDescriptor(model.id);
+      if (!communityDescriptor) {
         throw new Error(`The community model descriptor is missing or invalid: ${model.id}`);
       }
-      const communityDelivery = communityDescriptor
-        ? await prepareCommunityModelDelivery(communityDescriptor, (progress) => {
-          log({ level: "info", message: deliveryProgressMessage(progress), phase: "download", progress });
-        }, signal)
-        : null;
-      const delivery = communityDelivery ?? await prepareModelDelivery(model, (progress) => {
+      const delivery = await prepareCommunityModelDelivery(communityDescriptor, (progress) => {
         log({ level: "info", message: deliveryProgressMessage(progress), phase: "download", progress });
       }, signal);
       throwIfCancelled(signal);
-      if (delivery) {
-        log({
-          level: "info",
-          message: "Loading downloaded model",
-          detail: "Reading model data from browser storage",
-          phase: "runtime",
-          progress: { loaded: delivery.totalBytes, total: delivery.totalBytes, stage: "cache" }
-        });
-      }
-      if (delivery) {
-        if (communityDelivery) {
-          env.useCustomCache = true;
-          const fallbackCache = customCache ? {
-            async match(request: string) {
-              const response = await customCache.match(request);
-              return response instanceof Response ? response : undefined;
-            },
-            put: (request: string, response: Response) => customCache.put(request, response),
-            ...(customCache.delete ? { delete: (request: string) => customCache.delete!(request) } : {})
-          } : undefined;
-          env.customCache = createCommunityModelCache(communityDelivery, fallbackCache);
-          env.allowLocalModels = false;
-          env.allowRemoteModels = true;
-        } else {
-          env.allowLocalModels = true;
-          env.allowRemoteModels = false;
-        }
-      }
+      log({
+        level: "info",
+        message: "Loading downloaded model",
+        detail: "Reading model data from browser storage",
+        phase: "runtime",
+        progress: { loaded: delivery.totalBytes, total: delivery.totalBytes, stage: "cache" }
+      });
+      env.useCustomCache = true;
+      const fallbackCache = customCache ? {
+        async match(request: string) {
+          const response = await customCache.match(request);
+          return response instanceof Response ? response : undefined;
+        },
+        put: (request: string, response: Response) => customCache.put(request, response),
+        ...(customCache.delete ? { delete: (request: string) => customCache.delete!(request) } : {})
+      } : undefined;
+      env.customCache = createCommunityModelCache(delivery, fallbackCache);
       const sessionOptions = getOptimizedSessionOptions(
         capabilities.browserEngine,
-        communityDelivery ? communityDelivery.externalData : delivery?.externalData
+        delivery.externalData
       );
       if (capabilities.browserEngine === "chromium") {
         log({
@@ -301,17 +259,12 @@ async function getPipeline(model: ModelManifest, provider: ModelProvider, log: (
       const generator = await pipeline("text-generation", source, {
         device: provider,
         dtype: model.format.quantization,
-        progress_callback: delivery ? undefined : progressCallback,
-        ...(delivery ? {
-          local_files_only: !communityDelivery,
-          use_external_data_format: false
-        } : {}),
+        progress_callback: undefined,
+        local_files_only: false,
+        use_external_data_format: false,
         ...(sessionOptions ? { session_options: sessionOptions } : {}),
-        ...(model.source.kind === "huggingface" ? { revision: model.source.revision } : {})
+        revision: model.source.revision
       });
-      if (model.family === "cohere" && typeof generator.tokenizer?.chat_template === "string") {
-        generator.tokenizer.chat_template = compactTinyAyaChatTemplate(generator.tokenizer.chat_template);
-      }
       return generator;
     } finally {
       env.allowLocalModels = allowLocalModels;
@@ -393,7 +346,7 @@ async function resolveProvider(model: ModelManifest): Promise<ModelProvider> {
 
 function getOptimizedSessionOptions(
   browserEngine: BrowserEngine,
-  externalData?: PreparedModelDelivery["externalData"] | PreparedCommunityModelDelivery["externalData"]
+  externalData?: PreparedCommunityModelDelivery["externalData"]
 ) {
   if (browserEngine !== "chromium" && !externalData) return null;
   return {

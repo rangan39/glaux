@@ -11,8 +11,8 @@ const limits = {
   concurrencyValues: 8,
   totalTransferBytes: 8 * GiB
 };
-const url = process.env.GLAUX_BENCHMARK_URL
-  ?? "https://huggingface.co/onnx-community/tiny-aya-global-ONNX/resolve/7fff1be9627e40f0d89c33f406882bdafb56ec90/onnx/model_q4f16.onnx_data";
+const url = process.env.GLAUX_BENCHMARK_URL;
+if (!url) throw new Error("GLAUX_BENCHMARK_URL must identify a pinned Hugging Face model artifact.");
 const sampleBytes = readPositiveInteger(process.env.GLAUX_BENCHMARK_BYTES, 64 * MiB);
 const trialCount = readPositiveInteger(process.env.GLAUX_BENCHMARK_TRIALS, 3);
 const concurrencyValues = (process.env.GLAUX_BENCHMARK_CONCURRENCY ?? "1,2,4")

@@ -180,14 +180,6 @@ export async function downloadRangeArtifact(options: DownloadOptions): Promise<F
   }
 }
 
-export async function probeRangeArtifact(
-  artifact: RangeArtifact,
-  options: Pick<DownloadOptions, "fetch" | "queue" | "retries" | "signal"> = {}
-) {
-  const fetcher = options.fetch ?? globalThis.fetch.bind(globalThis);
-  return probeArtifact(artifact, fetcher, options.queue ?? globalRangeQueue, options.retries ?? 3, options.signal);
-}
-
 async function downloadAndVerify({
   artifact,
   file,

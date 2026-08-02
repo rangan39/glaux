@@ -6,9 +6,8 @@ register("./alias-loader.mjs", import.meta.url);
 
 const {
   assessCommunityModelCompatibility,
-  buildOnnxCommunityCatalogUrl,
   buildOnnxCommunityIndexUrl,
-  fetchOnnxCommunityCatalog,
+  estimateParameterCount,
   fetchOnnxCommunityIndexPage,
   fetchOnnxCommunityModelDetails,
   HuggingFaceCatalogError
@@ -26,6 +25,7 @@ function hubModel(overrides = {}) {
     private: false,
     downloads: 1234,
     likes: 42,
+    safetensors: { total: 500_000_000 },
     lastModified: "2026-07-30T12:00:00.000Z",
     tags: ["transformers.js", "text-generation", "license:apache-2.0"],
     cardData: { license: "apache-2.0", base_model: "Qwen/Qwen2.5-0.5B-Instruct" },
@@ -61,24 +61,6 @@ function jsonResponse(value, init = {}) {
   });
 }
 
-test("builds a constrained ONNX Community text-generation query", () => {
-  const url = buildOnnxCommunityCatalogUrl({
-    search: "  qwen  ",
-    cursor: "next-page",
-    limit: 500
-  });
-
-  assert.equal(url.origin, "https://huggingface.co");
-  assert.equal(url.pathname, "/api/models");
-  assert.equal(url.searchParams.get("author"), "onnx-community");
-  assert.equal(url.searchParams.get("filter"), "transformers.js");
-  assert.equal(url.searchParams.get("pipeline_tag"), "text-generation");
-  assert.equal(url.searchParams.get("gated"), "false");
-  assert.equal(url.searchParams.get("search"), "qwen");
-  assert.equal(url.searchParams.get("cursor"), "next-page");
-  assert.equal(url.searchParams.get("limit"), "50");
-});
-
 test("builds an unfiltered namespace index query for browser-side metadata search", () => {
   const url = buildOnnxCommunityIndexUrl({ cursor: "next-page", limit: 500 });
   assert.equal(url.searchParams.get("author"), "onnx-community");
@@ -106,8 +88,8 @@ test("indexes public namespace models even when optional task and library metada
   assert.deepEqual(page.models[0].tags, ["onnx", "cohere2"]);
 });
 
-test("normalizes public catalog entries and ignores restricted or foreign repositories", async () => {
-  const page = await fetchOnnxCommunityCatalog({}, async () => jsonResponse([
+test("normalizes public index entries and ignores restricted or foreign repositories", async () => {
+  const page = await fetchOnnxCommunityIndexPage({}, async () => jsonResponse([
     hubModel(),
     hubModel({ id: "onnx-community/Qwen2.5-0.5B-Instruct" }),
     hubModel({ id: "another-org/model" }),
@@ -131,11 +113,25 @@ test("normalizes public catalog entries and ignores restricted or foreign reposi
     private: false,
     downloads: 1234,
     likes: 42,
+    parameterCount: 500_000_000,
     updatedAt: "2026-07-30T12:00:00.000Z",
     tags: ["transformers.js", "text-generation", "license:apache-2.0"],
     license: "apache-2.0"
   });
   assert.equal(page.nextCursor, "cursor-token");
+});
+
+test("estimates model parameters from metadata and common model names", () => {
+  const summary = {
+    ...(hubModel()),
+    repo: "onnx-community/Qwen2.5-0.5B-Instruct",
+    name: "Qwen2.5-0.5B-Instruct",
+    parameterCount: null,
+    tags: []
+  };
+  assert.equal(estimateParameterCount(summary), 500_000_000);
+  assert.equal(estimateParameterCount({ ...summary, name: "gemma-3-270m-it-ONNX", repo: "onnx-community/gemma-3-270m-it-ONNX" }), 270_000_000);
+  assert.equal(estimateParameterCount({ ...summary, name: "unknown", repo: "onnx-community/unknown" }), null);
 });
 
 test("pins model details to the requested revision and preserves file integrity metadata", async () => {

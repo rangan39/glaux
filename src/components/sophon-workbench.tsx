@@ -1,14 +1,13 @@
 "use client";
 
 import { type FormEvent, type KeyboardEvent, type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { Code2, Download, ExternalLink, Gauge, Hammer, HardDrive, Languages, LifeBuoy, LoaderCircle, MessageCircle, MoonStar, PanelLeft, Pencil, RotateCcw, SendHorizontal, ShieldCheck, Sparkles, Square, Trash2 } from "lucide-react";
+import { AlertTriangle, Code2, Download, ExternalLink, Gauge, Hammer, HardDrive, Languages, LifeBuoy, LoaderCircle, MoonStar, PanelLeft, Pencil, RotateCcw, SendHorizontal, ShieldCheck, Sparkles, Square, Trash2 } from "lucide-react";
 import { GlauxAcknowledgements } from "@/components/sophon-acknowledgements";
 import { GlauxModelSidebar } from "@/components/sophon-model-sidebar";
 import type { TokenInspectMode } from "@/components/token-lens";
 import { WorkbenchConversationMessages, type WorkbenchMessage as ChatMessage } from "@/components/workbench-conversation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Textarea } from "@/components/ui/textarea";
 import {
   cancelGeneration,
@@ -21,7 +20,7 @@ import {
   terminateRuntimeWorker
 } from "@/lib/interp-client";
 import { communityDescriptorToManifest, MODEL_REGISTRY, RECOMMENDED_MODEL_ID, resolveModelProvider, type ModelManifest } from "@/lib/onnx-models";
-import { listSavedCommunityModelDescriptors, type CommunityModelDescriptor } from "@/lib/model-catalog";
+import { deleteSavedCommunityModelDescriptor, listSavedCommunityModelDescriptors, saveCommunityModelDescriptor, type CommunityModelPreviewSelection } from "@/lib/model-catalog";
 import type { GenerationTelemetryEvent, ModelCacheSummary, OnnxLogEvent, RuntimeCapabilities } from "@/lib/onnx-types";
 import {
   createModelReplacementPlan,
@@ -57,7 +56,6 @@ type FailedTurn = {
   text: string;
 };
 type StartupCleanupStatus = "idle" | "cleaning" | "failed";
-type InterfaceMode = "chat" | "developer";
 
 type GenerationState =
   | { status: "idle" }
@@ -90,15 +88,19 @@ export function GlauxWorkbench() {
   const [failedTurn, setFailedTurn] = useState<FailedTurn | null>(null);
   const [loadedModelId, setLoadedModelId] = useState<string | null>(null);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
-  const [interfaceMode, setInterfaceMode] = useState<InterfaceMode>("chat");
+  const [developerMode, setDeveloperMode] = useState(false);
   const [modelId, setModelId] = useState("");
   const [communityModels, setCommunityModels] = useState<ModelManifest[]>([]);
+  const [checkingCommunityModel, setCheckingCommunityModel] = useState<string | null>(null);
+  const [previewSelection, setPreviewSelection] = useState<CommunityModelPreviewSelection | null>(null);
   const [libraryModelId, setLibraryModelId] = useState("");
   const [modelSidebarOpen, setModelSidebarOpen] = useState(false);
   const [inspectDisplayMode, setInspectDisplayMode] = useState<TokenInspectMode | null>(null);
   const [hoveredInspectMetrics, setHoveredInspectMetrics] = useState<string | undefined>();
   const [modelLoadPaused, setModelLoadPaused] = useState(false);
   const [pendingModelDownloadId, setPendingModelDownloadId] = useState<string | null>(null);
+  const [pendingDeleteModelId, setPendingDeleteModelId] = useState<string | null>(null);
+  const [deletingModelId, setDeletingModelId] = useState<string | null>(null);
   const [modelReplacementPhase, setModelReplacementPhase] = useState<ModelReplacementPhase | null>(null);
   const [resetConfirmationOpen, setResetConfirmationOpen] = useState(false);
   const [capabilities, setCapabilities] = useState<RuntimeCapabilities | null>(null);
@@ -107,13 +109,13 @@ export function GlauxWorkbench() {
   const [cacheInventoryResolved, setCacheInventoryResolved] = useState(false);
   const [startupCleanupStatus, setStartupCleanupStatus] = useState<StartupCleanupStatus>("idle");
   const [startupCleanupRetryRevision, setStartupCleanupRetryRevision] = useState(0);
-  const [, setDeletingModelId] = useState<string | null>(null);
   const [storageRevision, setStorageRevision] = useState(0);
   const [autoRestoreEnabled, setAutoRestoreEnabled] = useState(true);
   const generationIdRef = useRef(0);
   const dialogScrollSnapshotRef = useRef<DocumentScrollSnapshot | null>(null);
   const modelDownloadFromMobileRef = useRef(false);
   const modelDownloadTriggerRef = useRef<HTMLElement | null>(null);
+  const modelDeleteFromMobileRef = useRef(false);
   const messageEndRef = useRef<HTMLDivElement>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const resetTriggerRef = useRef<HTMLButtonElement>(null);
@@ -128,7 +130,9 @@ export function GlauxWorkbench() {
     : undefined;
   const downloadPercentLabel = formatDownloadPercent(isProbingModelFiles ? undefined : downloadProgress);
   const isNetworkDownload = downloadProgress?.stage === "download" || downloadProgress?.stage === "resume";
-  const availableModels = [...MODEL_REGISTRY, ...communityModels];
+  const previewDescriptor = previewSelection?.descriptor ?? null;
+  const previewModel = previewDescriptor ? communityDescriptorToManifest(previewDescriptor) : null;
+  const availableModels = [...MODEL_REGISTRY, ...communityModels, ...(previewModel && !communityModels.some((model) => model.id === previewModel.id) ? [previewModel] : [])];
   const selectedModel = availableModels.find((model) => model.id === modelId) ?? null;
   const loadingModel = selectedModel;
   const modelLoadCancelLabel = isNetworkDownload ? "Pause model download" : "Cancel model loading";
@@ -137,6 +141,8 @@ export function GlauxWorkbench() {
   const recommendedCache = cacheSummaries.find((model) => model.modelId === RECOMMENDED_MODEL_ID);
   const recommendedCompatibility = getModelCompatibility(capabilities, recommendedModel);
   const pendingModelDownload = availableModels.find((model) => model.id === pendingModelDownloadId) ?? null;
+  const pendingDeleteModel = communityModels.find((model) => model.id === pendingDeleteModelId) ?? null;
+  const libraryModelCache = cacheSummaries.find((model) => model.modelId === libraryModelId);
   const pendingModelDownloadCache = cacheSummaries.find((model) => model.modelId === pendingModelDownloadId);
   const pendingModelPlan = pendingModelDownloadId
     ? createModelReplacementPlan(pendingModelDownloadId, cacheSummaries)
@@ -147,8 +153,10 @@ export function GlauxWorkbench() {
   }) ?? [];
   const modelCompatibility = getModelCompatibility(capabilities, selectedModel);
   const modelReady = selectedModel !== null && loadedModelId === selectedModel.id;
-  const developerMode = interfaceMode === "developer";
   const runtimeStatus = getRuntimeStatus(capabilities, selectedModel, loadedModelId, runtimeActivity, modelLoadPaused, failedTurn, error);
+  const displayedRuntimeStatus = checkingCommunityModel
+    ? { label: `Checking ${checkingCommunityModel}`, className: "text-sophon-copy-metadata", dotClassName: "animate-pulse bg-sophon-copy-metadata motion-reduce:animate-none" }
+    : runtimeStatus;
   const storageLabel = browserStorage === undefined ? "Checking…" : browserStorage === null ? "Unavailable" : `${formatStorageBytes(browserStorage.usage)} / ${formatStorageBytes(browserStorage.quota)} · ${browserStorage.persistent ? "Persistent" : "Best effort"}`;
   const promptDisabled = !modelReady || modelCompatibility !== "compatible";
   const canSend = modelReady && prompt.trim().length > 0 && !isBusy && modelCompatibility === "compatible";
@@ -174,7 +182,8 @@ export function GlauxWorkbench() {
     runtimeActivity
   });
   const blockingDialogOpen = resetConfirmationOpen
-    || pendingModelDownload !== null;
+    || pendingModelDownload !== null
+    || pendingDeleteModel !== null;
   const replacingModel = modelReplacementPhase !== null;
   const storageReconciliationBlocked = startupCleanupStatus === "cleaning" || startupCleanupStatus === "failed";
 
@@ -219,6 +228,8 @@ export function GlauxWorkbench() {
       setModelSidebarOpen(false);
       setModelLoadPaused(snapshot.modelLoadPaused);
       setPendingModelDownloadId(snapshot.pendingModelDownloadId);
+      setPendingDeleteModelId(null);
+      setDeletingModelId(null);
       setModelReplacementPhase(snapshot.modelReplacementPhase);
       setResetConfirmationOpen(snapshot.resetConfirmationOpen);
       setCapabilities(snapshot.capabilities);
@@ -226,7 +237,6 @@ export function GlauxWorkbench() {
       setCacheSummaries(snapshot.cacheSummaries);
       setCacheInventoryResolved(snapshot.cacheInventoryResolved);
       setStartupCleanupStatus(snapshot.startupCleanupStatus);
-      setDeletingModelId(null);
       setAutoRestoreEnabled(false);
     });
   }, [productTestModelId, productTestState]);
@@ -283,7 +293,6 @@ export function GlauxWorkbench() {
         try {
           models = await runStartupModelCleanup(cleanupPlan, {
             deleteStoredModel: async (modelToDelete) => {
-              setDeletingModelId(modelToDelete);
               await deleteCachedModel(modelToDelete);
               forgetRememberedModelId(modelToDelete);
             },
@@ -312,7 +321,6 @@ export function GlauxWorkbench() {
           return;
         } finally {
           if (active) {
-            setDeletingModelId(null);
             setModelReplacementPhase(null);
           }
         }
@@ -423,6 +431,7 @@ export function GlauxWorkbench() {
   }
 
   function selectModel(nextModelId: string) {
+    setPreviewSelection(null);
     setLibraryModelId(nextModelId);
     if (nextModelId === modelId && !modelLoadPaused) return;
     clearConversationState();
@@ -443,11 +452,61 @@ export function GlauxWorkbench() {
     setGeneration({ status: "idle" });
   }
 
-  function addCommunityModel(descriptor: CommunityModelDescriptor) {
-    const model = communityDescriptorToManifest(descriptor);
-    setCommunityModels((current) => current.some((entry) => entry.id === model.id) ? current : [...current, model]);
-    setLibraryModelId(model.id);
-    requestModelAction(model.id);
+  function addCommunityModel(selection: CommunityModelPreviewSelection) {
+    setPreviewSelection(selection);
+    setModelSidebarOpen(false);
+  }
+
+  function clearCommunityModelPreview() {
+    setPreviewSelection(null);
+    setModelSidebarOpen(false);
+  }
+
+  function requestDeleteModel(targetModelId: string) {
+    if (!communityModels.some((model) => model.id === targetModelId)) return;
+    modelDeleteFromMobileRef.current = modelSidebarOpen;
+    captureDialogScrollSnapshot(dialogScrollSnapshotRef);
+    setPendingDeleteModelId(targetModelId);
+    if (modelSidebarOpen) setModelSidebarOpen(false);
+  }
+
+  function closeDeleteModelConfirmation() {
+    if (deletingModelId) return;
+    setPendingDeleteModelId(null);
+    if (modelDeleteFromMobileRef.current) setModelSidebarOpen(true);
+  }
+
+  async function confirmDeleteModel() {
+    if (!pendingDeleteModelId) return;
+    const targetModelId = pendingDeleteModelId;
+    setDeletingModelId(targetModelId);
+    setError(null);
+    setNotice(null);
+    try {
+      generationIdRef.current += 1;
+      if (!productTestState) {
+        await cancelModelPreload().catch(() => terminateRuntimeWorker());
+        await deleteCachedModel(targetModelId);
+        await deleteSavedCommunityModelDescriptor(targetModelId);
+      }
+      forgetRememberedModelId(targetModelId);
+      if (targetModelId === modelId) {
+        clearConversationState();
+        setModelId("");
+        setLoadedModelId(null);
+        setModelLoadPaused(false);
+      }
+      if (targetModelId === libraryModelId) setLibraryModelId("");
+      setCommunityModels((current) => current.filter((model) => model.id !== targetModelId));
+      setCacheSummaries(productTestState ? [] : await getCachedModels());
+      setStorageRevision((value) => value + 1);
+      setPendingDeleteModelId(null);
+      setNotice("The model and its downloaded files were removed from this browser.");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Glaux could not delete the model from this browser.");
+    } finally {
+      setDeletingModelId(null);
+    }
   }
 
   function requestModelAction(nextModelId: string) {
@@ -497,6 +556,19 @@ export function GlauxWorkbench() {
       return;
     }
 
+    if (previewDescriptor?.id === targetModelId) {
+      try {
+        await saveCommunityModelDescriptor(previewDescriptor);
+        const model = communityDescriptorToManifest(previewDescriptor);
+        setCommunityModels((current) => current.some((entry) => entry.id === model.id) ? current : [...current, model]);
+        setLibraryModelId(model.id);
+      } catch (caught) {
+        setError(caught instanceof Error ? caught.message : "Glaux could not prepare this model for download.");
+        setPendingModelDownloadId(null);
+        return;
+      }
+    }
+
     if (!plan.requiresReplacement) {
       setPendingModelDownloadId(null);
       selectModel(targetModelId);
@@ -509,7 +581,6 @@ export function GlauxWorkbench() {
     try {
       const next = await runModelReplacement(plan, {
         deleteStoredModel: async (sourceModelId) => {
-          setDeletingModelId(sourceModelId);
           await deleteCachedModel(sourceModelId);
           forgetRememberedModelId(sourceModelId);
         },
@@ -535,7 +606,6 @@ export function GlauxWorkbench() {
         ? caught.message
         : `Glaux could not replace the saved model with ${modelName(targetModelId)}.`);
     } finally {
-      setDeletingModelId(null);
       setModelReplacementPhase(null);
     }
   }
@@ -780,9 +850,9 @@ export function GlauxWorkbench() {
             </div>
           </div>
 
-          <div className={cn("sophon-glass-tile sophon-type-status flex min-w-0 items-center justify-center gap-2 rounded-full px-3 py-1 font-mono uppercase tracking-[0.08em] sm:py-1.5", selectedModel ? "col-span-2 row-start-2 sm:col-span-1 sm:row-start-auto sm:justify-self-end lg:static lg:inset-auto lg:shrink-0" : "absolute inset-x-3 bottom-2 sm:static sm:inset-auto sm:shrink-0", runtimeStatus.className)} data-testid="workbench-status" data-typography-role="status">
-            <span aria-hidden="true" className={cn("size-1.5 shrink-0 rounded-full", runtimeStatus.dotClassName)} />
-            <span className="truncate">{runtimeStatus.label}{downloadPercentLabel ? ` · ${downloadPercentLabel}` : null}</span>
+          <div className={cn("sophon-glass-tile sophon-type-status flex min-w-0 items-center justify-center gap-2 rounded-full px-3 py-1 font-mono uppercase tracking-[0.08em] sm:py-1.5", selectedModel ? "col-span-2 row-start-2 sm:col-span-1 sm:row-start-auto sm:justify-self-end lg:static lg:inset-auto lg:shrink-0" : "absolute inset-x-3 bottom-2 sm:static sm:inset-auto sm:shrink-0", displayedRuntimeStatus.className)} data-testid="workbench-status" data-typography-role="status">
+            <span aria-hidden="true" className={cn("size-1.5 shrink-0 rounded-full", displayedRuntimeStatus.dotClassName)} />
+            <span className="truncate">{displayedRuntimeStatus.label}{!checkingCommunityModel && downloadPercentLabel ? ` · ${downloadPercentLabel}` : null}</span>
           </div>
 
           <div className={cn("items-center [&_button:hover]:translate-y-0", selectedModel ? "col-start-2 row-start-1 flex w-auto justify-end gap-1 [&_button]:gap-1 sm:col-span-2 sm:col-start-auto sm:row-start-auto sm:w-full sm:gap-2 lg:col-span-1 lg:w-auto lg:shrink-0 lg:gap-3 lg:[&_button]:gap-2" : "flex shrink-0 gap-1.5 sm:gap-3")} data-testid="workbench-actions">
@@ -794,27 +864,28 @@ export function GlauxWorkbench() {
                 <span className="sr-only">Reset</span>
               </Button>
             ) : null}
-            {modelReady ? (
-              <ToggleGroup aria-label="Interface mode" className="h-10 gap-0 rounded-xl border border-sophon-glass-border bg-sophon-panel-deep p-0.5 shadow-[inset_0_1px_0_var(--sophon-glass-highlight)]" data-mode={interfaceMode} data-testid="interface-mode-toggle" onValueChange={(value) => { if (value === "chat" || value === "developer") setInterfaceMode(value); }} type="single" value={interfaceMode}>
-                <ToggleGroupItem aria-label="Chat mode" className="size-9 rounded-lg bg-transparent p-0 text-sophon-copy-metadata shadow-[inset_0_0_0_1px_var(--sophon-glass-border)] data-[state=on]:bg-sophon-signal data-[state=on]:text-white data-[state=on]:shadow-none" title="Chat mode" value="chat"><MessageCircle aria-hidden="true" className="size-4" /><span className="sr-only">Chat</span></ToggleGroupItem>
-                <ToggleGroupItem aria-label="Developer mode" className="size-9 rounded-lg bg-transparent p-0 text-sophon-copy-metadata shadow-[inset_0_0_0_1px_var(--sophon-glass-border)] data-[state=on]:bg-sophon-signal data-[state=on]:text-white data-[state=on]:shadow-none" title="Developer mode" value="developer"><Code2 aria-hidden="true" className="size-4" /><span className="sr-only">Developer</span></ToggleGroupItem>
-              </ToggleGroup>
-            ) : null}
             <GlauxAcknowledgements className="size-10 rounded-xl p-0 sm:!size-10" compact />
             <Button aria-controls="model-library-mobile" aria-expanded={modelSidebarOpen} aria-label="Open model library" className="size-10 rounded-xl p-0 lg:hidden" data-testid="open-model-library" onClick={() => setModelSidebarOpen(true)} size="sm" type="button" variant="sophon"><PanelLeft aria-hidden="true" /><span className="sr-only">Models</span></Button>
           </div>
           {isModelLoading && loadingModel && !isProbingModelFiles ? <span aria-label={`Loading ${loadingModel.label}`} aria-valuemax={100} aria-valuemin={0} aria-valuenow={downloadPercent} aria-valuetext={downloadProgress ? formatDownloadAriaText(downloadProgress) : "Preparing model delivery"} className="absolute inset-x-0 bottom-0 h-1 overflow-hidden bg-sophon-panel-deep" role="progressbar"><span className={cn("block h-full bg-gradient-to-r from-sophon-signal to-sophon-signal-bright shadow-[0_0_12px_var(--sophon-signal-bright)] transition-[width] duration-200 motion-reduce:transition-none", downloadPercent === undefined && "w-1/3 motion-reduce:animate-none")} style={downloadPercent === undefined ? undefined : { width: `${downloadPercent}%` }} /></span> : null}
         </header>
 
-        <div aria-atomic="true" aria-live="polite" className="sr-only" role="status">{runtimeStatus.label}</div>
+        <div aria-atomic="true" aria-live="polite" className="sr-only" role="status">{displayedRuntimeStatus.label}</div>
 
         <div className={cn("flex flex-1", selectedModel ? "min-h-0" : "min-h-fit")}>
-          <GlauxModelSidebar capabilities={capabilities} communityModels={communityModels} disabled={isRunning || replacingModel || storageReconciliationBlocked} inspectMetrics={hoveredInspectMetrics} inspectMode={developerMode} inspectDisplayMode={inspectDisplayMode} mobileOpen={modelSidebarOpen} modelId={libraryModelId} onCommunityModelAdded={addCommunityModel} onInspectDisplayModeChange={setInspectDisplayMode} onInspectModeChange={(enabled) => setInterfaceMode(enabled ? "developer" : "chat")} onMobileOpenChange={setModelSidebarOpen} />
-          <section aria-busy={isBusy} aria-label="Conversation" className={cn("sophon-reveal sophon-reveal-workspace relative flex min-w-0 flex-1 flex-col", selectedModel && "h-full min-h-0")}>
+          <GlauxModelSidebar capabilities={capabilities} communityModels={communityModels} disabled={isRunning || replacingModel || storageReconciliationBlocked} inspectMetrics={hoveredInspectMetrics} inspectMode={developerMode} inspectDisplayMode={inspectDisplayMode} mobileOpen={modelSidebarOpen} modelCacheState={libraryModelCache?.state} modelId={libraryModelId} modelLoaded={loadedModelId === libraryModelId && libraryModelCache?.state === "cached"} onCommunityModelAdded={addCommunityModel} onCommunityModelCheckChange={setCheckingCommunityModel} onCommunityModelCleared={clearCommunityModelPreview} onDeleteModel={requestDeleteModel} onInspectDisplayModeChange={setInspectDisplayMode} onInspectModeChange={setDeveloperMode} onMobileOpenChange={setModelSidebarOpen} previewModelId={previewSelection?.details.revision ? `${previewSelection.details.repo}@${previewSelection.details.revision}` : ""} previewModelUnsupported={previewSelection?.compatibility.status === "unsupported"} />
+          <section aria-busy={isBusy} aria-label={previewModel ? "Model preview" : "Conversation"} className={cn("sophon-reveal sophon-reveal-workspace relative flex min-w-0 flex-1 flex-col", selectedModel && "h-full min-h-0")}>
             <div className={cn("flex-1", selectedModel ? "min-h-0 overflow-y-auto overscroll-contain" : "overflow-visible")} data-testid="conversation-scroll">
               <div className="mx-auto flex min-w-0 w-full max-w-6xl flex-col px-4 py-6 sm:px-12 sm:py-9">
-                <div aria-live={isRunning ? "off" : "polite"} aria-relevant="additions text" className="min-w-0 space-y-6" role="log">
-                  {!selectedModel ? (
+                <div aria-live={isRunning ? "off" : "polite"} aria-relevant="additions text" className="min-w-0 space-y-6" role={previewModel ? undefined : "log"}>
+                  {previewSelection ? (
+                    <ModelPreview
+                      compatibility={previewModel ? getModelCompatibility(capabilities, previewModel) : "compatible"}
+                      model={previewModel}
+                      onDownload={previewModel ? () => requestModelAction(previewModel.id) : undefined}
+                      selection={previewSelection}
+                    />
+                  ) : !selectedModel ? (
                     cacheInventoryResolved ? (
                       <FirstRunWelcome
                         cacheState={recommendedCache?.state}
@@ -835,8 +906,8 @@ export function GlauxWorkbench() {
                         status={startupCleanupStatus}
                       />
                     )
-                  ) : <WorkbenchConversationMessages copiedMessageId={copiedMessageId} developerMode={developerMode} inspectDisplayMode={inspectDisplayMode} interfaceMode={interfaceMode} isBusy={isBusy} messages={displayedMessages} onCopy={(message) => void copyMessage(message)} onEdit={editMessage} onInspectHover={setHoveredInspectMetrics} onRegenerate={regenerateLatest} />}
-                  {isRunning ? (
+                  ) : <WorkbenchConversationMessages copiedMessageId={copiedMessageId} developerMode={developerMode} inspectDisplayMode={inspectDisplayMode} isBusy={isBusy} messages={displayedMessages} onCopy={(message) => void copyMessage(message)} onEdit={editMessage} onInspectHover={setHoveredInspectMetrics} onRegenerate={regenerateLatest} />}
+                  {isRunning && !previewModel ? (
                     <article aria-label={generation.draft.trim() ? "Glaux is responding" : `Glaux status: ${runtimeActivity?.label ?? "Generating response"}`} aria-live="off" className="group/message relative flex w-full min-w-0 gap-3 text-sm">
                       <div className="sophon-glass-tile !self-start mt-1 flex size-8 shrink-0 items-center justify-center self-end overflow-hidden rounded-xl text-sophon-signal-soft"><MoonStar aria-hidden="true" className="size-4 animate-pulse motion-reduce:animate-none" /></div>
                       <div className="flex w-full min-w-0 flex-col gap-2.5 max-w-[calc(100%_-_2.75rem)] sm:max-w-xl">
@@ -875,7 +946,7 @@ export function GlauxWorkbench() {
               </div>
             </div>
 
-            {selectedModel ? (
+            {selectedModel && !previewModel ? (
               <div className="sophon-glass-strong sophon-reveal sophon-reveal-composer z-10 shrink-0 border-x-0 border-b-0 p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] sm:p-4 sm:pb-[max(1rem,env(safe-area-inset-bottom))]" data-testid="composer-panel">
               <form className="mx-auto max-w-6xl" onSubmit={submitPrompt}>
                 {modelLoadPaused && selectedModel ? (
@@ -1016,6 +1087,18 @@ export function GlauxWorkbench() {
           title={getModelActionTitle(pendingModelDownload, pendingModelPlan)}
         />
       ) : null}
+      {pendingDeleteModel ? (
+        <ConfirmationDialog
+          busy={deletingModelId === pendingDeleteModel.id}
+          busyLabel="Deleting…"
+          cancelLabel="Keep model"
+          confirmLabel="Delete model"
+          description={`${pendingDeleteModel.label.split(" · ")[0]} and all of its downloaded files will be removed from this browser. You can add and download it again later.`}
+          onCancel={closeDeleteModelConfirmation}
+          onConfirm={() => void confirmDeleteModel()}
+          title="Delete this model?"
+        />
+      ) : null}
     </main>
   );
 }
@@ -1042,6 +1125,71 @@ function FirstRunCheck({ error, onRetry, status }: {
       </span>
       {failed ? <Button className="ml-auto h-11 shrink-0 rounded-xl max-[359px]:basis-full sm:h-8" onClick={onRetry} size="sm" type="button" variant="sophon">Retry cleanup</Button> : null}
     </div>
+  );
+}
+
+function ModelPreview({ compatibility, model, onDownload, selection }: {
+  compatibility: ReturnType<typeof getModelCompatibility>;
+  model: ModelManifest | null;
+  onDownload?: () => void;
+  selection: CommunityModelPreviewSelection;
+}) {
+  const unsupported = selection.compatibility.status === "unsupported";
+  const repository = selection.details.repo;
+  const revision = selection.details.revision?.slice(0, 12) ?? null;
+  const issues = selection.compatibility.issues.filter((issue) => issue.severity === "error");
+  const detailRows = [
+    ["Download size", selection.compatibility.estimatedDownloadBytes === null ? "Unavailable" : formatStorageBytes(selection.compatibility.estimatedDownloadBytes)],
+    ["Quantization", selection.compatibility.selectedDtype?.toUpperCase() ?? "Unavailable"],
+    ["Architecture", selection.details.architecture ?? "Not declared"],
+    ["License", selection.details.license ?? "Not specified"]
+  ];
+
+  return (
+    <section aria-labelledby="model-preview-title" className="mx-auto w-full max-w-3xl" data-testid="model-preview">
+      <div className={cn("sophon-first-run-card sophon-glass-strong sophon-reveal sophon-reveal-hero overflow-hidden rounded-2xl", unsupported && "border-destructive/50 ring-1 ring-destructive/30")}>
+        <div className="px-4 py-4 sm:px-5 sm:py-5">
+          <div className="sophon-type-decorative mb-2 flex items-center gap-1.5 font-mono font-semibold uppercase tracking-[0.12em] text-sophon-signal-soft" data-typography-role="decorative">
+            <Sparkles aria-hidden="true" className="size-3.5" />
+            Model preview
+          </div>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h2 className="max-w-2xl font-serif text-[2rem] leading-[1.02] tracking-[-0.025em] text-sophon-copy-primary sm:text-[2.25rem] lg:text-[2.75rem]" id="model-preview-title">{selection.details.name}</h2>
+              <p className="sophon-type-body mt-2 max-w-2xl text-sophon-copy-body" data-typography-role="body">{unsupported ? "Review why this ONNX Community model cannot run in Glaux." : "Review this ONNX Community model before storing its files in your browser."}</p>
+            </div>
+            <span className={cn("rounded-full border bg-sophon-panel-deep px-2.5 py-1 font-mono text-[10px] font-semibold uppercase tracking-[0.08em]", unsupported ? "border-destructive/50 text-destructive" : "border-sophon-glass-border text-sophon-copy-metadata")}>{unsupported ? "Not compatible" : "Not downloaded"}</span>
+          </div>
+
+          <div className="mt-4 rounded-xl border border-sophon-glass-border bg-sophon-glass-tile p-3 sm:grid sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:gap-3">
+            <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-lg border border-sophon-glass-border bg-sophon-panel-deep text-sophon-signal-soft">
+              <HardDrive className="size-4.5" />
+            </span>
+            <div className="mt-3 min-w-0 sm:mt-0">
+              <h3 className="truncate text-base font-semibold text-sophon-copy-primary">{repository}</h3>
+              <p className="sophon-type-metadata mt-1 text-sophon-copy-metadata" data-typography-role="metadata">Pinned ONNX weights{revision ? ` at revision ${revision}` : ""}.</p>
+            </div>
+            {!unsupported && model && onDownload ? <Button className="sophon-accent-surface mt-3 h-11 w-full shrink-0 rounded-lg px-3 sm:mt-0 sm:w-auto" disabled={compatibility === "incompatible"} onClick={onDownload} type="button">
+              <Download aria-hidden="true" />Download model
+            </Button> : null}
+          </div>
+
+          {unsupported ? <div className="mt-3 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-destructive" role="alert"><p className="flex items-center gap-2 text-sm font-semibold"><AlertTriangle aria-hidden="true" className="size-4" />This model is not compatible with Glaux</p><ul className="mt-2 space-y-1 pl-6 text-sm leading-5">{issues.map((issue) => <li className="list-disc" key={issue.code}>{issue.message}</li>)}</ul></div> : compatibility === "incompatible" ? <p className="mt-3 rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm leading-5 text-destructive" role="alert">This device does not expose the browser GPU support required to run this model locally.</p> : null}
+
+          <dl className="mt-3 grid overflow-hidden rounded-xl border border-sophon-glass-border bg-sophon-glass-tile sm:grid-cols-2">
+            {detailRows.map(([label, value], index) => <div className={cn("px-3 py-2.5", index > 0 && "border-t border-sophon-glass-border", index === 1 && "sm:border-t-0 sm:border-l", index === 2 && "sm:border-l-0", index === 3 && "sm:border-l")} key={label}>
+              <dt className="text-[10px] font-medium uppercase leading-4 tracking-[0.05em] text-sophon-copy-metadata">{label}</dt>
+              <dd className="mt-0.5 break-words text-sm font-medium text-sophon-copy-primary">{value}</dd>
+            </div>)}
+          </dl>
+
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-sophon-glass-border pt-3">
+            <p className="sophon-type-metadata text-sophon-copy-metadata" data-typography-role="metadata">{unsupported ? "This preview is not stored, and incompatible model files cannot be downloaded." : "Nothing is stored until you confirm the download."}</p>
+            <Button asChild className="h-11 rounded-lg sm:h-8" size="sm" variant="sophon"><a href={`https://huggingface.co/${repository}`} rel="noreferrer" target="_blank"><ExternalLink aria-hidden="true" />View on Hugging Face</a></Button>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -1432,14 +1580,14 @@ function activityFromLog(event: OnnxLogEvent): RuntimeActivity {
   return { detail: event.progress ? formatDownloadDetail(event.progress) : event.detail, label, phase, progress: event.progress };
 }
 
-function getDownloadStageLabel(stage?: NonNullable<OnnxLogEvent["progress"]>["stage"], compact = false) {
-  if (stage === "probe") return compact ? "Checking files" : "Checking model files";
-  if (stage === "validate") return compact ? "Validating" : "Validating model";
-  if (stage === "resume") return compact ? "Resuming" : "Resuming model";
-  if (stage === "verify") return compact ? "Verifying" : "Verifying model";
+function getDownloadStageLabel(stage?: NonNullable<OnnxLogEvent["progress"]>["stage"]) {
+  if (stage === "probe") return "Checking model files";
+  if (stage === "validate") return "Validating model";
+  if (stage === "resume") return "Resuming model";
+  if (stage === "verify") return "Verifying model";
   if (stage === "ready") return "Model ready";
   if (stage === "cache") return "Loading downloaded model";
-  return compact ? "Downloading" : "Downloading model";
+  return "Downloading model";
 }
 
 function formatDownloadDetail(progress: NonNullable<OnnxLogEvent["progress"]>) {

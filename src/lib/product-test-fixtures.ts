@@ -1,5 +1,10 @@
-import type { OnnxInputToken, OnnxToken } from "@/lib/onnx-types";
+import type { ModelCacheSummary, RuntimeCapabilities } from "@/lib/onnx-types";
 import type { ModelManifest } from "@/lib/onnx-models";
+import type {
+  RuntimeActivity,
+  WorkbenchMessage,
+  WorkbenchSessionState
+} from "@/lib/workbench-state";
 
 const PRODUCT_TEST_QUERY_KEY = "sophon-product-test";
 const PRODUCT_TEST_MODEL_QUERY_KEY = "sophon-product-model";
@@ -51,77 +56,32 @@ export const PRODUCT_TEST_STATES = [
 export type ProductTestState = typeof PRODUCT_TEST_STATES[number];
 export type ProductTestModelId = typeof PRODUCT_TEST_MODEL_IDS[number];
 
-export type ProductTestMessage = {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  meta?: string;
-  tokens?: Array<OnnxInputToken | OnnxToken>;
-};
+export type ProductTestMessage = WorkbenchMessage;
 
-export type ProductTestSnapshot = {
+export type ProductTestSnapshot = Pick<WorkbenchSessionState,
+  | "error"
+  | "failedTurn"
+  | "generation"
+  | "loadedModelId"
+  | "messages"
+  | "modelId"
+  | "modelLoadPaused"
+  | "modelReplacementPhase"
+  | "pendingModelDownloadId"
+  | "prompt"
+  | "resetConfirmationOpen"
+> & {
   state: ProductTestState;
-  messages: ProductTestMessage[];
-  prompt: string;
-  generation:
-    | { status: "idle" }
-    | {
-      status: "loading";
-      activity: ProductTestActivity;
-    }
-    | {
-      status: "running";
-      activity: ProductTestActivity;
-      draft: string;
-      turn: { messageId: string; text: string };
-    };
-  error: string | null;
-  failedTurn: { messageId: string; reason: string; text: string } | null;
-  loadedModelId: string | null;
-  modelId: string;
-  modelLoadPaused: boolean;
-  modelReplacementPhase: "stopping" | "deleting" | "starting" | null;
   startupCleanupStatus: "idle" | "cleaning" | "failed";
-  pendingModelDownloadId: string | null;
-  resetConfirmationOpen: boolean;
   capabilities: ProductTestCapabilities | null;
   browserStorage: { usage: number; quota: number; persistent: boolean } | undefined;
   cacheSummaries: ProductTestCacheSummary[];
   cacheInventoryResolved: boolean;
 };
 
-type ProductTestActivity = {
-  detail?: string;
-  label: string;
-  phase: "download" | "runtime" | "tokenize" | "prefill" | "decode" | "complete";
-  progress?: {
-    loaded: number;
-    total: number;
-    stage?: "validate" | "download" | "resume" | "verify" | "cache" | "ready";
-    resumedBytes?: number;
-    networkBytes?: number;
-    bytesPerSecond?: number;
-    etaMs?: number;
-    elapsedMs?: number;
-  };
-};
-
-type ProductTestCapabilities = {
-  webgpu: boolean;
-  wasm: boolean;
-  crossOriginIsolated: boolean;
-  browserEngine: "chromium";
-  hardwareTier: "desktop";
-  maxStorageBufferBindingSize: number;
-};
-
-type ProductTestCacheSummary = {
-  modelId: string;
-  state: "missing" | "partial" | "cached";
-  resumableBytes: number;
-  verifiedBytes: number;
-  totalBytes: number;
-};
+type ProductTestActivity = RuntimeActivity;
+type ProductTestCapabilities = RuntimeCapabilities & { browserEngine: "chromium"; hardwareTier: "desktop" };
+type ProductTestCacheSummary = ModelCacheSummary;
 
 const MODEL_ID: ProductTestModelId = "hf:fixture-alpha";
 const MODEL_BYTES = 2_354_413_407;
@@ -140,7 +100,7 @@ const FIXTURE_STORAGE = {
   quota: 20 * GIB,
   persistent: true
 };
-const USER_TOKENS: OnnxInputToken[] = [
+const USER_TOKENS: NonNullable<WorkbenchMessage["tokens"]> = [
   { id: 11_201, text: "Compare", inContext: false },
   { id: 318, text: " the", inContext: true },
   { id: 9_431, text: " options", inContext: true },
@@ -148,7 +108,7 @@ const USER_TOKENS: OnnxInputToken[] = [
   { id: 6_804, text: " recommend", inContext: true },
   { id: 37, text: " one.", inContext: true }
 ];
-const ASSISTANT_TOKENS: OnnxToken[] = [
+const ASSISTANT_TOKENS: NonNullable<WorkbenchMessage["tokens"]> = [
   { id: 4_102, text: "Here" },
   { id: 34, text: " is" },
   { id: 901, text: " a" },

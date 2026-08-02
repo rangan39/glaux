@@ -2,17 +2,12 @@
 
 import { memo } from "react";
 import { Check, CircleUserRound, Copy, MoonStar, Pencil, RotateCcw } from "lucide-react";
-import { InspectableMessage, type InspectableToken, type TokenInspectMode } from "@/components/token-lens";
+import { InspectableMessage, type TokenInspectMode } from "@/components/token-lens";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import type { WorkbenchMessage } from "@/lib/workbench-state";
 
-export type WorkbenchMessage = {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  meta?: string;
-  tokens?: InspectableToken[];
-};
+export type { WorkbenchMessage } from "@/lib/workbench-state";
 
 type ConversationMessagesProps = {
   copiedMessageId: string | null;

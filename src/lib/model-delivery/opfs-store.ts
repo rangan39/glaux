@@ -35,6 +35,8 @@ type StoredModel = { modelId: string; revision: string };
 type StoredArtifact = { externalPath: string };
 
 let databasePromise: Promise<IDBPDatabase<DeliveryDatabase>> | null = null;
+const MODEL_STORAGE_DIRECTORY = "sophon-models";
+const MODEL_STORAGE_VERSION = "v1";
 
 export function supportsPersistentModelDelivery() {
   return typeof navigator !== "undefined"
@@ -51,11 +53,7 @@ export async function getAllArtifactStates() {
 export async function getArtifactFileSize(model: StoredModel, artifact: StoredArtifact) {
   if (!supportsPersistentModelDelivery()) return 0;
   try {
-    const root = await navigator.storage.getDirectory();
-    const app = await root.getDirectoryHandle("sophon-models");
-    const version = await app.getDirectoryHandle("v1");
-    const modelDirectory = await version.getDirectoryHandle(model.modelId);
-    const revisionDirectory = await modelDirectory.getDirectoryHandle(model.revision);
+    const revisionDirectory = await openModelRevisionDirectory(model);
     const handle = await revisionDirectory.getFileHandle(artifact.externalPath);
     return (await handle.getFile()).size;
   } catch (error) {
@@ -67,9 +65,7 @@ export async function getArtifactFileSize(model: StoredModel, artifact: StoredAr
 export async function deleteModelStorage(model: StoredModel) {
   if (supportsPersistentModelDelivery()) {
     try {
-      const root = await navigator.storage.getDirectory();
-      const app = await root.getDirectoryHandle("sophon-models");
-      const version = await app.getDirectoryHandle("v1");
+      const version = await openModelStorageVersion();
       await version.removeEntry(model.modelId, { recursive: true });
     } catch (error) {
       if (!(error instanceof DOMException && error.name === "NotFoundError")) {
@@ -82,12 +78,7 @@ export async function deleteModelStorage(model: StoredModel) {
     }
   }
   try {
-    const database = await getDatabase();
-    const transaction = database.transaction("artifacts", "readwrite", { durability: "strict" });
-    for (const key of await transaction.store.getAllKeys()) {
-      if (key.startsWith(`${model.modelId}:`)) await transaction.store.delete(key);
-    }
-    await transaction.done;
+    await deleteArtifactStatesWhere((key) => key.startsWith(`${model.modelId}:`));
   } catch (error) {
     throw toModelStorageOperationError(
       error,
@@ -101,9 +92,7 @@ export async function reconcileModelStorage(allowedModelIds: ReadonlySet<string>
   if (!supportsPersistentModelDelivery()) return [];
   const removed = new Set<string>();
   try {
-    const root = await navigator.storage.getDirectory();
-    const app = await root.getDirectoryHandle("sophon-models");
-    const version = await app.getDirectoryHandle("v1") as IterableDirectoryHandle;
+    const version = await openModelStorageVersion() as IterableDirectoryHandle;
     for await (const [modelId, handle] of version.entries()) {
       if (handle.kind !== "directory" || allowedModelIds.has(modelId)) continue;
       await version.removeEntry(modelId, { recursive: true });
@@ -119,15 +108,12 @@ export async function reconcileModelStorage(allowedModelIds: ReadonlySet<string>
     }
   }
   try {
-    const database = await getDatabase();
-    const transaction = database.transaction("artifacts", "readwrite", { durability: "strict" });
-    for (const key of await transaction.store.getAllKeys()) {
+    await deleteArtifactStatesWhere((key) => {
       const modelId = key.slice(0, key.indexOf(":"));
-      if (!modelId || allowedModelIds.has(modelId)) continue;
-      await transaction.store.delete(key);
+      if (!modelId || allowedModelIds.has(modelId)) return false;
       removed.add(modelId);
-    }
-    await transaction.done;
+      return true;
+    });
   } catch (error) {
     throw toModelStorageOperationError(
       error,
@@ -197,11 +183,7 @@ export function createArtifactStateStore(): ArtifactStateStore {
 export async function openArtifactFile(model: StoredModel, artifact: StoredArtifact): Promise<OpenArtifactFile> {
   if (!supportsPersistentModelDelivery()) throw new ModelDeliveryUnavailableError("Persistent model storage is unavailable in this browser.");
   try {
-    const root = await navigator.storage.getDirectory();
-    const app = await root.getDirectoryHandle("sophon-models", { create: true });
-    const version = await app.getDirectoryHandle("v1", { create: true });
-    const modelDirectory = await version.getDirectoryHandle(model.modelId, { create: true });
-    const revisionDirectory = await modelDirectory.getDirectoryHandle(model.revision, { create: true });
+    const revisionDirectory = await openModelRevisionDirectory(model, true);
     const handle = await revisionDirectory.getFileHandle(artifact.externalPath, { create: true }) as SyncFileHandle;
     if (typeof handle.createSyncAccessHandle !== "function") {
       throw new ModelDeliveryUnavailableError("This browser cannot open model storage for local inference.");
@@ -284,4 +266,25 @@ async function getDatabase() {
     }
   });
   return databasePromise;
+}
+
+async function openModelStorageVersion(create = false) {
+  const root = await navigator.storage.getDirectory();
+  const app = await root.getDirectoryHandle(MODEL_STORAGE_DIRECTORY, { create });
+  return app.getDirectoryHandle(MODEL_STORAGE_VERSION, { create });
+}
+
+async function openModelRevisionDirectory(model: StoredModel, create = false) {
+  const version = await openModelStorageVersion(create);
+  const modelDirectory = await version.getDirectoryHandle(model.modelId, { create });
+  return modelDirectory.getDirectoryHandle(model.revision, { create });
+}
+
+async function deleteArtifactStatesWhere(predicate: (key: string) => boolean) {
+  const database = await getDatabase();
+  const transaction = database.transaction("artifacts", "readwrite", { durability: "strict" });
+  for (const key of await transaction.store.getAllKeys()) {
+    if (predicate(key)) await transaction.store.delete(key);
+  }
+  await transaction.done;
 }

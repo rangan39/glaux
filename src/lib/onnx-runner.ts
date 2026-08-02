@@ -21,6 +21,7 @@ import type {
   OnnxRunResult,
   OnnxToken
 } from "@/lib/onnx-types";
+import { formatGenerationProvider, formatGenerationRate } from "@/lib/generation-format";
 
 type PipelineLike = TextGenerationPipeline;
 type PreparedGenerationInput = ChatTurn[];
@@ -189,7 +190,7 @@ async function runTransformersJsModel(
         outputTokenCount: outputTokenIds.length
       }
     };
-    log({ level: "success", message: "Generation complete", detail: `${result.outputTokenCount} tokens · ${formatRate(timing.decodeTokensPerSecond)}`, durationMs: Math.round(timing.endToEndMs), phase: "runtime" });
+    log({ level: "success", message: "Generation complete", detail: `${result.outputTokenCount} tokens · ${formatGenerationRate(timing.decodeTokensPerSecond)}`, durationMs: Math.round(timing.endToEndMs), phase: "runtime" });
     return { ok: true, result };
   } catch (error) {
     return failure(options.signal?.aborted ? new GenerationCancelledError() : error, log, model.label);
@@ -201,7 +202,7 @@ async function getPipeline(model: ModelManifest, provider: ModelProvider, log: (
   const cacheKey = `${model.id}:${provider}`;
   const cached = pipelineCache.get(cacheKey);
   if (cached) {
-    log({ level: "info", message: "Reusing loaded model", detail: `${model.label} · ${formatProvider(provider)}`, phase: "runtime" });
+    log({ level: "info", message: "Reusing loaded model", detail: `${model.label} · ${formatGenerationProvider(provider)}`, phase: "runtime" });
     return cached;
   }
   const capabilities = await getRuntimeCapabilities();
@@ -411,14 +412,6 @@ function decodeTokens(tokenizer: PreTrainedTokenizer, tokenIds: readonly number[
     clean_up_tokenization_spaces: false,
     skip_special_tokens: false
   }));
-}
-
-function formatRate(tokensPerSecond: number | null) {
-  return tokensPerSecond === null ? "Speed pending" : `${tokensPerSecond.toFixed(1)} tokens/s`;
-}
-
-function formatProvider(provider: ModelProvider) {
-  return provider === "webgpu" ? "WebGPU" : "WASM";
 }
 
 function clamp(value: number, min: number, max: number) {

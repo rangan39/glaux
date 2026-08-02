@@ -7,6 +7,13 @@ import {
   type RangeQueueLike
 } from "@/lib/model-delivery/adaptive-range-queue";
 import { createOrderedArtifactHasher } from "@/lib/model-delivery/ordered-artifact-hasher";
+import {
+  getSegmentLength,
+  inspectArtifactState,
+  type ArtifactDownloadState
+} from "@/lib/model-delivery/artifact-state";
+
+export type { ArtifactDownloadState } from "@/lib/model-delivery/artifact-state";
 
 export type DeliveryStage = "probe" | "validate" | "download" | "resume" | "verify" | "cache" | "ready";
 export type DeliveryProgress = {
@@ -18,17 +25,6 @@ export type DeliveryProgress = {
   bytesPerSecond?: number;
   etaMs?: number;
   elapsedMs?: number;
-};
-
-export type ArtifactDownloadState = {
-  key: string;
-  version: 1;
-  size: number;
-  sha256: string;
-  segmentSize: number;
-  etag: string;
-  completed: number[];
-  status: "partial" | "ready";
 };
 
 export type PositionedFile = {
@@ -201,7 +197,8 @@ async function downloadAndVerify({
   throwIfAborted(signal);
   let state = await stateStore.get(artifact.key);
   const existingSize = await file.getSize();
-  if (isReadyState(state, artifact, segmentSize) && existingSize === artifact.size) {
+  const inspection = inspectArtifactState(state, artifact, existingSize, segmentSize);
+  if (inspection.ready) {
     if (!verifiedThisSession.has(artifact.key)) {
       onProgress({ loaded: 0, total: artifact.size, stage: "verify", resumedBytes: artifact.size, networkBytes: 0 });
       const cachedFile = await file.getFile();
@@ -220,9 +217,10 @@ async function downloadAndVerify({
     return file.getFile();
   }
 
-  if (!isPartialState(state, artifact, segmentSize) || !completedSegmentsFit(state.completed, existingSize, artifact.size, segmentSize)) {
+  if (!inspection.valid) {
     state = await createPartialState(artifact, segmentSize, "", file, stateStore);
   }
+  if (!state) throw new RangeContractError("Artifact checkpoint state could not be initialized.");
 
   let probe: { etag: string };
   try {
@@ -707,39 +705,10 @@ function getSegments(size: number, segmentSize: number) {
   });
 }
 
-function getSegmentLength(index: number, size: number, segmentSize: number) {
-  return Math.max(0, Math.min(segmentSize, size - index * segmentSize));
-}
-
 function getVisibleLoaded(completed: ReadonlySet<number>, visible: ReadonlyMap<number, number>, size: number, segmentSize: number) {
   return getSegments(size, segmentSize).reduce((total, segment) => total + (completed.has(segment.index)
     ? segment.length
     : Math.min(segment.length, visible.get(segment.index) ?? 0)), 0);
-}
-
-function isReadyState(state: ArtifactDownloadState | undefined, artifact: RangeArtifact, segmentSize: number): state is ArtifactDownloadState {
-  return isPartialState(state, artifact, segmentSize) && state.status === "ready";
-}
-
-function isPartialState(state: ArtifactDownloadState | undefined, artifact: RangeArtifact, segmentSize: number): state is ArtifactDownloadState {
-  return Boolean(state
-    && state.version === 1
-    && state.key === artifact.key
-    && state.size === artifact.size
-    && state.sha256 === artifact.sha256
-    && state.segmentSize === segmentSize
-    && Array.isArray(state.completed));
-}
-
-function completedSegmentsFit(completed: readonly number[], fileSize: number, artifactSize: number, segmentSize: number) {
-  const segmentCount = Math.ceil(artifactSize / segmentSize);
-  const unique = new Set(completed);
-  return fileSize <= artifactSize
-    && unique.size === completed.length
-    && completed.every((index) => Number.isSafeInteger(index)
-    && index >= 0
-    && index < segmentCount
-    && index * segmentSize + getSegmentLength(index, artifactSize, segmentSize) <= fileSize);
 }
 
 async function createPartialState(artifact: RangeArtifact, segmentSize: number, etag: string, file: PositionedFile, store: ArtifactStateStore) {

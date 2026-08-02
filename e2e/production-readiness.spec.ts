@@ -48,3 +48,18 @@ for (const state of ["checking", "ready", "error"] as const) {
     expect(results.violations).toEqual([]);
   });
 }
+
+test("confirmation dialogs trap focus and close from the keyboard", async ({ page }) => {
+  await page.goto("/?sophon-product-test=confirmation");
+
+  const dialog = page.getByRole("alertdialog", { name: "Download Fixture A?" });
+  const cancel = dialog.getByRole("button", { name: "Not now" });
+  const confirm = dialog.getByRole("button", { name: "Download" });
+
+  await expect(dialog).toBeVisible();
+  await expect(cancel).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(confirm).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+});

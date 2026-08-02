@@ -1,8 +1,9 @@
 "use client";
 
-import { type FormEvent, type KeyboardEvent, type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { type FormEvent, type KeyboardEvent, type SetStateAction, useEffect, useLayoutEffect, useReducer, useRef, useState } from "react";
 import { AlertTriangle, Code2, Download, ExternalLink, Gauge, Hammer, HardDrive, Languages, LifeBuoy, LoaderCircle, MoonStar, PanelLeft, Pencil, RotateCcw, SendHorizontal, ShieldCheck, Sparkles, Square, Trash2 } from "lucide-react";
 import { GlauxAcknowledgements } from "@/components/sophon-acknowledgements";
+import { ConfirmationDialog } from "@/components/confirmation-dialog";
 import { GlauxModelSidebar } from "@/components/sophon-model-sidebar";
 import type { TokenInspectMode } from "@/components/token-lens";
 import { WorkbenchConversationMessages, type WorkbenchMessage as ChatMessage } from "@/components/workbench-conversation";
@@ -14,13 +15,12 @@ import {
   cancelModelPreload,
   deleteCachedModel,
   getCachedModels,
-  getCapabilities,
   preloadModel,
   runPrompt,
   terminateRuntimeWorker
 } from "@/lib/interp-client";
 import { communityDescriptorToManifest, resolveModelProvider, type ModelManifest } from "@/lib/onnx-models";
-import { deleteSavedCommunityModelDescriptor, listSavedCommunityModelDescriptors, saveCommunityModelDescriptor, type CommunityModelPreviewSelection } from "@/lib/model-catalog";
+import { deleteSavedCommunityModelDescriptor, saveCommunityModelDescriptor, type CommunityModelPreviewSelection } from "@/lib/model-catalog";
 import type { GenerationTelemetryEvent, ModelCacheSummary, OnnxLogEvent, RuntimeCapabilities } from "@/lib/onnx-types";
 import {
   createModelReplacementPlan,
@@ -44,36 +44,23 @@ import {
 } from "@/lib/product-test-fixtures";
 import { cn } from "@/lib/utils";
 import { ONNX_COMMUNITY_URL, PRIVACY_PATH, PROJECT_REPOSITORY_URL, PROJECT_SUPPORT_URL } from "@/lib/trust-navigation";
+import { formatGenerationDuration, formatGenerationProvider, formatGenerationRate } from "@/lib/generation-format";
+import {
+  INITIAL_WORKBENCH_SESSION,
+  STARTER_MESSAGES,
+  workbenchSessionReducer,
+  type FailedTurn,
+  type RuntimeActivity,
+  type WorkbenchSessionState
+} from "@/lib/workbench-state";
+import { useCommunityModelInventory } from "@/hooks/use-community-model-inventory";
+import { useBrowserStorage, type BrowserStorage } from "@/hooks/use-browser-storage";
+import { useModelRuntimeCapabilities } from "@/hooks/use-model-runtime";
 
-type RuntimeActivity = {
-  detail?: string;
-  label: string;
-  phase: "download" | "runtime" | "tokenize" | "prefill" | "decode" | "complete";
-  progress?: OnnxLogEvent["progress"];
-};
-type FailedTurn = {
-  messageId: string;
-  reason: string;
-  text: string;
-};
 type StartupCleanupStatus = "idle" | "cleaning" | "failed";
-
-type GenerationState =
-  | { status: "idle" }
-  | { status: "loading"; activity: RuntimeActivity }
-  | { status: "running"; activity: RuntimeActivity; draft: string; turn: Omit<FailedTurn, "reason"> };
-type BrowserStorage = StorageEstimate & { persistent: boolean };
 const LAST_READY_MODEL_KEY = "sophon:last-ready-model";
 const PROMPT_MAX_HEIGHT = 192;
 const PROMPT_SHORTCUT_HELP = "Enter sends · Shift+Enter adds a line";
-const STARTER_MESSAGES: ChatMessage[] = [
-  {
-    id: "assistant-welcome",
-    role: "assistant",
-    content: "Hi — I’m Glaux. Find a compatible ONNX Community model to download, then chat locally in this browser.",
-    meta: "Open-source web tool · local inference · no server inference"
-  }
-];
 export function GlauxWorkbench() {
   const [productTestState, setProductTestState] = useState<ProductTestState | null | undefined>(
     PRODUCT_TESTING_BUILD ? undefined : null
@@ -81,37 +68,58 @@ export function GlauxWorkbench() {
   const [productTestModelId, setProductTestModelId] = useState<ProductTestModelId | null | undefined>(
     PRODUCT_TESTING_BUILD ? undefined : null
   );
-  const [messages, setMessages] = useState(STARTER_MESSAGES);
-  const [prompt, setPrompt] = useState("");
-  const [generation, setGeneration] = useState<GenerationState>({ status: "idle" });
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [failedTurn, setFailedTurn] = useState<FailedTurn | null>(null);
-  const [loadedModelId, setLoadedModelId] = useState<string | null>(null);
+  const [session, dispatchSession] = useReducer(workbenchSessionReducer, INITIAL_WORKBENCH_SESSION);
+  const {
+    autoRestoreEnabled,
+    deletingModelId,
+    error,
+    failedTurn,
+    generation,
+    loadedModelId,
+    messages,
+    modelId,
+    modelLoadPaused,
+    modelReplacementPhase,
+    notice,
+    pendingDeleteModelId,
+    pendingModelDownloadId,
+    prompt,
+    resetConfirmationOpen
+  } = session;
+  const setSessionField = <Field extends keyof WorkbenchSessionState>(field: Field, value: SetStateAction<WorkbenchSessionState[Field]>) => {
+    dispatchSession({ type: "field/set", field, value } as Parameters<typeof dispatchSession>[0]);
+  };
+  const setMessages = (value: SetStateAction<WorkbenchSessionState["messages"]>) => setSessionField("messages", value);
+  const setPrompt = (value: SetStateAction<string>) => setSessionField("prompt", value);
+  const setGeneration = (value: SetStateAction<WorkbenchSessionState["generation"]>) => setSessionField("generation", value);
+  const setError = (value: SetStateAction<string | null>) => setSessionField("error", value);
+  const setNotice = (value: SetStateAction<string | null>) => setSessionField("notice", value);
+  const setFailedTurn = (value: SetStateAction<FailedTurn | null>) => setSessionField("failedTurn", value);
+  const setLoadedModelId = (value: SetStateAction<string | null>) => setSessionField("loadedModelId", value);
+  const setModelLoadPaused = (value: SetStateAction<boolean>) => setSessionField("modelLoadPaused", value);
+  const setPendingModelDownloadId = (value: SetStateAction<string | null>) => setSessionField("pendingModelDownloadId", value);
+  const setPendingDeleteModelId = (value: SetStateAction<string | null>) => setSessionField("pendingDeleteModelId", value);
+  const setDeletingModelId = (value: SetStateAction<string | null>) => setSessionField("deletingModelId", value);
+  const setModelReplacementPhase = (value: SetStateAction<ModelReplacementPhase | null>) => setSessionField("modelReplacementPhase", value);
+  const setResetConfirmationOpen = (value: SetStateAction<boolean>) => setSessionField("resetConfirmationOpen", value);
+  const setAutoRestoreEnabled = (value: SetStateAction<boolean>) => setSessionField("autoRestoreEnabled", value);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [developerMode, setDeveloperMode] = useState(false);
-  const [modelId, setModelId] = useState("");
-  const [communityModels, setCommunityModels] = useState<ModelManifest[]>([]);
+  const runtimeEnabled = productTestState === null;
+  const [communityModels, setCommunityModels] = useCommunityModelInventory(runtimeEnabled);
   const [checkingCommunityModel, setCheckingCommunityModel] = useState<string | null>(null);
   const [previewSelection, setPreviewSelection] = useState<CommunityModelPreviewSelection | null>(null);
   const [libraryModelId, setLibraryModelId] = useState("");
   const [modelSidebarOpen, setModelSidebarOpen] = useState(false);
   const [inspectDisplayMode, setInspectDisplayMode] = useState<TokenInspectMode | null>(null);
   const [hoveredInspectMetrics, setHoveredInspectMetrics] = useState<string | undefined>();
-  const [modelLoadPaused, setModelLoadPaused] = useState(false);
-  const [pendingModelDownloadId, setPendingModelDownloadId] = useState<string | null>(null);
-  const [pendingDeleteModelId, setPendingDeleteModelId] = useState<string | null>(null);
-  const [deletingModelId, setDeletingModelId] = useState<string | null>(null);
-  const [modelReplacementPhase, setModelReplacementPhase] = useState<ModelReplacementPhase | null>(null);
-  const [resetConfirmationOpen, setResetConfirmationOpen] = useState(false);
-  const [capabilities, setCapabilities] = useState<RuntimeCapabilities | null>(null);
-  const [browserStorage, setBrowserStorage] = useState<BrowserStorage | null>();
+  const [capabilities, setCapabilities] = useModelRuntimeCapabilities(runtimeEnabled);
   const [cacheSummaries, setCacheSummaries] = useState<ModelCacheSummary[]>([]);
   const [cacheInventoryResolved, setCacheInventoryResolved] = useState(false);
   const [startupCleanupStatus, setStartupCleanupStatus] = useState<StartupCleanupStatus>("idle");
   const [startupCleanupRetryRevision, setStartupCleanupRetryRevision] = useState(0);
   const [storageRevision, setStorageRevision] = useState(0);
-  const [autoRestoreEnabled, setAutoRestoreEnabled] = useState(true);
+  const [browserStorage, setBrowserStorage] = useBrowserStorage(runtimeEnabled, storageRevision);
   const generationIdRef = useRef(0);
   const dialogScrollSnapshotRef = useRef<DocumentScrollSnapshot | null>(null);
   const modelDownloadFromMobileRef = useRef(false);
@@ -189,17 +197,6 @@ export function GlauxWorkbench() {
   useDocumentScrollLock(blockingDialogOpen, dialogScrollSnapshotRef);
 
   useEffect(() => {
-    if (productTestState !== null) return;
-    let active = true;
-    void listSavedCommunityModelDescriptors()
-      .then((descriptors) => {
-        if (active) setCommunityModels(descriptors.map(communityDescriptorToManifest));
-      })
-      .catch(() => undefined);
-    return () => { active = false; };
-  }, [productTestState]);
-
-  useEffect(() => {
     if (!PRODUCT_TESTING_BUILD) return;
     queueMicrotask(() => {
       const search = window.location.search;
@@ -214,57 +211,17 @@ export function GlauxWorkbench() {
     queueMicrotask(() => {
       generationIdRef.current += 1;
       terminateRuntimeWorker();
-      setMessages(snapshot.messages);
-      setPrompt(snapshot.prompt);
-      setGeneration(snapshot.generation);
-      setError(snapshot.error);
-      setNotice(null);
-      setFailedTurn(snapshot.failedTurn);
-      setLoadedModelId(snapshot.loadedModelId);
+      dispatchSession({ type: "fixture/loaded", session: snapshot });
       setCopiedMessageId(null);
-      setModelId(snapshot.modelId);
       setLibraryModelId(snapshot.modelId);
       setModelSidebarOpen(false);
-      setModelLoadPaused(snapshot.modelLoadPaused);
-      setPendingModelDownloadId(snapshot.pendingModelDownloadId);
-      setPendingDeleteModelId(null);
-      setDeletingModelId(null);
-      setModelReplacementPhase(snapshot.modelReplacementPhase);
-      setResetConfirmationOpen(snapshot.resetConfirmationOpen);
       setCapabilities(snapshot.capabilities);
       setBrowserStorage(snapshot.browserStorage);
       setCacheSummaries(snapshot.cacheSummaries);
       setCacheInventoryResolved(snapshot.cacheInventoryResolved);
       setStartupCleanupStatus(snapshot.startupCleanupStatus);
-      setAutoRestoreEnabled(false);
     });
-  }, [productTestModelId, productTestState]);
-
-  useEffect(() => {
-    if (productTestState !== null) return;
-    let active = true;
-    void getCapabilities()
-      .then((nextCapabilities) => {
-        if (active) setCapabilities(nextCapabilities);
-      })
-      .catch(() => {
-        if (active) setCapabilities({ webgpu: false, wasm: false, crossOriginIsolated: false, browserEngine: "unknown", hardwareTier: "desktop", maxStorageBufferBindingSize: null });
-      });
-    return () => {
-      active = false;
-    };
-  }, [productTestState]);
-
-  useEffect(() => {
-    if (productTestState !== null) return;
-    let active = true;
-    const manager = navigator.storage;
-    const estimate = manager?.estimate ? manager.estimate() : Promise.resolve(null);
-    void Promise.all([estimate, manager?.persisted?.() ?? false])
-      .then(([storage, persistent]) => { if (active) setBrowserStorage(storage ? { ...storage, persistent } : null); })
-      .catch(() => { if (active) setBrowserStorage(null); });
-    return () => { active = false; };
-  }, [productTestState, storageRevision]);
+  }, [productTestModelId, productTestState, setBrowserStorage, setCapabilities]);
 
   useEffect(() => {
     if (productTestState !== null) return;
@@ -275,7 +232,7 @@ export function GlauxWorkbench() {
       inventoryTimedOut = true;
       setCacheSummaries([]);
       setCacheInventoryResolved(true);
-      setNotice("Glaux couldn’t check for saved model data. You can still choose a model to download.");
+      dispatchSession({ type: "field/set", field: "notice", value: "Glaux couldn’t check for saved model data. You can still choose a model to download." });
     }, 5_000);
     void (async () => {
       let models = await getCachedModels();
@@ -286,8 +243,8 @@ export function GlauxWorkbench() {
       if (cleanupPlan.requiresCleanup) {
         if (!active) return;
         setStartupCleanupStatus("cleaning");
-        setError(null);
-        setNotice(null);
+        dispatchSession({ type: "field/set", field: "error", value: null });
+        dispatchSession({ type: "field/set", field: "notice", value: null });
         generationIdRef.current += 1;
         try {
           models = await runStartupModelCleanup(cleanupPlan, {
@@ -295,32 +252,29 @@ export function GlauxWorkbench() {
               await deleteCachedModel(modelToDelete);
               forgetRememberedModelId(modelToDelete);
             },
-            onPhaseChange: setModelReplacementPhase,
+            onPhaseChange: (phase) => dispatchSession({ type: "field/set", field: "modelReplacementPhase", value: phase }),
             readCacheSummaries: getCachedModels,
             stopActiveModel: async () => {
               await cancelModelPreload().catch(() => terminateRuntimeWorker());
-              setModelId("");
-              setLoadedModelId(null);
-              setModelLoadPaused(false);
-              setGeneration({ status: "idle" });
+              dispatchSession({ type: "model/stopped" });
             }
           });
           if (!active) return;
           setStorageRevision((value) => value + 1);
-          setNotice("Old model files were removed. Choose a model to download.");
+          dispatchSession({ type: "field/set", field: "notice", value: "Old model files were removed. Choose a model to download." });
           setStartupCleanupStatus("idle");
         } catch (caught) {
           if (!active) return;
           const refreshed = await getCachedModels().catch(() => models);
           setCacheSummaries(refreshed);
           setStartupCleanupStatus("failed");
-          setError(caught instanceof Error
+          dispatchSession({ type: "field/set", field: "error", value: caught instanceof Error
             ? caught.message
-            : "Glaux could not remove old model files.");
+            : "Glaux could not remove old model files." });
           return;
         } finally {
           if (active) {
-            setModelReplacementPhase(null);
+            dispatchSession({ type: "field/set", field: "modelReplacementPhase", value: null });
           }
         }
       }
@@ -331,10 +285,10 @@ export function GlauxWorkbench() {
         ? rememberedModelId
         : null;
       if (rememberedModelId && !restorableModelId) forgetRememberedModelId(rememberedModelId);
-      setModelId((current) => {
+      dispatchSession({ type: "field/set", field: "modelId", value: (current) => {
         if (current || !autoRestoreEnabled) return current;
         return restorableModelId ?? current;
-      });
+      } });
       if (autoRestoreEnabled && restorableModelId) setLibraryModelId((current) => current || restorableModelId);
       setCacheInventoryResolved(true);
     })()
@@ -343,7 +297,7 @@ export function GlauxWorkbench() {
         window.clearTimeout(inventoryFallbackTimer);
         setCacheSummaries([]);
         setCacheInventoryResolved(true);
-        setNotice("Glaux couldn’t check for saved model data. You can still choose a model to download.");
+        dispatchSession({ type: "field/set", field: "notice", value: "Glaux couldn’t check for saved model data. You can still choose a model to download." });
       });
     return () => {
       active = false;
@@ -356,20 +310,20 @@ export function GlauxWorkbench() {
     if (!selectedModel || modelLoadPaused || !capabilities || !resolveModelProvider(selectedModel, capabilities)) return;
     const loadId = generationIdRef.current += 1;
     queueMicrotask(() => {
-      if (generationIdRef.current === loadId) setGeneration({ status: "loading", activity: { detail: `${selectedModel.label} · ${selectedModel.format.sizeLabel}`, label: "Preparing local model", phase: "runtime" } });
+      if (generationIdRef.current === loadId) dispatchSession({ type: "field/set", field: "generation", value: { status: "loading", activity: { detail: `${selectedModel.label} · ${selectedModel.format.sizeLabel}`, label: "Preparing local model", phase: "runtime" } } });
     });
     void preloadModel(selectedModel.id, (event) => {
-      if (generationIdRef.current === loadId) setGeneration((current) => current.status === "loading" ? { ...current, activity: activityFromLog(event) } : current);
+      if (generationIdRef.current === loadId) dispatchSession({ type: "field/set", field: "generation", value: (current) => current.status === "loading" ? { ...current, activity: activityFromLog(event) } : current });
     }).then(() => {
       if (generationIdRef.current === loadId) {
-        setLoadedModelId(selectedModel.id);
+        dispatchSession({ type: "field/set", field: "loadedModelId", value: selectedModel.id });
         rememberReadyModelId(selectedModel.id);
       }
     }).catch((caught) => {
-      if (generationIdRef.current === loadId) setError(caught instanceof Error ? caught.message : `${selectedModel.label} could not load.`);
+      if (generationIdRef.current === loadId) dispatchSession({ type: "field/set", field: "error", value: caught instanceof Error ? caught.message : `${selectedModel.label} could not load.` });
     }).finally(() => {
       if (generationIdRef.current === loadId) {
-        setGeneration({ status: "idle" });
+        dispatchSession({ type: "field/set", field: "generation", value: { status: "idle" } });
         setStorageRevision((value) => value + 1);
       }
     });
@@ -422,19 +376,13 @@ export function GlauxWorkbench() {
   }
 
   function clearConversationState() {
-    setMessages(STARTER_MESSAGES);
-    setPrompt("");
-    setError(null);
-    setNotice(null);
-    setFailedTurn(null);
-    setGeneration({ status: "idle" });
+    dispatchSession({ type: "conversation/reset" });
   }
 
   function selectModel(nextModelId: string) {
     setPreviewSelection(null);
     setLibraryModelId(nextModelId);
     if (nextModelId === modelId && !modelLoadPaused) return;
-    clearConversationState();
     if (!productTestState) {
       void navigator.storage?.persist?.()
         .then((persistent) => setBrowserStorage((current) => current ? { ...current, persistent } : current))
@@ -442,14 +390,7 @@ export function GlauxWorkbench() {
     }
     generationIdRef.current += 1;
     if (!productTestState) void cancelModelPreload().catch(() => terminateRuntimeWorker());
-    setAutoRestoreEnabled(true);
-    setModelLoadPaused(false);
-    setModelId(nextModelId);
-    setLoadedModelId(null);
-    setError(null);
-    setNotice(null);
-    setFailedTurn(null);
-    setGeneration({ status: "idle" });
+    dispatchSession({ type: "model/selected", modelId: nextModelId });
   }
 
   function addCommunityModel(selection: CommunityModelPreviewSelection) {
@@ -490,17 +431,11 @@ export function GlauxWorkbench() {
         await deleteSavedCommunityModelDescriptor(targetModelId);
       }
       forgetRememberedModelId(targetModelId);
-      if (targetModelId === modelId) {
-        clearConversationState();
-        setModelId("");
-        setLoadedModelId(null);
-        setModelLoadPaused(false);
-      }
+      dispatchSession({ type: "model/removed", modelId: targetModelId });
       if (targetModelId === libraryModelId) setLibraryModelId("");
       setCommunityModels((current) => current.filter((model) => model.id !== targetModelId));
       setCacheSummaries(productTestState ? [] : await getCachedModels());
       setStorageRevision((value) => value + 1);
-      setPendingDeleteModelId(null);
       setNotice("The model and its downloaded files were removed from this browser.");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Glaux could not delete the model from this browser.");
@@ -588,10 +523,7 @@ export function GlauxWorkbench() {
         readCacheSummaries: getCachedModels,
         stopActiveModel: async () => {
           await cancelModelPreload().catch(() => terminateRuntimeWorker());
-          setModelId("");
-          setLoadedModelId(null);
-          setModelLoadPaused(false);
-          setGeneration({ status: "idle" });
+          dispatchSession({ type: "model/stopped" });
         }
       });
       setCacheSummaries(next);
@@ -738,7 +670,7 @@ export function GlauxWorkbench() {
           role: "assistant",
           content: response.result.generatedText,
           tokens: response.result.generatedTokens,
-          meta: `${formatProvider(metrics.provider)} · ${metrics.contextTokenCount}${metrics.truncatedInputTokens ? `/${metrics.promptTokenCount}` : ""} → ${response.result.outputTokenCount} tokens · ${formatRate(metrics.decodeTokensPerSecond)} · first token ${formatDuration(metrics.ttftMs)}${metrics.truncatedInputTokens ? ` · ${metrics.truncatedInputTokens} earlier tokens omitted` : ""}`
+          meta: `${formatGenerationProvider(metrics.provider)} · ${metrics.contextTokenCount}${metrics.truncatedInputTokens ? `/${metrics.promptTokenCount}` : ""} → ${response.result.outputTokenCount} tokens · ${formatGenerationRate(metrics.decodeTokensPerSecond)} · first token ${formatGenerationDuration(metrics.ttftMs)}${metrics.truncatedInputTokens ? ` · ${metrics.truncatedInputTokens} earlier tokens omitted` : ""}`
         }
       ]);
     } catch (caught) {
@@ -1286,69 +1218,6 @@ function FirstRunWelcome({ notice, onDismissNotice, onOpenModels }: {
   );
 }
 
-function ConfirmationDialog({ busy = false, busyLabel, cancelAriaLabel, cancelLabel, confirmAriaLabel, confirmLabel, confirmTone = "destructive", description, details, onCancel, onConfirm, title }: {
-  busy?: boolean;
-  busyLabel?: string;
-  cancelAriaLabel?: string;
-  cancelLabel: string;
-  confirmAriaLabel?: string;
-  confirmLabel: string;
-  confirmTone?: "default" | "destructive";
-  description: string;
-  details?: ReactNode;
-  onCancel: () => void;
-  onConfirm: () => void;
-  title: string;
-}) {
-  const cancelRef = useRef<HTMLButtonElement>(null);
-  const confirmRef = useRef<HTMLButtonElement>(null);
-  const descriptionId = useId();
-  const titleId = useId();
-
-  useEffect(() => {
-    const frame = window.requestAnimationFrame(() => cancelRef.current?.focus({ preventScroll: true }));
-    return () => window.cancelAnimationFrame(frame);
-  }, []);
-
-  return (
-    <div
-      className="fixed inset-0 z-50 grid place-items-center overflow-y-auto overscroll-contain bg-sophon-backdrop px-4 py-6 backdrop-blur-sm"
-      onClick={(event) => { if (!busy && event.target === event.currentTarget) onCancel(); }}
-    >
-      <div
-        aria-describedby={descriptionId}
-        aria-labelledby={titleId}
-        aria-modal="true"
-        className="sophon-glass-strong w-full max-w-sm rounded-2xl p-5 shadow-[0_24px_80px_var(--sophon-glass-shadow)]"
-        onKeyDown={(event) => {
-          if (!busy && event.key === "Escape") {
-            onCancel();
-          } else if (event.key === "Tab") {
-            if (event.shiftKey && document.activeElement === cancelRef.current) {
-              event.preventDefault();
-              confirmRef.current?.focus();
-            } else if (!event.shiftKey && document.activeElement === confirmRef.current) {
-              event.preventDefault();
-              cancelRef.current?.focus();
-            }
-          }
-        }}
-        role="dialog"
-      >
-        <h2 className="text-base font-semibold text-sophon-copy-primary" id={titleId}>{title}</h2>
-        <p className="sophon-type-body mt-2 text-sophon-copy-body" data-typography-role="body" id={descriptionId}>{description}</p>
-        {details}
-        <div className="mt-5 grid grid-cols-2 gap-2">
-          <Button aria-label={cancelAriaLabel} className="h-10 min-w-0 rounded-xl px-3 sm:h-9" disabled={busy} onClick={onCancel} ref={cancelRef} type="button" variant="sophon">{cancelLabel}</Button>
-          <Button aria-label={confirmAriaLabel} className={cn("h-10 min-w-0 rounded-xl px-3 sm:h-9", confirmTone === "destructive" && "bg-destructive text-destructive-foreground shadow-none hover:bg-destructive/85")} disabled={busy} onClick={onConfirm} ref={confirmRef} type="button">
-            {busy ? busyLabel ?? confirmLabel : confirmLabel}
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function getWelcomeMessage(message: ChatMessage, model: ModelManifest | null, modelReady: boolean, isModelLoading: boolean, modelLoadPaused: boolean): ChatMessage {
   if (!model) return message;
   const modelName = model.label.split(" · ")[0];
@@ -1715,7 +1584,7 @@ function activityFromTelemetry(telemetry: GenerationTelemetryEvent): RuntimeActi
   }
   if (telemetry.phase === "decode") {
     return {
-      detail: `${telemetry.outputTokenCount} generated · ${formatRate(telemetry.decodeTokensPerSecond)}`,
+      detail: `${telemetry.outputTokenCount} generated · ${formatGenerationRate(telemetry.decodeTokensPerSecond)}`,
       label: "Generating response",
       phase: "decode"
     };
@@ -1725,19 +1594,6 @@ function activityFromTelemetry(telemetry: GenerationTelemetryEvent): RuntimeActi
     label: "Finalizing response",
     phase: "complete"
   };
-}
-
-function formatRate(value: number | null) {
-  return value === null ? "Speed pending" : `${value.toFixed(1)} tokens/s`;
-}
-
-function formatProvider(value: string) {
-  return value === "webgpu" ? "WebGPU" : value.toUpperCase();
-}
-
-function formatDuration(value: number | null) {
-  if (value === null) return "—";
-  return value < 1_000 ? `${Math.round(value)} ms` : `${(value / 1_000).toFixed(value < 10_000 ? 1 : 0)}s`;
 }
 
 function formatStorageBytes(bytes?: number) {

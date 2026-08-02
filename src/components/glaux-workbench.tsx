@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, type KeyboardEvent, type SetStateAction, useEffect, useLayoutEffect, useReducer, useRef, useState } from "react";
+import { type FormEvent, type KeyboardEvent, type SetStateAction, useEffect, useReducer, useRef, useState } from "react";
 import { AlertTriangle, Code2, Download, ExternalLink, Gauge, Hammer, HardDrive, Languages, LifeBuoy, LoaderCircle, MoonStar, PanelLeft, Pencil, RotateCcw, SendHorizontal, ShieldCheck, Sparkles, Square, Trash2 } from "lucide-react";
 import { GlauxAcknowledgements } from "@/components/sophon-acknowledgements";
 import { ConfirmationDialog } from "@/components/confirmation-dialog";
@@ -15,32 +15,24 @@ import {
   cancelModelPreload,
   deleteCachedModel,
   getCachedModels,
-  preloadModel,
   runPrompt,
   terminateRuntimeWorker
 } from "@/lib/interp-client";
-import { communityDescriptorToManifest, resolveModelProvider, type ModelManifest } from "@/lib/onnx-models";
+import { communityDescriptorToManifest, type ModelManifest } from "@/lib/onnx-models";
 import { deleteSavedCommunityModelDescriptor, saveCommunityModelDescriptor, type CommunityModelPreviewSelection } from "@/lib/model-catalog";
-import type { GenerationTelemetryEvent, ModelCacheSummary, OnnxLogEvent, RuntimeCapabilities } from "@/lib/onnx-types";
+import type { GenerationTelemetryEvent, ModelCacheSummary, OnnxLogEvent } from "@/lib/onnx-types";
 import {
   createModelReplacementPlan,
   createStartupModelCleanupPlan,
   runModelReplacement,
   runStartupModelCleanup,
-  type ModelReplacementPhase,
-  type ModelReplacementPlan
+  type ModelReplacementPhase
 } from "@/lib/model-replacement";
 import {
   createFixtureAssistantDraft,
   createFixtureDownloadActivity,
   createFixtureGenerationActivity,
-  createProductTestSnapshot,
-  PRODUCT_TEST_MODELS,
-  PRODUCT_TESTING_BUILD,
-  readProductTestModelId,
-  readProductTestState,
-  type ProductTestModelId,
-  type ProductTestState
+  PRODUCT_TEST_MODELS
 } from "@/lib/product-test-fixtures";
 import { cn } from "@/lib/utils";
 import { ONNX_COMMUNITY_URL, PRIVACY_PATH, PROJECT_REPOSITORY_URL, PROJECT_SUPPORT_URL } from "@/lib/trust-navigation";
@@ -50,24 +42,43 @@ import {
   STARTER_MESSAGES,
   workbenchSessionReducer,
   type FailedTurn,
-  type RuntimeActivity,
   type WorkbenchSessionState
 } from "@/lib/workbench-state";
 import { useCommunityModelInventory } from "@/hooks/use-community-model-inventory";
-import { useBrowserStorage, type BrowserStorage } from "@/hooks/use-browser-storage";
+import { useBrowserStorage } from "@/hooks/use-browser-storage";
 import { useModelRuntimeCapabilities } from "@/hooks/use-model-runtime";
+import { captureDialogScrollSnapshot, type DocumentScrollSnapshot, useDocumentScrollLock } from "@/hooks/use-document-scroll-lock";
+import { useProductTestHydration, useProductTestRoute } from "@/hooks/use-product-test-harness";
+import { useActiveModelPreload } from "@/hooks/use-active-model-preload";
+import { forgetRememberedModelId, readRememberedModelId } from "@/lib/remembered-model";
+import {
+  activityFromLog,
+  activityFromTelemetry,
+  formatDownloadAriaText,
+  formatDownloadPercent,
+  formatEta,
+  formatStorageBytes,
+  getFailedTurnStatus,
+  getModelCompatibility,
+  getPromptHelp,
+  getRuntimeStatus,
+  getWelcomeMessage,
+  PROMPT_SHORTCUT_HELP
+} from "@/lib/workbench-runtime";
+import {
+  getModelActionButtonLabel,
+  getModelActionCancelLabel,
+  getModelActionDescription,
+  getModelActionLabel,
+  getModelActionTitle,
+  getReplacementBusyLabel,
+  modelName
+} from "@/lib/model-action-copy";
 
 type StartupCleanupStatus = "idle" | "cleaning" | "failed";
-const LAST_READY_MODEL_KEY = "sophon:last-ready-model";
 const PROMPT_MAX_HEIGHT = 192;
-const PROMPT_SHORTCUT_HELP = "Enter sends · Shift+Enter adds a line";
 export function GlauxWorkbench() {
-  const [productTestState, setProductTestState] = useState<ProductTestState | null | undefined>(
-    PRODUCT_TESTING_BUILD ? undefined : null
-  );
-  const [productTestModelId, setProductTestModelId] = useState<ProductTestModelId | null | undefined>(
-    PRODUCT_TESTING_BUILD ? undefined : null
-  );
+  const { modelId: productTestModelId, runtimeEnabled, state: productTestState } = useProductTestRoute();
   const [session, dispatchSession] = useReducer(workbenchSessionReducer, INITIAL_WORKBENCH_SESSION);
   const {
     autoRestoreEnabled,
@@ -105,7 +116,6 @@ export function GlauxWorkbench() {
   const setAutoRestoreEnabled = (value: SetStateAction<boolean>) => setSessionField("autoRestoreEnabled", value);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [developerMode, setDeveloperMode] = useState(false);
-  const runtimeEnabled = productTestState === null;
   const [communityModels, setCommunityModels] = useCommunityModelInventory(runtimeEnabled);
   const [checkingCommunityModel, setCheckingCommunityModel] = useState<string | null>(null);
   const [previewSelection, setPreviewSelection] = useState<CommunityModelPreviewSelection | null>(null);
@@ -196,32 +206,19 @@ export function GlauxWorkbench() {
 
   useDocumentScrollLock(blockingDialogOpen, dialogScrollSnapshotRef);
 
-  useEffect(() => {
-    if (!PRODUCT_TESTING_BUILD) return;
-    queueMicrotask(() => {
-      const search = window.location.search;
-      setProductTestModelId(readProductTestModelId(search));
-      setProductTestState(readProductTestState(search));
-    });
-  }, []);
-
-  useEffect(() => {
-    if (!productTestState || !productTestModelId) return;
-    const snapshot = createProductTestSnapshot(productTestState, productTestModelId);
-    queueMicrotask(() => {
-      generationIdRef.current += 1;
-      terminateRuntimeWorker();
-      dispatchSession({ type: "fixture/loaded", session: snapshot });
-      setCopiedMessageId(null);
-      setLibraryModelId(snapshot.modelId);
-      setModelSidebarOpen(false);
-      setCapabilities(snapshot.capabilities);
-      setBrowserStorage(snapshot.browserStorage);
-      setCacheSummaries(snapshot.cacheSummaries);
-      setCacheInventoryResolved(snapshot.cacheInventoryResolved);
-      setStartupCleanupStatus(snapshot.startupCleanupStatus);
-    });
-  }, [productTestModelId, productTestState, setBrowserStorage, setCapabilities]);
+  useProductTestHydration(productTestState, productTestModelId, (snapshot) => {
+    generationIdRef.current += 1;
+    terminateRuntimeWorker();
+    dispatchSession({ type: "fixture/loaded", session: snapshot });
+    setCopiedMessageId(null);
+    setLibraryModelId(snapshot.modelId);
+    setModelSidebarOpen(false);
+    setCapabilities(snapshot.capabilities);
+    setBrowserStorage(snapshot.browserStorage);
+    setCacheSummaries(snapshot.cacheSummaries);
+    setCacheInventoryResolved(snapshot.cacheInventoryResolved);
+    setStartupCleanupStatus(snapshot.startupCleanupStatus);
+  });
 
   useEffect(() => {
     if (productTestState !== null) return;
@@ -305,33 +302,15 @@ export function GlauxWorkbench() {
     };
   }, [autoRestoreEnabled, productTestState, startupCleanupRetryRevision, storageRevision]);
 
-  useEffect(() => {
-    if (productTestState !== null) return;
-    if (!selectedModel || modelLoadPaused || !capabilities || !resolveModelProvider(selectedModel, capabilities)) return;
-    const loadId = generationIdRef.current += 1;
-    queueMicrotask(() => {
-      if (generationIdRef.current === loadId) dispatchSession({ type: "field/set", field: "generation", value: { status: "loading", activity: { detail: `${selectedModel.label} · ${selectedModel.format.sizeLabel}`, label: "Preparing local model", phase: "runtime" } } });
-    });
-    void preloadModel(selectedModel.id, (event) => {
-      if (generationIdRef.current === loadId) dispatchSession({ type: "field/set", field: "generation", value: (current) => current.status === "loading" ? { ...current, activity: activityFromLog(event) } : current });
-    }).then(() => {
-      if (generationIdRef.current === loadId) {
-        dispatchSession({ type: "field/set", field: "loadedModelId", value: selectedModel.id });
-        rememberReadyModelId(selectedModel.id);
-      }
-    }).catch((caught) => {
-      if (generationIdRef.current === loadId) dispatchSession({ type: "field/set", field: "error", value: caught instanceof Error ? caught.message : `${selectedModel.label} could not load.` });
-    }).finally(() => {
-      if (generationIdRef.current === loadId) {
-        dispatchSession({ type: "field/set", field: "generation", value: { status: "idle" } });
-        setStorageRevision((value) => value + 1);
-      }
-    });
-    return () => {
-      if (generationIdRef.current === loadId) generationIdRef.current += 1;
-      void cancelModelPreload().catch(() => terminateRuntimeWorker());
-    };
-  }, [capabilities, modelLoadPaused, productTestState, selectedModel]);
+  useActiveModelPreload({
+    capabilities,
+    dispatch: dispatchSession,
+    enabled: productTestState === null,
+    generationIdRef,
+    model: selectedModel,
+    paused: modelLoadPaused,
+    onStorageChanged: () => setStorageRevision((value) => value + 1)
+  });
 
   useEffect(() => {
     if (!selectedModel || blockingDialogOpen) return;
@@ -908,12 +887,12 @@ export function GlauxWorkbench() {
                     <Button className="h-11 self-start rounded-xl sm:h-8 sm:self-auto" onClick={() => setNotice(null)} size="sm" type="button" variant="sophon">Dismiss</Button>
                   </div>
                 ) : null}
-                <label className="sr-only" htmlFor="sophon-prompt">Message Glaux</label>
+                <label className="sr-only" htmlFor="glaux-prompt">Message Glaux</label>
                 <div className="sophon-glass-tile sophon-glass-interactive relative overflow-hidden rounded-2xl before:pointer-events-none before:absolute before:inset-y-3 before:left-0 before:z-10 before:w-px before:bg-sophon-glass-highlight after:pointer-events-none after:absolute after:inset-y-3 after:right-0 after:z-10 after:w-px after:bg-sophon-glass-highlight">
                   <Textarea
                     aria-describedby="prompt-help"
                     className="flex min-h-20 max-h-[7.5rem] w-full resize-none overflow-y-auto rounded-md border-0 bg-transparent px-3 py-2 pr-14 text-[15px] leading-6 text-sophon-copy-primary shadow-none placeholder:text-sophon-copy-decorative focus-visible:outline-none disabled:cursor-not-allowed disabled:text-sophon-copy-disabled sm:max-h-48"
-                    id="sophon-prompt"
+                    id="glaux-prompt"
                     onChange={(event) => setPrompt(event.target.value)}
                     onKeyDown={handleKeyDown}
                     placeholder={promptPlaceholder}
@@ -1216,390 +1195,4 @@ function FirstRunWelcome({ notice, onDismissNotice, onOpenModels }: {
       </div>
     </section>
   );
-}
-
-function getWelcomeMessage(message: ChatMessage, model: ModelManifest | null, modelReady: boolean, isModelLoading: boolean, modelLoadPaused: boolean): ChatMessage {
-  if (!model) return message;
-  const modelName = model.label.split(" · ")[0];
-  if (modelReady) {
-    return {
-      ...message,
-      content: `${modelName} is ready. Ask anything — your prompt and response stay in this browser.`,
-      meta: "Local · on-device · no server inference"
-    };
-  }
-  return {
-    ...message,
-    content: modelLoadPaused
-      ? `${modelName} is selected and its download is paused. Resume to finish the download and unlock the prompt.`
-      : isModelLoading
-        ? `${modelName} is getting ready. The prompt will unlock after Glaux downloads and verifies it locally.`
-        : `${modelName} is selected. The prompt will unlock as soon as it is ready to run privately.`,
-    meta: "Local download · resumable"
-  };
-}
-
-function getPromptHelp({
-  downloadPercent,
-  failedTurn,
-  isBusy,
-  modelCompatibility,
-  modelLoadPaused,
-  modelReady,
-  runtimeActivity
-}: {
-  downloadPercent?: number;
-  failedTurn: FailedTurn | null;
-  isBusy: boolean;
-  modelCompatibility: ReturnType<typeof getModelCompatibility>;
-  modelLoadPaused: boolean;
-  modelReady: boolean;
-  runtimeActivity: RuntimeActivity | null;
-}) {
-  if (modelCompatibility === "unselected") return "Choose a model above to begin";
-  if (modelCompatibility === "probing") return "Checking browser GPU…";
-  if (modelCompatibility === "incompatible") return "Selected model needs browser GPU support";
-  if (modelLoadPaused) return "Paused · resume to unlock prompt";
-  if (failedTurn) return `${getFailedTurnStatus(failedTurn)} · retry or edit`;
-  if (!modelReady) {
-    const detail = runtimeActivity?.detail;
-    const progress = detail ?? (downloadPercent === undefined ? "" : `${downloadPercent}%`);
-    return `${runtimeActivity?.label ?? "Preparing local model"}${progress ? ` · ${progress}` : ""}`;
-  }
-  if (isBusy) return runtimeActivity?.label ?? "Running locally…";
-  return PROMPT_SHORTCUT_HELP;
-}
-
-function readRememberedModelId() {
-  try {
-    return window.localStorage.getItem(LAST_READY_MODEL_KEY);
-  } catch {
-    return null;
-  }
-}
-
-function rememberReadyModelId(modelId: string) {
-  try {
-    window.localStorage.setItem(LAST_READY_MODEL_KEY, modelId);
-  } catch {
-    // Browser storage can be unavailable in restricted contexts.
-  }
-}
-
-function forgetRememberedModelId(modelId: string) {
-  try {
-    if (window.localStorage.getItem(LAST_READY_MODEL_KEY) === modelId) {
-      window.localStorage.removeItem(LAST_READY_MODEL_KEY);
-    }
-  } catch {
-    // Browser storage can be unavailable in restricted contexts.
-  }
-}
-
-function getModelCompatibility(capabilities: RuntimeCapabilities | null, model: ModelManifest | null) {
-  if (!model) return "unselected" as const;
-  if (!capabilities) return "probing" as const;
-  return resolveModelProvider(model, capabilities) ? "compatible" as const : "incompatible" as const;
-}
-
-function getRuntimeStatus(
-  capabilities: RuntimeCapabilities | null,
-  model: ModelManifest | null,
-  loadedModelId: string | null,
-  activity: RuntimeActivity | null,
-  modelLoadPaused: boolean,
-  failedTurn: FailedTurn | null,
-  error: string | null
-) {
-  if (failedTurn) {
-    return isStoppedTurn(failedTurn)
-      ? { label: "Generation stopped", className: "text-sophon-warning", dotClassName: "bg-sophon-warning shadow-[0_0_10px_var(--sophon-warning)]" }
-      : { label: "Session interrupted", className: "text-destructive", dotClassName: "bg-destructive shadow-[0_0_10px_var(--destructive)]" };
-  }
-  if (error) {
-    return { label: "Action needed", className: "text-destructive", dotClassName: "bg-destructive shadow-[0_0_10px_var(--destructive)]" };
-  }
-  if (activity) {
-    return { label: activity.label, className: "text-sophon-signal-soft", dotClassName: "bg-sophon-signal-soft shadow-[0_0_10px_var(--sophon-signal-soft)]" };
-  }
-  if (!model) {
-    return { label: "Choose model", className: "text-sophon-copy-metadata", dotClassName: "bg-sophon-signal-bright shadow-[0_0_10px_var(--sophon-signal-bright)]" };
-  }
-  if (!capabilities) {
-    return { label: "Checking browser GPU", className: "text-sophon-copy-metadata", dotClassName: "animate-pulse bg-sophon-copy-metadata motion-reduce:animate-none" };
-  }
-  if (getModelCompatibility(capabilities, model) === "incompatible") {
-    return { label: "Model unavailable", className: "text-destructive", dotClassName: "bg-destructive" };
-  }
-  if (loadedModelId === model.id) {
-    return { label: "Model ready", className: "text-black", dotClassName: "bg-sophon-verified-bright shadow-[0_0_10px_var(--sophon-verified-bright)]" };
-  }
-  if (modelLoadPaused) {
-    return { label: "Download paused", className: "text-sophon-warning", dotClassName: "bg-sophon-warning shadow-[0_0_10px_var(--sophon-warning)]" };
-  }
-  return { label: "Ready to load", className: "text-sophon-copy-metadata", dotClassName: "bg-sophon-warning shadow-[0_0_10px_var(--sophon-warning)]" };
-}
-
-function getFailedTurnStatus(failedTurn: FailedTurn) {
-  return isStoppedTurn(failedTurn) ? "Generation stopped" : "Session interrupted";
-}
-
-function isStoppedTurn(failedTurn: FailedTurn) {
-  return /\bstopped\b/i.test(failedTurn.reason);
-}
-
-type DocumentScrollSnapshot = {
-  height: number;
-  x: number;
-  y: number;
-};
-
-function captureDialogScrollSnapshot(snapshotRef: { current: DocumentScrollSnapshot | null }) {
-  snapshotRef.current = {
-    height: document.documentElement.scrollHeight,
-    x: window.scrollX,
-    y: window.scrollY
-  };
-}
-
-function useDocumentScrollLock(locked: boolean, snapshotRef: { current: DocumentScrollSnapshot | null }) {
-  useLayoutEffect(() => {
-    if (!locked) return;
-
-    const root = document.documentElement;
-    const body = document.body;
-    const snapshot = snapshotRef.current;
-    const scrollX = snapshot?.x ?? window.scrollX;
-    const scrollY = snapshot?.y ?? window.scrollY;
-    const scrollbarWidth = Math.max(0, window.innerWidth - root.clientWidth);
-    const previousRootOverflow = root.style.overflow;
-    const previousRootOverscrollBehavior = root.style.overscrollBehavior;
-    const previousBodyOverflow = body.style.overflow;
-    const previousBodyPaddingInlineEnd = body.style.paddingInlineEnd;
-    const previousBodyPosition = body.style.position;
-    const previousBodyTop = body.style.top;
-    const previousBodyLeft = body.style.left;
-    const previousBodyWidth = body.style.width;
-    const bodyPaddingInlineEnd = Number.parseFloat(window.getComputedStyle(body).paddingInlineEnd) || 0;
-    const documentHeight = snapshot?.height ?? root.scrollHeight;
-    const scrollSpacer = document.createElement("div");
-
-    scrollSpacer.ariaHidden = "true";
-    scrollSpacer.style.height = `${documentHeight}px`;
-    scrollSpacer.style.pointerEvents = "none";
-    scrollSpacer.style.width = "1px";
-    root.append(scrollSpacer);
-    root.style.overflow = "hidden";
-    root.style.overscrollBehavior = "none";
-    body.style.overflow = "hidden";
-    body.style.position = "fixed";
-    body.style.top = `${-scrollY}px`;
-    body.style.left = `${-scrollX}px`;
-    body.style.width = "100%";
-    if (scrollbarWidth > 0) body.style.paddingInlineEnd = `${bodyPaddingInlineEnd + scrollbarWidth}px`;
-    window.scrollTo(scrollX, scrollY);
-    const restoreFrame = window.requestAnimationFrame(() => window.scrollTo(scrollX, scrollY));
-
-    return () => {
-      window.cancelAnimationFrame(restoreFrame);
-      root.style.overflow = previousRootOverflow;
-      root.style.overscrollBehavior = previousRootOverscrollBehavior;
-      body.style.overflow = previousBodyOverflow;
-      body.style.paddingInlineEnd = previousBodyPaddingInlineEnd;
-      body.style.position = previousBodyPosition;
-      body.style.top = previousBodyTop;
-      body.style.left = previousBodyLeft;
-      body.style.width = previousBodyWidth;
-      scrollSpacer.remove();
-      window.scrollTo(scrollX, scrollY);
-      snapshotRef.current = null;
-    };
-  }, [locked, snapshotRef]);
-}
-
-function activityFromLog(event: OnnxLogEvent): RuntimeActivity {
-  const phase = event.phase === "download"
-    ? "download"
-    : event.phase === "tokenize"
-      ? "tokenize"
-      : event.phase === "inference" || event.phase === "generate"
-        ? "decode"
-        : "runtime";
-  const label = phase === "download"
-    ? getDownloadStageLabel(event.progress?.stage)
-    : phase === "tokenize"
-      ? "Preparing input"
-      : phase === "decode"
-        ? "Generating locally"
-        : event.message || "Initializing runtime";
-  return { detail: event.progress ? formatDownloadDetail(event.progress) : event.detail, label, phase, progress: event.progress };
-}
-
-function getDownloadStageLabel(stage?: NonNullable<OnnxLogEvent["progress"]>["stage"]) {
-  if (stage === "probe") return "Checking model files";
-  if (stage === "validate") return "Validating model";
-  if (stage === "resume") return "Resuming model";
-  if (stage === "verify") return "Verifying model";
-  if (stage === "ready") return "Model ready";
-  if (stage === "cache") return "Loading downloaded model";
-  return "Downloading model";
-}
-
-function formatDownloadDetail(progress: NonNullable<OnnxLogEvent["progress"]>) {
-  const parts = [`${formatStorageBytes(progress.loaded)} / ${formatStorageBytes(progress.total)}`];
-  if (progress.resumedBytes) parts.push(`${formatStorageBytes(progress.resumedBytes)} resumed`);
-  if (progress.networkBytes !== undefined) parts.push(`${formatStorageBytes(progress.networkBytes)} transferred`);
-  if (progress.bytesPerSecond !== undefined) parts.push(`${formatStorageBytes(progress.bytesPerSecond)}/s`);
-  if (progress.etaMs !== undefined) parts.push(`${formatEta(progress.etaMs)} left`);
-  if (progress.elapsedMs !== undefined) parts.push(`${formatElapsed(progress.elapsedMs)} elapsed`);
-  return parts.join(" · ");
-}
-
-function formatDownloadAriaText(progress: NonNullable<OnnxLogEvent["progress"]>) {
-  const stage = progress.stage === "validate"
-    ? "validated"
-    : progress.stage === "verify"
-        ? "verified"
-        : progress.stage === "cache" || progress.stage === "ready"
-          ? "loaded from browser storage"
-          : "loaded";
-  const resumed = progress.resumedBytes ? `, including ${formatStorageBytes(progress.resumedBytes)} resumed` : "";
-  return `${formatStorageBytes(progress.loaded)} of ${formatStorageBytes(progress.total)} ${stage}${resumed}`;
-}
-
-function formatDownloadPercent(progress?: NonNullable<OnnxLogEvent["progress"]>) {
-  if (!progress || progress.total <= 0) return undefined;
-  const percent = Math.floor(progress.loaded / progress.total * 1_000) / 10;
-  return progress.loaded > 0 && percent === 0 ? "<0.1%" : `${percent.toFixed(1)}%`;
-}
-
-function getModelActionLabel(plan: ModelReplacementPlan | null) {
-  if (!plan) return "Download model";
-  const action = plan.action === "activate" ? "use" : plan.action;
-  return plan.requiresReplacement
-    ? `Replace & ${action}`
-    : plan.action === "activate" ? "Use model" : `${capitalize(action)} model`;
-}
-
-function getModelActionButtonLabel(plan: ModelReplacementPlan | null) {
-  if (!plan) return "Download";
-  if (plan.requiresReplacement) return "Replace";
-  if (plan.action === "activate") return "Use model";
-  return capitalize(plan.action);
-}
-
-function getModelActionCancelLabel(plan: ModelReplacementPlan | null) {
-  if (!plan?.requiresReplacement) return "Not now";
-  const replacedModelIds = plan.sourceModelIds.filter((modelId) => modelId !== plan.targetModelId);
-  return replacedModelIds.length === 1
-    ? `Keep ${modelName(replacedModelIds[0])}`
-    : "Keep current models";
-}
-
-function getModelActionTitle(model: ModelManifest, plan: ModelReplacementPlan | null) {
-  const targetName = model.label.split(" · ")[0];
-  if (plan?.requiresReplacement) {
-    const replacedModelIds = plan.sourceModelIds.filter((modelId) => modelId !== plan.targetModelId);
-    const source = replacedModelIds.length === 1
-      ? modelName(replacedModelIds[0])
-      : `${replacedModelIds.length} saved models`;
-    return `Replace ${source} with ${targetName}?`;
-  }
-  return `${plan?.action === "resume" ? "Resume" : plan?.action === "activate" ? "Use" : "Download"} ${targetName}?`;
-}
-
-function getModelActionDescription(
-  model: ModelManifest,
-  cache: ModelCacheSummary | undefined,
-  storage: BrowserStorage | null | undefined,
-  plan: ModelReplacementPlan | null
-) {
-  if (!plan?.requiresReplacement) return getModelDownloadDescription(model, cache, storage);
-  const targetName = model.label.split(" · ")[0];
-  const available = storage && storage.quota !== undefined && storage.usage !== undefined
-    ? ` ${formatStorageBytes(Math.max(0, storage.quota - storage.usage))} is currently available.`
-    : "";
-  return `${targetName} downloads from scratch after replacement.${available} Non-commercial use applies; switching back requires another download.`;
-}
-
-function getReplacementBusyLabel(
-  phase: ModelReplacementPhase | null,
-  replacementModels: readonly ModelManifest[]
-) {
-  if (phase === "stopping") return "Stopping current model…";
-  if (phase === "deleting") {
-    return replacementModels.length === 1
-      ? `Removing ${replacementModels[0]!.label.split(" · ")[0]}…`
-      : "Removing saved models…";
-  }
-  return phase === "starting" ? "Starting new model…" : undefined;
-}
-
-function modelName(modelId: string | undefined) {
-  if (!modelId) return "current model";
-  return modelId.startsWith("hf:") ? modelId.slice(3).split("@")[0] ?? "current model" : "current model";
-}
-
-function capitalize(value: string) {
-  return value.charAt(0).toUpperCase() + value.slice(1);
-}
-
-function getModelDownloadDescription(
-  model: ModelManifest,
-  cache: ModelCacheSummary | undefined,
-  storage: BrowserStorage | null | undefined
-) {
-  const resumableBytes = cache?.state === "partial" ? cache.resumableBytes : 0;
-  const totalBytes = model.format.sizeBytes ?? cache?.totalBytes ?? 0;
-  const remainingBytes = Math.max(0, totalBytes - resumableBytes);
-  const action = resumableBytes > 0
-    ? `Glaux found ${formatStorageBytes(resumableBytes)} of resumable data and will download about ${formatStorageBytes(remainingBytes)} more.`
-    : `Glaux will download ${model.format.sizeLabel} to this browser before it can answer locally.`;
-  const availableBytes = storage?.quota !== undefined && storage.usage !== undefined
-    ? Math.max(0, storage.quota - storage.usage)
-    : null;
-  const storageMessage = availableBytes === null
-    ? "Your browser will verify available storage before downloading."
-    : `This browser currently reports ${formatStorageBytes(availableBytes)} available.`;
-  return `${action} ${storageMessage} Review the selected model’s license and repository terms before use.`;
-}
-
-function formatEta(milliseconds: number) {
-  const seconds = Math.max(0, Math.ceil(milliseconds / 1000));
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.ceil(seconds / 60);
-  return minutes < 60 ? `${minutes}m` : `${Math.ceil(minutes / 60)}h`;
-}
-
-function formatElapsed(milliseconds: number) {
-  const seconds = Math.max(0, Math.floor(milliseconds / 1000));
-  const minutes = Math.floor(seconds / 60);
-  const remainder = seconds % 60;
-  return minutes > 0 ? `${minutes}m ${remainder}s` : `${seconds}s`;
-}
-
-function activityFromTelemetry(telemetry: GenerationTelemetryEvent): RuntimeActivity {
-  if (telemetry.phase === "prefill") {
-    return { detail: `${telemetry.contextTokenCount} context tokens`, label: "Reading context", phase: "prefill" };
-  }
-  if (telemetry.phase === "decode") {
-    return {
-      detail: `${telemetry.outputTokenCount} generated · ${formatGenerationRate(telemetry.decodeTokensPerSecond)}`,
-      label: "Generating response",
-      phase: "decode"
-    };
-  }
-  return {
-    detail: `${telemetry.outputTokenCount} tokens generated`,
-    label: "Finalizing response",
-    phase: "complete"
-  };
-}
-
-function formatStorageBytes(bytes?: number) {
-  if (bytes === undefined) return "unknown";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  const rank = Math.min(Math.floor(Math.log(Math.max(bytes, 1)) / Math.log(1024)), units.length - 1);
-  const value = bytes / 1024 ** rank;
-  return `${value.toFixed(rank > 0 && value < 10 ? 1 : 0)} ${units[rank] ?? "TB"}`;
 }

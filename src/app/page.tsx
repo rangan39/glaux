@@ -1,4 +1,4 @@
-import { GlauxWorkbench } from "@/components/sophon-workbench";
+import { GlauxWorkbench } from "@/components/glaux-workbench";
 
 export default function Home() {
   return <GlauxWorkbench />;

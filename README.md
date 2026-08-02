@@ -99,15 +99,15 @@ Fixture mode does not create the inference worker, contact model hosts, or write
 ## Project layout
 
 ```text
-src/components/sophon-workbench.tsx   Main chat workspace
-src/components/sophon-model-sidebar.tsx  Search, details, and Dev Mode views
+src/components/glaux-workbench.tsx       Main chat workspace
+src/components/glaux-model-sidebar.tsx   Search, details, and Dev Mode views
 src/lib/model-catalog/                Browser catalog and immutable descriptors
 src/lib/model-delivery/               OPFS downloads and cache inventory
 src/lib/onnx-runner.ts                Transformers.js pipeline orchestration
 src/workers/onnx-worker.ts            Browser inference worker
 ```
 
-The historical lowercase `sophon-*` CSS and storage namespaces remain internal compatibility identifiers so existing installations do not lose cached model data during the Glaux rename.
+The historical lowercase `sophon-*` storage namespaces remain internal compatibility identifiers so existing installations can still find and remove legacy model data. The active design-system namespace is `glaux-*`.
 
 ## License
 

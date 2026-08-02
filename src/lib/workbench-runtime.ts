@@ -65,17 +65,17 @@ export function getRuntimeStatus(
 ) {
   if (failedTurn) {
     return isStoppedTurn(failedTurn)
-      ? { label: "Generation stopped", className: "text-sophon-warning", dotClassName: "bg-sophon-warning shadow-[0_0_10px_var(--sophon-warning)]" }
+      ? { label: "Generation stopped", className: "text-glaux-warning", dotClassName: "bg-glaux-warning shadow-[0_0_10px_var(--glaux-warning)]" }
       : { label: "Session interrupted", className: "text-destructive", dotClassName: "bg-destructive shadow-[0_0_10px_var(--destructive)]" };
   }
   if (error) return { label: "Action needed", className: "text-destructive", dotClassName: "bg-destructive shadow-[0_0_10px_var(--destructive)]" };
-  if (activity) return { label: activity.label, className: "text-sophon-signal-soft", dotClassName: "bg-sophon-signal-soft shadow-[0_0_10px_var(--sophon-signal-soft)]" };
-  if (!model) return { label: "Choose model", className: "text-sophon-copy-metadata", dotClassName: "bg-sophon-signal-bright shadow-[0_0_10px_var(--sophon-signal-bright)]" };
-  if (!capabilities) return { label: "Checking browser GPU", className: "text-sophon-copy-metadata", dotClassName: "animate-pulse bg-sophon-copy-metadata motion-reduce:animate-none" };
+  if (activity) return { label: activity.label, className: "text-glaux-signal-soft", dotClassName: "bg-glaux-signal-soft shadow-[0_0_10px_var(--glaux-signal-soft)]" };
+  if (!model) return { label: "Choose model", className: "text-glaux-copy-metadata", dotClassName: "bg-glaux-signal-bright shadow-[0_0_10px_var(--glaux-signal-bright)]" };
+  if (!capabilities) return { label: "Checking browser GPU", className: "text-glaux-copy-metadata", dotClassName: "animate-pulse bg-glaux-copy-metadata motion-reduce:animate-none" };
   if (getModelCompatibility(capabilities, model) === "incompatible") return { label: "Model unavailable", className: "text-destructive", dotClassName: "bg-destructive" };
-  if (loadedModelId === model.id) return { label: "Model ready", className: "text-black", dotClassName: "bg-sophon-verified-bright shadow-[0_0_10px_var(--sophon-verified-bright)]" };
-  if (modelLoadPaused) return { label: "Download paused", className: "text-sophon-warning", dotClassName: "bg-sophon-warning shadow-[0_0_10px_var(--sophon-warning)]" };
-  return { label: "Ready to load", className: "text-sophon-copy-metadata", dotClassName: "bg-sophon-warning shadow-[0_0_10px_var(--sophon-warning)]" };
+  if (loadedModelId === model.id) return { label: "Model ready", className: "text-black", dotClassName: "bg-glaux-verified-bright shadow-[0_0_10px_var(--glaux-verified-bright)]" };
+  if (modelLoadPaused) return { label: "Download paused", className: "text-glaux-warning", dotClassName: "bg-glaux-warning shadow-[0_0_10px_var(--glaux-warning)]" };
+  return { label: "Ready to load", className: "text-glaux-copy-metadata", dotClassName: "bg-glaux-warning shadow-[0_0_10px_var(--glaux-warning)]" };
 }
 
 export function getFailedTurnStatus(failedTurn: FailedTurn) {

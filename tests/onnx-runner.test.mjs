@@ -5,7 +5,6 @@ import test from "node:test";
 register("./alias-loader.mjs", import.meta.url);
 const { env, pipelineCalls, pipelineRemotePathTemplates } = await import("@huggingface/transformers");
 const {
-  compactTinyAyaChatTemplate,
   getRuntimeCapabilities,
   preloadOnnxModel,
   prepareGenerationInput,
@@ -13,20 +12,7 @@ const {
   runOnnxTextModel
 } = await import("../src/lib/onnx-runner.ts");
 
-test("compacts only Tiny Aya's redundant language enumeration", () => {
-  const safety = "You are in contextual safety mode. Keep this policy unchanged.";
-  const languages = "You have been trained on data in English, Dutch, French, Italian, Portuguese, Romanian, Spanish, Czech, Polish, Ukrainian, Russian, Greek, German, Danish, Swedish, Norwegian, Catalan, Galician, Welsh, Irish, Basque, Croatian, Latvian, Lithuanian, Slovak, Slovenian, Estonian, Finnish, Hungarian, Serbian, Bulgarian, Arabic, Persian, Urdu, Turkish, Maltese, Hebrew, Hindi, Marathi, Bengali, Gujarati, Punjabi, Tamil, Telugu, Nepali, Tagalog, Malay, Indonesian, Vietnamese, Javanese, Khmer, Thai, Lao, Chinese, Burmese, Japanese, Korean, Amharic, Hausa, Igbo, Malagasy, Shona, Swahili, Wolof, Xhosa, Yoruba and Zulu but have the ability to speak many more languages.";
-  const defaults = "# Default Preamble\n- Prefer the active voice.";
-  const template = `${safety}\n\n${languages}\n\n${defaults}`;
-
-  assert.equal(
-    compactTinyAyaChatTemplate(template),
-    `${safety}\n\nYou have multilingual training and can respond in many languages.\n\n${defaults}`
-  );
-  assert.equal(compactTinyAyaChatTemplate("an unrelated template"), "an unrelated template");
-});
-
-test("preserves structured turns for Cohere chat templates", () => {
+test("preserves structured turns for community chat templates", () => {
   assert.deepEqual(prepareGenerationInput([
     { role: "system", content: " Be concise. " },
     { role: "user", content: " Hello " },
@@ -53,7 +39,7 @@ test("returns typed cancellation before loading a model for an aborted request",
   controller.abort();
 
   assert.deepEqual(await runOnnxTextModel([{ role: "user", content: "Hello" }], {
-    modelId: "tiny-aya-global",
+    modelId: "hf:fixture-alpha",
     signal: controller.signal
   }), {
     ok: false,
@@ -62,7 +48,7 @@ test("returns typed cancellation before loading a model for an aborted request",
   });
 });
 
-test("preloads and reuses the pinned Tiny Aya WebGPU pipeline without generating", async () => {
+test("preloads and reuses a pinned community WebGPU pipeline without generating", async () => {
   let adapterOptions;
   Object.defineProperty(globalThis, "navigator", {
     configurable: true,
@@ -91,30 +77,32 @@ test("preloads and reuses the pinned Tiny Aya WebGPU pipeline without generating
   });
   assert.deepEqual(adapterOptions, { powerPreference: "high-performance" });
   const logs = [];
-  await preloadOnnxModel("tiny-aya-global", (event) => logs.push(event));
-  await preloadOnnxModel("tiny-aya-global", (event) => logs.push(event));
+  await preloadOnnxModel("hf:fixture-alpha", (event) => logs.push(event));
+  await preloadOnnxModel("hf:fixture-alpha", (event) => logs.push(event));
 
   assert.equal(pipelineCalls.length, 1);
   const [task, source, options] = pipelineCalls[0];
   const { progress_callback: progressCallback, ...pipelineOptions } = options;
-  assert.equal(typeof progressCallback, "function");
+  assert.equal(progressCallback, undefined);
   assert.deepEqual([task, source, pipelineOptions], [
     "text-generation",
-    "onnx-community/tiny-aya-global-ONNX",
+    "onnx-community/fixture-alpha",
     {
       device: "webgpu",
       dtype: "q4f16",
-      session_options: { executionMode: "sequential", graphOptimizationLevel: "all" },
-      revision: "7fff1be9627e40f0d89c33f406882bdafb56ec90"
+      session_options: { executionMode: "sequential", graphOptimizationLevel: "all", externalData: [] },
+      local_files_only: false,
+      revision: "a".repeat(40),
+      use_external_data_format: false
     }
   ]);
   assert.equal(env.backends.onnx.webgpu.powerPreference, "high-performance");
-  assert.equal(pipelineRemotePathTemplates[0], "{model}/resolve/7fff1be9627e40f0d89c33f406882bdafb56ec90/");
+  assert.equal(pipelineRemotePathTemplates[0], `{model}/resolve/${"a".repeat(40)}/`);
   assert.equal(env.remotePathTemplate, "{model}/resolve/{revision}/");
   assert.equal(env.allowLocalModels, false);
   assert.equal(env.allowRemoteModels, true);
   assert.equal(logs[0]?.phase, "download");
   assert.ok(logs.some((event) => event.message === "Optimizing Chromium WebGPU"));
-  assert.deepEqual(logs.filter((event) => event.progress).map((event) => event.progress), [{ loaded: 25, total: 100 }, { loaded: 100, total: 100 }]);
+  assert.deepEqual(logs.filter((event) => event.progress).map((event) => event.progress), [{ loaded: 1024, total: 1024, stage: "cache" }]);
   assert.match(logs.at(-1)?.message ?? "", /reusing loaded model/i);
 });

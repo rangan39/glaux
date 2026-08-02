@@ -77,14 +77,14 @@ test("builds an unfiltered namespace index query for browser-side metadata searc
 test("indexes public namespace models even when optional task and library metadata are absent", async () => {
   const page = await fetchOnnxCommunityIndexPage({}, async () => jsonResponse([
     hubModel({
-      id: "onnx-community/tiny-aya-global-ONNX",
+      id: "onnx-community/Qwen3-0.6B-ONNX",
       pipeline_tag: undefined,
       library_name: undefined,
       tags: ["onnx", "cohere2"]
     })
   ]));
   assert.equal(page.models.length, 1);
-  assert.equal(page.models[0].name, "tiny-aya-global-ONNX");
+  assert.equal(page.models[0].name, "Qwen3-0.6B-ONNX");
   assert.deepEqual(page.models[0].tags, ["onnx", "cohere2"]);
 });
 

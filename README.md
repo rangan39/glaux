@@ -47,7 +47,7 @@ npm run budget:bundle     # client bundle-size guard
 npm run audit:production  # production dependency audit
 ```
 
-Browser smoke tests expect a running local app. In a second terminal, run `npm run dev` (or start the product-test server below), then use `npm run smoke:ui`, `npm run smoke:trust`, `npm run smoke:markdown`, or `npm run smoke:prompt`. Run the Playwright suite with `npm run test:e2e`.
+Browser smoke tests expect a running local app. In a second terminal, run `npm run dev` (or start the product-test server below), then use `npm run smoke:markdown` or set `GLAUX_SMOKE_MODEL` to a saved Hugging Face model ID and run `npm run smoke:prompt`. Run the deterministic product fixture checks with `npm run smoke:product-ui`, and the Playwright suite with `npm run test:e2e`.
 
 ## Browser-only architecture
 
@@ -80,7 +80,7 @@ Start deterministic development fixtures without downloading a model:
 npm run product:ui
 ```
 
-Fixture URLs use `?sophon-product-test=<state>`. Available states are `checking`, `legacy-cleanup`, `legacy-cleanup-error`, `confirmation`, `replacement-confirmation`, `replacement-deleting`, `downloading`, `paused`, `verifying`, `ready`, `retry-success`, `generating`, `stopped`, `error`, and `reset`. Add `&sophon-product-model=` with one of `tiny-aya-global`, `tiny-aya-earth`, `tiny-aya-fire`, or `tiny-aya-water` to select a fixture theme.
+Fixture URLs use `?sophon-product-test=<state>`. Available states are `checking`, `legacy-cleanup`, `legacy-cleanup-error`, `confirmation`, `replacement-confirmation`, `replacement-deleting`, `downloading`, `paused`, `verifying`, `ready`, `retry-success`, `generating`, `stopped`, `error`, and `reset`. Add `&sophon-product-model=` with one of `hf:fixture-alpha`, `hf:fixture-beta`, `hf:fixture-gamma`, or `hf:fixture-delta` to select a deterministic model fixture.
 
 ```bash
 npm run smoke:product-ui

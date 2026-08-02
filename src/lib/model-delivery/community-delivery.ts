@@ -8,7 +8,6 @@ import {
   openArtifactFile,
   supportsPersistentModelDelivery
 } from "@/lib/model-delivery/opfs-store";
-import { MODEL_SEGMENT_SIZE } from "@/lib/model-delivery/manifest";
 import {
   isSafeExternalLocation,
   OnnxExternalDataError,
@@ -26,6 +25,7 @@ import {
 import type { ModelCacheSummary } from "@/lib/onnx-types";
 
 const HUB_ORIGIN = "https://huggingface.co";
+export const MODEL_SEGMENT_SIZE = 64 * 1024 * 1024;
 
 export type CommunityDeliveryArtifact = {
   key: string;
@@ -189,7 +189,7 @@ export function getCommunityGraphArtifact(value: CommunityModelDescriptor) {
   return toDeliveryArtifact(descriptor, file, getCommunityStorageModel(descriptor), "graph");
 }
 
-function getCommunityStorageModel(value: CommunityModelDescriptor) {
+export function getCommunityStorageModel(value: CommunityModelDescriptor) {
   const descriptor = requireDescriptor(value);
   const repositoryName = descriptor.source.repo.slice(descriptor.source.repo.indexOf("/") + 1);
   return {

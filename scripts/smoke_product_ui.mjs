@@ -156,7 +156,7 @@ async function assertState(page, state, viewport) {
     return;
   }
   if (state === "legacy-cleanup") {
-    await assertVisible(page.getByRole("status").filter({ hasText: "Cleaning up old model files" }), "legacy model cleanup");
+    await assertVisible(page.getByRole("status").filter({ hasText: "Finishing model cleanup" }), "legacy model cleanup");
     await assertHeaderStatus(page, "Choose model", "text-glaux-copy-metadata");
     return;
   }
@@ -481,8 +481,10 @@ async function assertResponsiveHeader(page, viewport, state) {
 async function assertCompleteComposerMetadata(page, state) {
   const promptHelp = page.locator("#prompt-help");
   const storage = page.getByTestId("browser-storage");
+  const modelStorage = page.getByTestId("model-storage-disclosure");
   await assertVisible(promptHelp, `${state} prompt help`);
   await assertVisible(storage, `${state} browser storage`);
+  await assertVisible(modelStorage, `${state} model storage disclosure`);
 
   const expectedPromptText = state === "paused"
     ? "Paused · resume to unlock prompt"
@@ -491,6 +493,12 @@ async function assertCompleteComposerMetadata(page, state) {
       : null;
   if (expectedPromptText) assert.equal((await promptHelp.textContent() ?? "").trim(), expectedPromptText);
   assert.match((await storage.textContent() ?? "").replace(/\s+/g, " ").trim(), /^Browser storage · [\d.]+ (?:MB|GB) \/ [\d.]+ (?:MB|GB) · Persistent$/);
+  assert.equal(
+    (await modelStorage.textContent() ?? "").replace(/\s+/g, " ").trim(),
+    state === "downloading" || state === "paused" || state === "verifying"
+      ? "Fixture A · partial · removed on exit"
+      : "Fixture A · 2.19 GB · removed on exit"
+  );
 
   for (const [element, label] of [[promptHelp, "prompt help"], [storage, "browser storage"]]) {
     const layout = await element.evaluate((node) => {

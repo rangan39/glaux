@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { AlertTriangle, ArrowDownAZ, Check, ChevronLeft, ChevronRight, Code2, Download, ExternalLink, Feather, FileText, Flame, LoaderCircle, PanelLeftClose, PanelLeftOpen, Search, Trash2, Trophy, X } from "lucide-react";
+import { AlertTriangle, ArrowDownAZ, Check, ChevronLeft, ChevronRight, Circle, Code2, ExternalLink, Feather, FileText, Flame, LoaderCircle, PanelLeftClose, PanelLeftOpen, Search, Trash2, Trophy, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -159,12 +159,23 @@ function CommunityCatalog({ disabled, leaderboard, mode, onAdded, onCheckChange,
   const [results, setResults] = useState<readonly CommunityModelSummary[]>([]);
   const [pageSize, setPageSize] = useState(8);
   const [pageOffset, setPageOffset] = useState(0);
+  const [pageMode, setPageMode] = useState(mode);
   const [total, setTotal] = useState(0);
-  const [status, setStatus] = useState<string | null>("Loading popular models…");
+  const [status, setStatus] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [busyRepo, setBusyRepo] = useState<string | null>(null);
   const [catalogRevision, setCatalogRevision] = useState(0);
   const resultsRef = useRef<HTMLDivElement>(null);
   const modeLabel = mode === "alphabetical" ? "All Models" : mode === "lightweight" ? "Lightweight Models" : leaderboard ? "ONNX Leaderboard" : "Popular Models";
+
+  if (pageMode !== mode) {
+    setPageMode(mode);
+    setPageOffset(0);
+    setResults([]);
+    setTotal(0);
+    setStatus(null);
+    setLoading(true);
+  }
 
   useLayoutEffect(() => {
     const element = resultsRef.current;
@@ -196,26 +207,39 @@ function CommunityCatalog({ disabled, leaderboard, mode, onAdded, onCheckChange,
 
   useEffect(() => {
     let active = true;
+    let settleTimer: number | undefined;
     const trimmedQuery = query.trim();
     const timer = window.setTimeout(() => {
+      const loadingStartedAt = Date.now();
       void searchCommunityCatalogIndexPage(trimmedQuery, { limit: pageSize, offset: pageOffset, sort: mode })
         .then(({ models, total: nextTotal }) => {
-          if (!active) return;
-          if (nextTotal > 0 && pageOffset >= nextTotal) {
-            setPageOffset(Math.max(0, nextTotal - pageSize));
-            return;
-          }
-          setResults(models);
-          setTotal(nextTotal);
-          setStatus(models.length === 0
-            ? trimmedQuery ? "No matching text-generation models" : "No compatible community models found"
-            : null);
+          const remainingTransitionMs = Math.max(0, 240 - (Date.now() - loadingStartedAt));
+          settleTimer = window.setTimeout(() => {
+            if (!active) return;
+            if (nextTotal > 0 && pageOffset >= nextTotal) {
+              setPageOffset(Math.max(0, nextTotal - pageSize));
+              return;
+            }
+            setResults(models);
+            setTotal(nextTotal);
+            setLoading(false);
+            setStatus(models.length === 0
+              ? trimmedQuery ? "No matching text-generation models" : "No compatible community models found"
+              : null);
+          }, remainingTransitionMs);
         })
         .catch((error) => {
-          if (active) setStatus(error instanceof Error ? error.message : "Catalog indexing failed");
+          if (active) {
+            setLoading(false);
+            setStatus(error instanceof Error ? error.message : "Catalog indexing failed");
+          }
         });
     }, trimmedQuery ? 300 : 0);
-    return () => { active = false; window.clearTimeout(timer); };
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+      if (settleTimer !== undefined) window.clearTimeout(settleTimer);
+    };
   }, [catalogRevision, mode, pageOffset, pageSize, query]);
 
   async function addModel(model: CommunityModelSummary) {
@@ -243,10 +267,9 @@ function CommunityCatalog({ disabled, leaderboard, mode, onAdded, onCheckChange,
     }
   }
 
-  return <section className="flex h-full min-h-0 flex-col rounded-lg border border-sophon-glass-border bg-sophon-panel-deep p-2" aria-label={mode === "alphabetical" ? "All ONNX Community models" : mode === "lightweight" ? "Lightweight ONNX Community models" : leaderboard ? "ONNX Community leaderboard" : "Popular ONNX Community models"}>
-    <div className="flex items-start gap-2">
-      <span aria-hidden="true" className="grid size-7 shrink-0 place-items-center rounded-md border border-sophon-glass-border bg-sophon-panel text-sophon-signal-soft"><Trophy className="size-3.5" /></span>
-      <span className="min-w-0">
+  return <section aria-busy={loading} className="flex h-full min-h-0 flex-col rounded-lg border border-sophon-glass-border bg-sophon-panel-deep p-2" aria-label={mode === "alphabetical" ? "All ONNX Community models" : mode === "lightweight" ? "Lightweight ONNX Community models" : leaderboard ? "ONNX Community leaderboard" : "Popular ONNX Community models"}>
+    <div>
+      <span className="block min-w-0">
         <span className="block text-[11px] font-semibold uppercase tracking-[0.07em] text-sophon-copy-primary">{modeLabel}</span>
         <span className="mt-0.5 block text-[10px] leading-4 text-sophon-copy-metadata">{mode === "alphabetical" ? "Compatible community models sorted A–Z" : mode === "lightweight" ? "Smallest estimated parameter counts first" : "Community models ranked by downloads · refreshed daily"}</span>
       </span>
@@ -259,25 +282,31 @@ function CommunityCatalog({ disabled, leaderboard, mode, onAdded, onCheckChange,
         setPageOffset(0);
         setResults([]);
         setStatus(null);
+        setLoading(true);
       }} placeholder={mode === "popular" ? "Filter leaderboard…" : "Filter models…"} value={query} />
     </form>
     {status ? <p className="mt-2 text-xs leading-4 text-sophon-copy-metadata" role="status">{status}</p> : null}
-    {results.length > 0 ? <p className="mt-2 text-[10px] font-medium uppercase leading-4 tracking-[0.07em] text-sophon-copy-metadata">{query.trim() ? "Matching models" : mode === "alphabetical" ? "Models A–Z" : mode === "lightweight" ? "Smallest models" : "Top models"}</p> : null}
+    {loading ? <p className="sr-only" role="status">Loading {modeLabel.toLowerCase()}</p> : null}
+    {loading || results.length > 0 ? <p className="mt-2 text-[10px] font-medium uppercase leading-4 tracking-[0.07em] text-sophon-copy-metadata">{loading ? "Loading models" : query.trim() ? "Matching models" : mode === "alphabetical" ? "Models A–Z" : mode === "lightweight" ? "Smallest models" : "Top models"}</p> : null}
     <div className="mt-1 grid min-h-0 flex-1 content-start gap-1 overflow-y-auto pr-0.5" ref={resultsRef} style={{ gridAutoRows: "minmax(2.875rem, 3.25rem)" }}>
-      {results.map((model, index) => {
+      {loading ? Array.from({ length: Math.min(pageSize, 10) }, (_, index) => <div aria-hidden="true" className={cn("grid h-full w-full items-center gap-1.5 rounded-md border border-sophon-glass-border bg-sophon-panel px-2 py-1.5", mode === "alphabetical" ? "grid-cols-[minmax(0,1fr)_auto]" : "grid-cols-[1.5rem_minmax(0,1fr)_auto]")} key={index}>
+        {mode !== "alphabetical" ? <span className="h-2 w-4 rounded bg-sophon-glass-border/70" /> : null}
+        <span className="grid gap-1.5"><span className="h-2.5 w-2/3 rounded bg-sophon-glass-border/70 motion-safe:animate-pulse" /><span className="h-2 w-1/2 rounded bg-sophon-glass-border/50 motion-safe:animate-pulse" /></span>
+        <span className="size-3.5 rounded-full border border-sophon-glass-border" />
+      </div>) : results.map((model, index) => {
         const selected = Boolean(model.revision && selectedModelId === `${model.repo}@${model.revision}`);
         const unsupported = selected && selectedModelUnsupported;
-        return <button aria-pressed={selected} className={cn("grid h-full w-full grid-cols-[1.5rem_minmax(0,1fr)_auto] items-center gap-1.5 rounded-md border px-2 py-1.5 text-left transition-colors disabled:opacity-60", unsupported ? "border-destructive bg-destructive/10 text-destructive shadow-[inset_0_0_0_1px_var(--destructive)]" : selected ? "border-sophon-signal-bright bg-sophon-signal/10 shadow-[inset_0_0_0_1px_var(--sophon-signal-bright)]" : "border-sophon-glass-border bg-sophon-panel hover:border-sophon-signal-bright/60")} disabled={disabled || busyRepo !== null || !model.revision} key={model.repo} onClick={() => void addModel(model)} type="button">
-        <span aria-label={`Rank ${pageOffset + index + 1}`} className="sophon-type-status font-mono text-[10px] font-semibold tabular-nums text-sophon-signal-soft">#{pageOffset + index + 1}</span>
+        return <button aria-pressed={selected} className={cn("grid h-full w-full items-center gap-1.5 rounded-md border px-2 py-1.5 text-left transition-colors disabled:opacity-60", mode === "alphabetical" ? "grid-cols-[minmax(0,1fr)_auto]" : "grid-cols-[1.5rem_minmax(0,1fr)_auto]", unsupported ? "border-destructive bg-destructive/10 text-destructive shadow-[inset_0_0_0_1px_var(--destructive)]" : selected ? "border-sophon-signal-bright bg-sophon-signal/10 shadow-[inset_0_0_0_1px_var(--sophon-signal-bright)]" : "border-sophon-glass-border bg-sophon-panel hover:border-sophon-signal-bright/60")} disabled={disabled || busyRepo !== null || !model.revision} key={model.repo} onClick={() => void addModel(model)} type="button">
+        {mode !== "alphabetical" ? <span aria-label={`Rank ${pageOffset + index + 1}`} className="sophon-type-status font-mono text-[10px] font-semibold tabular-nums text-sophon-signal-soft">#{pageOffset + index + 1}</span> : null}
         <span className="min-w-0"><span className="block truncate text-xs font-medium leading-4 text-sophon-copy-primary">{model.name}</span><span className="block truncate text-[10px] leading-4 text-sophon-copy-metadata">{mode === "lightweight" ? formatParameterCount(estimateParameterCount(model)) : `${model.downloads.toLocaleString()} downloads`}{model.license ? ` · ${model.license}` : ""}</span></span>
-        {busyRepo === model.repo ? <LoaderCircle aria-hidden="true" className="size-3.5 shrink-0 animate-spin" /> : unsupported ? <AlertTriangle aria-hidden="true" className="size-3.5 shrink-0 text-destructive" /> : selected ? <Check aria-hidden="true" className="size-3.5 shrink-0 text-sophon-signal-soft" /> : <Download aria-hidden="true" className="size-3.5 shrink-0" />}
+        {busyRepo === model.repo ? <LoaderCircle aria-hidden="true" className="size-3.5 shrink-0 animate-spin" /> : unsupported ? <AlertTriangle aria-hidden="true" className="size-3.5 shrink-0 text-destructive" /> : selected ? <span aria-hidden="true" className="grid size-3.5 shrink-0 place-items-center rounded-full bg-green-500 text-white"><Check className="size-2.5 stroke-[2.75]" /></span> : <Circle aria-hidden="true" className="size-3.5 shrink-0 text-sophon-copy-metadata" />}
       </button>})}
     </div>
-    {total > 0 ? <nav aria-label={`${modeLabel} pagination`} className="mt-2 flex shrink-0 items-center gap-1 border-t border-sophon-glass-border pt-2">
-      <Button aria-label={`Previous ${modeLabel.toLowerCase()} page`} className="size-8 shrink-0 p-0" disabled={disabled || busyRepo !== null || pageOffset === 0} onClick={() => setPageOffset((current) => Math.max(0, current - pageSize))} size="icon" type="button" variant="sophon"><ChevronLeft aria-hidden="true" /></Button>
+    <nav aria-hidden={total === 0 ? true : undefined} aria-label={total > 0 ? `${modeLabel} pagination` : undefined} className={cn("mt-2 flex shrink-0 items-center gap-1 border-t border-sophon-glass-border pt-2", total === 0 && "invisible")}>
+      <Button aria-label={`Previous ${modeLabel.toLowerCase()} page`} className="size-8 shrink-0 p-0" disabled={disabled || busyRepo !== null || total === 0 || pageOffset === 0} onClick={() => setPageOffset((current) => Math.max(0, current - pageSize))} size="icon" type="button" variant="sophon"><ChevronLeft aria-hidden="true" /></Button>
       <span className="sophon-type-metadata min-w-0 flex-1 text-center font-mono uppercase tracking-[0.06em] text-sophon-copy-metadata" data-typography-role="metadata"><span className="font-semibold tabular-nums text-sophon-copy-primary">{pageOffset + 1}–{Math.min(pageOffset + results.length, total)}</span> of <span className="tabular-nums">{total}</span></span>
-      <Button aria-label={`Next ${modeLabel.toLowerCase()} page`} className="size-8 shrink-0 p-0" disabled={disabled || busyRepo !== null || pageOffset + results.length >= total} onClick={() => setPageOffset((current) => Math.min(Math.max(0, total - pageSize), current + pageSize))} size="icon" type="button" variant="sophon"><ChevronRight aria-hidden="true" /></Button>
-    </nav> : null}
+      <Button aria-label={`Next ${modeLabel.toLowerCase()} page`} className="size-8 shrink-0 p-0" disabled={disabled || busyRepo !== null || total === 0 || pageOffset + results.length >= total} onClick={() => setPageOffset((current) => Math.min(Math.max(0, total - pageSize), current + pageSize))} size="icon" type="button" variant="sophon"><ChevronRight aria-hidden="true" /></Button>
+    </nav>
   </section>;
 }
 

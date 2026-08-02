@@ -5,7 +5,7 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-sophon-disabled-surface disabled:text-sophon-copy-disabled disabled:shadow-none [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-glaux-disabled-surface disabled:text-glaux-copy-disabled disabled:shadow-none [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
@@ -20,7 +20,7 @@ const buttonVariants = cva(
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
         sophon:
-          "border border-sophon-glass-border bg-sophon-glass-strong text-foreground shadow-[inset_0_1px_0_var(--sophon-glass-highlight)] hover:border-sophon-signal-bright/55 hover:bg-sophon-glass-tile",
+          "border border-glaux-glass-border bg-glaux-glass-strong text-foreground shadow-[inset_0_1px_0_var(--glaux-glass-highlight)] hover:border-glaux-signal-bright/55 hover:bg-glaux-glass-tile",
       },
       size: {
         default: "h-9 px-4 py-2",

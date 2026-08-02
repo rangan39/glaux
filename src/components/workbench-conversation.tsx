@@ -57,7 +57,7 @@ type ConversationMessageProps = {
 const ConversationMessage = memo(function ConversationMessage({ canEdit, canRegenerate, copied, developerMode, index, inspectDisplayMode, message, onCopy, onEdit, onInspectHover, onRegenerate }: ConversationMessageProps) {
   return (
     <article aria-label={message.role === "user" ? "Message from you" : "Message from Glaux"} className={cn("group/message relative flex w-full min-w-0 gap-3 text-sm", message.role === "user" && "flex-row-reverse")}>
-      <div className={cn("flex size-8 shrink-0 items-center justify-center self-end overflow-hidden", message.role === "user" ? "sophon-accent-avatar !self-start mt-1 rounded-xl border border-sophon-signal-bright/50" : "sophon-glass-tile !self-start mt-1 rounded-xl text-sophon-signal-soft")}>
+      <div className={cn("flex size-8 shrink-0 items-center justify-center self-end overflow-hidden", message.role === "user" ? "glaux-accent-avatar !self-start mt-1 rounded-xl border border-glaux-signal-bright/50" : "glaux-glass-tile !self-start mt-1 rounded-xl text-glaux-signal-soft")}>
         {message.role === "user" ? <CircleUserRound aria-hidden="true" className="size-4" /> : <MoonStar aria-hidden="true" className="size-4" />}
       </div>
       <div className="flex w-full min-w-0 flex-col gap-2.5 max-w-[calc(100%_-_2.75rem)] sm:max-w-[min(920px,calc(100%_-_3rem))]">
@@ -97,11 +97,11 @@ function MessageActions({ canEdit, canRegenerate, copied, onCopy, onEdit, onRege
 }) {
   return (
     <div className={cn("flex items-center gap-1 opacity-70 transition-opacity group-focus-within/message:opacity-100 group-hover/message:opacity-100", role === "user" ? "self-end" : "self-start")}>
-      <Button aria-label={copied ? "Copied message" : "Copy message"} className="size-11 rounded-xl text-sophon-copy-metadata sm:size-9" onClick={onCopy} size="icon" title={copied ? "Copied" : "Copy message"} type="button" variant="sophon">
+      <Button aria-label={copied ? "Copied message" : "Copy message"} className="size-11 rounded-xl text-glaux-copy-metadata sm:size-9" onClick={onCopy} size="icon" title={copied ? "Copied" : "Copy message"} type="button" variant="sophon">
         {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
       </Button>
-      {canEdit ? <Button aria-label="Edit message" className="size-11 rounded-xl text-sophon-copy-metadata sm:size-9" onClick={onEdit} size="icon" title="Edit message" type="button" variant="sophon"><Pencil aria-hidden="true" /></Button> : null}
-      {canRegenerate ? <Button aria-label="Regenerate response" className="size-11 rounded-xl text-sophon-copy-metadata sm:size-9" onClick={onRegenerate} size="icon" title="Regenerate response" type="button" variant="sophon"><RotateCcw aria-hidden="true" /></Button> : null}
+      {canEdit ? <Button aria-label="Edit message" className="size-11 rounded-xl text-glaux-copy-metadata sm:size-9" onClick={onEdit} size="icon" title="Edit message" type="button" variant="sophon"><Pencil aria-hidden="true" /></Button> : null}
+      {canRegenerate ? <Button aria-label="Regenerate response" className="size-11 rounded-xl text-glaux-copy-metadata sm:size-9" onClick={onRegenerate} size="icon" title="Regenerate response" type="button" variant="sophon"><RotateCcw aria-hidden="true" /></Button> : null}
     </div>
   );
 }

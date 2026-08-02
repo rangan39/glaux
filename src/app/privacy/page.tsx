@@ -9,15 +9,15 @@ export const metadata: Metadata = {
 
 export default function PrivacyPolicy() {
   return (
-    <main className="relative min-h-svh overflow-hidden bg-sophon-canvas px-5 py-10 text-foreground sm:px-8 sm:py-16">
-      <div aria-hidden="true" className="sophon-noise pointer-events-none absolute inset-0" />
-      <div aria-hidden="true" className="sophon-grid pointer-events-none absolute inset-0 opacity-45" />
-      <article className="sophon-glass-strong relative mx-auto max-w-3xl rounded-3xl px-6 py-8 sm:px-10 sm:py-12">
-        <a className="font-mono text-xs uppercase tracking-[0.14em] text-sophon-signal-soft underline decoration-sophon-signal/30 underline-offset-4 hover:text-sophon-signal" href={HOME_PATH}>← Back to Glaux</a>
-        <h1 className="mt-6 text-3xl font-semibold tracking-tight text-sophon-copy-primary sm:text-4xl">Privacy Policy</h1>
-        <p className="sophon-type-metadata mt-2 font-mono uppercase tracking-[0.08em] text-sophon-copy-metadata" data-typography-role="metadata">Effective July 25, 2026</p>
+    <main className="relative min-h-svh overflow-hidden bg-glaux-canvas px-5 py-10 text-foreground sm:px-8 sm:py-16">
+      <div aria-hidden="true" className="glaux-noise pointer-events-none absolute inset-0" />
+      <div aria-hidden="true" className="glaux-grid pointer-events-none absolute inset-0 opacity-45" />
+      <article className="glaux-glass-strong relative mx-auto max-w-3xl rounded-3xl px-6 py-8 sm:px-10 sm:py-12">
+        <a className="font-mono text-xs uppercase tracking-[0.14em] text-glaux-signal-soft underline decoration-glaux-signal/30 underline-offset-4 hover:text-glaux-signal" href={HOME_PATH}>← Back to Glaux</a>
+        <h1 className="mt-6 text-3xl font-semibold tracking-tight text-glaux-copy-primary sm:text-4xl">Privacy Policy</h1>
+        <p className="glaux-type-metadata mt-2 font-mono uppercase tracking-[0.08em] text-glaux-copy-metadata" data-typography-role="metadata">Effective July 25, 2026</p>
 
-        <div className="privacy-copy mt-8 space-y-8 text-sm leading-7 text-sophon-copy-body sm:text-base" data-typography-role="body">
+        <div className="privacy-copy mt-8 space-y-8 text-sm leading-7 text-glaux-copy-body sm:text-base" data-typography-role="body">
           <section>
             <h2>Summary</h2>
             <p>Glaux runs compatible Hugging Face ONNX Community language models on your device. Your prompts and generated responses are processed locally in your browser and are not sent to Glaux, an inference service, Hugging Face, or another third party.</p>
@@ -60,7 +60,7 @@ export default function PrivacyPolicy() {
             <p>Material changes will be posted on this page with a new effective date. Questions or privacy requests can be filed through the project&apos;s <a className="inline-flex items-center gap-1" href={PROJECT_SUPPORT_URL} rel="noreferrer" target="_blank">public support tracker <ExternalLinkIndicator /></a>. Because Glaux does not operate accounts or receive conversation data, the developer generally has no user record to retrieve or delete.</p>
           </section>
 
-          <p className="sophon-type-metadata border-t border-sophon-glass-border pt-6 text-sophon-copy-metadata" data-typography-role="metadata">Glaux is an independent project and is not affiliated with, sponsored by, or endorsed by Hugging Face or community model authors.</p>
+          <p className="glaux-type-metadata border-t border-glaux-glass-border pt-6 text-glaux-copy-metadata" data-typography-role="metadata">Glaux is an independent project and is not affiliated with, sponsored by, or endorsed by Hugging Face or community model authors.</p>
         </div>
       </article>
     </main>

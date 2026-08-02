@@ -68,7 +68,7 @@ export const InspectableMessage = memo(function InspectableMessage({ actions, co
 
   return (
     <div className={cn("flex max-w-full flex-col gap-2", role === "user" ? "items-end" : "items-start")} data-message-role={role} onPointerEnter={developerMode && role === "assistant" ? () => onInspectHover?.(meta) : undefined} onPointerLeave={developerMode && role === "assistant" ? () => onInspectHover?.(undefined) : undefined}>
-      <Card className={cn("w-fit max-w-[92%] self-start overflow-hidden rounded-xl border shadow-none", role === "user" ? "self-end sophon-accent-message border-sophon-signal-bright/55 font-medium" : "sophon-theme-elevation border-sophon-glass-border bg-sophon-panel text-sophon-copy-primary")}>
+      <Card className={cn("w-fit max-w-[92%] self-start overflow-hidden rounded-xl border shadow-none", role === "user" ? "self-end glaux-accent-message border-glaux-signal-bright/55 font-medium" : "glaux-theme-elevation border-glaux-glass-border bg-glaux-panel text-glaux-copy-primary")}>
         <CardContent className="break-words p-4 text-sm leading-relaxed">
           {developerMode && inspectMode && hasTokens ? (
             <SegmentSequence key={mode} kind={mode} role={role} segments={segments} selection={selection} setSelection={setSelection} />
@@ -85,7 +85,7 @@ export const InspectableMessage = memo(function InspectableMessage({ actions, co
       ) : null}
 
       {visibleMeta ? <div className={cn("flex max-w-full items-center gap-1.5 px-1", role === "user" && "justify-end")}>
-        <span className={cn("min-w-0 max-w-full break-words text-xs text-sophon-copy-metadata", role === "user" && "text-right")}>{visibleMeta}</span>
+        <span className={cn("min-w-0 max-w-full break-words text-xs text-glaux-copy-metadata", role === "user" && "text-right")}>{visibleMeta}</span>
         {developerMode && role === "assistant" && hasTokens ? <InfoHint concept="generationMetrics" /> : null}
       </div> : null}
 
@@ -101,18 +101,18 @@ function MarkdownMessage({ content, role }: Pick<InspectableMessageProps, "conte
     <div
       className={cn(
         "min-w-0 max-w-full overflow-x-auto text-[15px] leading-6",
-        "[&_a]:break-words [&_a]:font-semibold [&_a]:underline [&_a]:decoration-1 [&_a]:underline-offset-4 [&_a:focus-visible]:rounded-sm [&_a:focus-visible]:outline-none [&_a:focus-visible]:ring-2 [&_a:focus-visible]:ring-sophon-signal",
+        "[&_a]:break-words [&_a]:font-semibold [&_a]:underline [&_a]:decoration-1 [&_a]:underline-offset-4 [&_a:focus-visible]:rounded-sm [&_a:focus-visible]:outline-none [&_a:focus-visible]:ring-2 [&_a:focus-visible]:ring-glaux-signal",
         "[&_blockquote]:my-3 [&_blockquote]:border-l-2 [&_blockquote]:pl-3 [&_blockquote]:italic",
         "[&_code]:rounded [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.9em]",
         "[&_h1]:mb-3 [&_h1]:mt-4 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:mb-2 [&_h2]:mt-4 [&_h2]:text-base [&_h2]:font-semibold [&_h3]:mb-2 [&_h3]:mt-3 [&_h3]:font-semibold",
         "[&_hr]:my-4 [&_hr]:border-0 [&_hr]:border-t",
         "[&_li]:pl-1 [&_li]:marker:font-mono [&_ol]:my-3 [&_ol]:list-decimal [&_ol]:space-y-1 [&_ol]:pl-5 [&_ul]:my-3 [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-5",
         "[&_p]:my-3 [&_p]:whitespace-pre-wrap [&_p:first-child]:mt-0 [&_p:last-child]:mb-0",
-        "[&_pre]:my-3 [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:border [&_pre]:p-3 [&_pre]:text-xs [&_pre]:leading-5 [&_pre:focus-visible]:outline-none [&_pre:focus-visible]:ring-2 [&_pre:focus-visible]:ring-sophon-signal [&_pre_code]:rounded-none [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:text-inherit",
+        "[&_pre]:my-3 [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:border [&_pre]:p-3 [&_pre]:text-xs [&_pre]:leading-5 [&_pre:focus-visible]:outline-none [&_pre:focus-visible]:ring-2 [&_pre:focus-visible]:ring-glaux-signal [&_pre_code]:rounded-none [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:text-inherit",
         "[&_table]:my-3 [&_table]:min-w-full [&_table]:border-collapse [&_table]:text-left [&_table]:text-xs [&_td]:border [&_td]:p-2 [&_th]:border [&_th]:p-2 [&_th]:font-semibold",
         role === "user"
-          ? "[&_a]:text-sophon-on-signal [&_blockquote]:border-sophon-on-signal/45 [&_code]:bg-sophon-on-signal/10 [&_code]:text-sophon-on-signal [&_hr]:border-sophon-on-signal/30 [&_li]:marker:text-sophon-on-signal/70 [&_pre]:border-sophon-on-signal/35 [&_pre]:bg-sophon-code-inverse/95 [&_pre]:text-sophon-code-inverse-copy [&_td]:border-sophon-on-signal/25 [&_th]:border-sophon-on-signal/35 [&_th]:bg-sophon-on-signal/10"
-          : "[&_a]:text-sophon-signal-soft [&_blockquote]:border-sophon-signal-soft/60 [&_code]:bg-sophon-panel-deep [&_code]:text-sophon-signal-soft [&_hr]:border-sophon-glass-border [&_li]:marker:text-sophon-signal-soft [&_pre]:border-sophon-glass-border [&_pre]:bg-sophon-code-inverse [&_pre]:text-sophon-code-inverse-copy [&_td]:border-sophon-glass-border [&_th]:border-sophon-glass-border [&_th]:bg-sophon-panel-deep"
+          ? "[&_a]:text-glaux-on-signal [&_blockquote]:border-glaux-on-signal/45 [&_code]:bg-glaux-on-signal/10 [&_code]:text-glaux-on-signal [&_hr]:border-glaux-on-signal/30 [&_li]:marker:text-glaux-on-signal/70 [&_pre]:border-glaux-on-signal/35 [&_pre]:bg-glaux-code-inverse/95 [&_pre]:text-glaux-code-inverse-copy [&_td]:border-glaux-on-signal/25 [&_th]:border-glaux-on-signal/35 [&_th]:bg-glaux-on-signal/10"
+          : "[&_a]:text-glaux-signal-soft [&_blockquote]:border-glaux-signal-soft/60 [&_code]:bg-glaux-panel-deep [&_code]:text-glaux-signal-soft [&_hr]:border-glaux-glass-border [&_li]:marker:text-glaux-signal-soft [&_pre]:border-glaux-glass-border [&_pre]:bg-glaux-code-inverse [&_pre]:text-glaux-code-inverse-copy [&_td]:border-glaux-glass-border [&_th]:border-glaux-glass-border [&_th]:bg-glaux-panel-deep"
       )}
     >
       {markdownSyntax.test(content) ? (
@@ -132,9 +132,9 @@ function MarkdownLoading() {
       role="status"
     >
       <span className="sr-only">Formatting response</span>
-      <span aria-hidden="true" className="block h-3 w-2/3 rounded-full bg-sophon-panel-deep" />
-      <span aria-hidden="true" className="block h-3 w-full rounded-full bg-sophon-panel-deep" />
-      <span aria-hidden="true" className="block h-3 w-5/6 rounded-full bg-sophon-panel-deep" />
+      <span aria-hidden="true" className="block h-3 w-2/3 rounded-full bg-glaux-panel-deep" />
+      <span aria-hidden="true" className="block h-3 w-full rounded-full bg-glaux-panel-deep" />
+      <span aria-hidden="true" className="block h-3 w-5/6 rounded-full bg-glaux-panel-deep" />
     </div>
   );
 }
@@ -172,7 +172,7 @@ function SegmentSequence({ kind, role, segments, selection, setSelection }: {
           <button
             aria-label={segment.ariaLabel}
             aria-pressed={selected}
-            className={cn("inline-flex min-h-6 cursor-crosshair items-center whitespace-pre-wrap rounded-sm border-l border-dotted px-px py-0 font-inherit text-inherit transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sophon-signal", role === "user" ? "border-sophon-on-signal/70" : "border-sophon-signal-bright", segmentClass(role, selected), !segment.active && "opacity-75")}
+            className={cn("inline-flex min-h-6 cursor-crosshair items-center whitespace-pre-wrap rounded-sm border-l border-dotted px-px py-0 font-inherit text-inherit transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-glaux-signal", role === "user" ? "border-glaux-on-signal/70" : "border-glaux-signal-bright", segmentClass(role, selected), !segment.active && "opacity-75")}
             data-context={segment.active ? "active" : "omitted"}
             data-token-id={segment.tokenId}
             key={segment.key}
@@ -199,19 +199,19 @@ function TokenInspector({ role, selection, tokenCount }: {
 }) {
   const details = selectionDetails(selection, role);
   return (
-    <div className="sophon-type-metadata flex max-w-full flex-wrap items-center gap-2 rounded-md border border-sophon-glass-border bg-sophon-panel-deep/90 px-2.5 py-2 font-mono uppercase tracking-[0.06em] text-sophon-copy-metadata" data-typography-role="metadata">
+    <div className="glaux-type-metadata flex max-w-full flex-wrap items-center gap-2 rounded-md border border-glaux-glass-border bg-glaux-panel-deep/90 px-2.5 py-2 font-mono uppercase tracking-[0.06em] text-glaux-copy-metadata" data-typography-role="metadata">
       {details ? (
         <>
-          <span className="text-sophon-signal-soft">{details.index}</span>
-          <span aria-hidden="true" className="text-sophon-copy-decorative">/</span>
-          <span className="text-sophon-copy-body">{details.ids}</span>
-          <span aria-hidden="true" className="text-sophon-copy-decorative">/</span>
-          <span className="max-w-52 truncate normal-case tracking-normal text-sophon-copy-primary">“{details.text}”</span>
-          <span aria-hidden="true" className="text-sophon-copy-decorative">/</span>
-          <span className={details.active ? "text-sophon-verified" : "text-sophon-warning"}>{details.active ? "within context" : "outside context"}</span>
+          <span className="text-glaux-signal-soft">{details.index}</span>
+          <span aria-hidden="true" className="text-glaux-copy-decorative">/</span>
+          <span className="text-glaux-copy-body">{details.ids}</span>
+          <span aria-hidden="true" className="text-glaux-copy-decorative">/</span>
+          <span className="max-w-52 truncate normal-case tracking-normal text-glaux-copy-primary">“{details.text}”</span>
+          <span aria-hidden="true" className="text-glaux-copy-decorative">/</span>
+          <span className={details.active ? "text-glaux-verified" : "text-glaux-warning"}>{details.active ? "within context" : "outside context"}</span>
         </>
       ) : (
-        <><span className="font-serif text-sm normal-case text-sophon-signal-soft">τ</span><span>Select a segment</span><span className="ml-auto tabular-nums text-sophon-copy-metadata">{tokenCount} tokens</span></>
+        <><span className="font-serif text-sm normal-case text-glaux-signal-soft">τ</span><span>Select a segment</span><span className="ml-auto tabular-nums text-glaux-copy-metadata">{tokenCount} tokens</span></>
       )}
     </div>
   );
@@ -238,12 +238,12 @@ function selectionDetails(selection: TokenSelection, role: InspectableMessagePro
 function segmentClass(role: InspectableMessageProps["role"], selected: boolean) {
   if (role === "user") {
     return selected
-      ? "bg-sophon-on-signal/15"
-      : "hover:bg-sophon-on-signal/[.07]";
+      ? "bg-glaux-on-signal/15"
+      : "hover:bg-glaux-on-signal/[.07]";
   }
   return selected
-    ? "bg-sophon-signal-soft/15"
-    : "hover:bg-sophon-signal/10";
+    ? "bg-glaux-signal-soft/15"
+    : "hover:bg-glaux-signal/10";
 }
 
 function rovingIndex(key: string, index: number, count: number) {

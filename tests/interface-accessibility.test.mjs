@@ -10,11 +10,11 @@ const css = read("src/app/globals.css");
 test("keeps normal and disabled copy tokens at WCAG AA contrast", () => {
   const darkestInteractiveSurface = "#edf3f7";
   for (const token of [
-    "--sophon-copy-primary",
-    "--sophon-copy-body",
-    "--sophon-copy-metadata",
-    "--sophon-copy-decorative",
-    "--sophon-copy-disabled"
+    "--glaux-copy-primary",
+    "--glaux-copy-body",
+    "--glaux-copy-metadata",
+    "--glaux-copy-decorative",
+    "--glaux-copy-disabled"
   ]) {
     const foreground = customPropertyHex(css, token);
     const ratio = contrastRatio(foreground, darkestInteractiveSurface);
@@ -28,16 +28,16 @@ test("keeps normal and disabled copy tokens at WCAG AA contrast", () => {
 
 test("does not dim essential disabled-state copy with component opacity", () => {
   const button = read("src/components/ui/button.tsx");
-  const modelSidebar = read("src/components/sophon-model-sidebar.tsx");
+  const modelSidebar = read("src/components/glaux-model-sidebar.tsx");
   assert.doesNotMatch(button, /disabled:opacity-/);
   assert.doesNotMatch(modelSidebar, /cursor-not-allowed opacity-/);
-  assert.match(button, /disabled:text-sophon-copy-disabled/);
+  assert.match(button, /disabled:text-glaux-copy-disabled/);
 });
 
 test("keeps the default accent gradient at WCAG AA contrast", () => {
   const block = cssRuleBlock(css, ":root");
-  const foreground = customPropertyHex(block, "--sophon-on-signal");
-  for (const token of ["--sophon-signal", "--sophon-signal-bright"]) {
+  const foreground = customPropertyHex(block, "--glaux-on-signal");
+  for (const token of ["--glaux-signal", "--glaux-signal-bright"]) {
     const background = customPropertyHex(block, token);
     const ratio = contrastRatio(foreground, background);
     assert.ok(ratio >= 4.5, `${token} has only ${ratio.toFixed(2)}:1 contrast.`);

@@ -134,8 +134,8 @@ async function assertModelThemes(browser) {
     const values = await main.evaluate((element) => {
       const styles = getComputedStyle(element);
       return {
-        canvas: styles.getPropertyValue("--sophon-canvas").trim().toLowerCase(),
-        signal: styles.getPropertyValue("--sophon-signal").trim().toLowerCase()
+        canvas: styles.getPropertyValue("--glaux-canvas").trim().toLowerCase(),
+        signal: styles.getPropertyValue("--glaux-signal").trim().toLowerCase()
       };
     });
     assert.deepEqual(values, { canvas: model.canvas, signal: model.signal }, `${model.name} must resolve its centralized theme tokens.`);
@@ -157,7 +157,7 @@ async function assertState(page, state, viewport) {
   }
   if (state === "legacy-cleanup") {
     await assertVisible(page.getByRole("status").filter({ hasText: "Cleaning up old model files" }), "legacy model cleanup");
-    await assertHeaderStatus(page, "Choose model", "text-sophon-copy-metadata");
+    await assertHeaderStatus(page, "Choose model", "text-glaux-copy-metadata");
     return;
   }
   if (state === "legacy-cleanup-error") {
@@ -171,7 +171,7 @@ async function assertState(page, state, viewport) {
     await assertVisible(dialog, "download confirmation");
     await assertVisible(dialog.getByRole("button", { name: "Download model", exact: true }), "download confirmation action");
     assert.match(await dialog.textContent() ?? "", /Review the selected model’s license and repository terms before use/);
-    await assertHeaderStatus(page, "Choose model", "text-sophon-copy-metadata");
+    await assertHeaderStatus(page, "Choose model", "text-glaux-copy-metadata");
     return;
   }
   if (state === "replacement-confirmation") {
@@ -202,7 +202,7 @@ async function assertState(page, state, viewport) {
   if (state === "paused") {
     await assertVisible(page.getByText("Model download paused", { exact: true }), "paused notice");
     await assertVisible(page.getByRole("button", { name: "Resume download", exact: true }), "resume action");
-    await assertHeaderStatus(page, "Download paused", "text-sophon-warning");
+    await assertHeaderStatus(page, "Download paused", "text-glaux-warning");
     await assertPromptLocked(page, state);
     return;
   }
@@ -224,7 +224,7 @@ async function assertState(page, state, viewport) {
     const textarea = page.getByRole("textbox", { name: "Message Glaux", exact: true });
     await assertVisible(textarea, "ready composer");
     assert.equal(await textarea.isEnabled(), true, "The prompt must unlock when the selected model is ready.");
-    await assertHeaderStatus(page, "Model ready", "text-sophon-verified");
+    await assertHeaderStatus(page, "Model ready", "text-glaux-verified");
     if (state === "ready") await assertDeveloperModeNavigation(page, assistant, viewport);
     if (state === "ready" && viewport.width === 1440 && viewport.height === 900) await assertDesktopModelGeometry(page);
     await assertCachedModelChoiceFlow(page, viewport);
@@ -254,7 +254,7 @@ async function assertState(page, state, viewport) {
     await assertHeaderStatus(
       page,
       state === "stopped" ? "Generation stopped" : "Session interrupted",
-      state === "stopped" ? "text-sophon-warning" : "text-destructive"
+      state === "stopped" ? "text-glaux-warning" : "text-destructive"
     );
     return;
   }
@@ -273,9 +273,11 @@ async function assertDeveloperModeNavigation(page, assistant, viewport) {
     ? page.getByRole("dialog", { name: "Model library", exact: true })
     : page.getByRole("complementary", { name: "Model library", exact: true });
   const developerModeButton = library.getByRole("button", { name: "Dev Mode", exact: true });
+  const backToLibraryButton = library.getByRole("button", { name: "Back to model library", exact: true });
   const inspectors = page.locator('button[aria-label^="Inspect "][aria-label$=" message tokens"]');
   await assertVisible(developerModeButton, `${viewport.name} sidebar developer-mode control`);
   assert.equal(await developerModeButton.getAttribute("aria-pressed"), "false", `${viewport.name} must default to Model Details.`);
+  await assertVisible(backToLibraryButton, `${viewport.name} model-details back control`);
   assert.equal(await inspectors.count(), 0, `${viewport.name} standard view must hide token inspection controls.`);
   assert.equal(await assistant.getByText(/8\.4 tokens\/s/).count(), 0, `${viewport.name} standard view must hide response metrics.`);
   await assertVisible(

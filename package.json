@@ -19,7 +19,6 @@
     "test:e2e": "playwright test",
     "test:metrics": "node --experimental-strip-types --test tests/generation-metrics.test.mjs",
     "smoke:ui": "node scripts/smoke_ui.mjs",
-    "smoke:trust": "node scripts/smoke_trust_navigation.mjs",
     "smoke:product-ui": "node scripts/smoke_product_ui.mjs",
     "smoke:markdown": "node scripts/smoke_markdown_loading.mjs",
     "smoke:prompt": "node scripts/smoke_prompt.mjs",

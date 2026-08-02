@@ -1,4 +1,5 @@
 import { assessCommunityModelCompatibility } from "@/lib/model-catalog/compatibility";
+import { isSafeRepositoryPath } from "@/lib/model-catalog/repository-path";
 import {
   ONNX_COMMUNITY_NAMESPACE,
   ONNX_COMMUNITY_TASK,
@@ -178,11 +179,6 @@ function readNullableString(value: unknown, maxLength: number) {
 function readNullableDigest(value: unknown, pattern: RegExp) {
   if (value === null) return null;
   return typeof value === "string" && pattern.test(value) ? value : undefined;
-}
-
-function isSafeRepositoryPath(path: string) {
-  if (path.startsWith("/") || path.includes("\\") || path.includes("\0") || /%(?:00|2e|2f|5c)/i.test(path)) return false;
-  return path.split("/").every((part) => part.length > 0 && part !== "." && part !== "..");
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

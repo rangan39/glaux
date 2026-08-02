@@ -23,6 +23,7 @@ import {
   ModelDeliveryUnavailableError
 } from "@/lib/model-delivery/errors";
 import type { ModelCacheSummary } from "@/lib/onnx-types";
+import { inspectArtifactState } from "@/lib/model-delivery/artifact-state";
 
 const HUB_ORIGIN = "https://huggingface.co";
 export const MODEL_SEGMENT_SIZE = 64 * 1024 * 1024;
@@ -214,38 +215,15 @@ export async function getCommunityModelCacheSummary(
   const storageModel = getCommunityStorageModel(descriptor);
   const states = await getAllArtifactStates();
   const stateByKey = new Map(states.map((state) => [state.key, state]));
-  const artifacts = descriptor.files
-    .filter((file) => file.path === descriptor.format.graphPath || file.path.startsWith(`${descriptor.format.graphPath}_data`))
-    .map((file) => toDeliveryArtifact(
-      descriptor,
-      file,
-      storageModel,
-      file.path === descriptor.format.graphPath ? "graph" : "external"
-    ));
+  const artifacts = getDescriptorDeliveryArtifacts(descriptor, storageModel);
   let resumableBytes = 0;
   let verifiedBytes = 0;
   for (const artifact of artifacts) {
     const state = stateByKey.get(artifact.key);
     const fileSize = await getArtifactFileSize(storageModel, artifact);
-    if (!state
-      || state.version !== 1
-      || state.size !== artifact.size
-      || state.sha256 !== artifact.sha256
-      || state.segmentSize !== MODEL_SEGMENT_SIZE
-      || !Array.isArray(state.completed)) continue;
-    const segmentCount = Math.ceil(artifact.size / MODEL_SEGMENT_SIZE);
-    const completed = new Set(state.completed);
-    const segmentsFit = completed.size === state.completed.length
-      && fileSize <= artifact.size
-      && state.completed.every((index) => Number.isSafeInteger(index)
-        && index >= 0
-        && index < segmentCount
-        && index * MODEL_SEGMENT_SIZE + getSegmentLength(index, artifact.size) <= fileSize);
-    if (!segmentsFit) continue;
-    resumableBytes += state.completed.reduce((total, index) => total + getSegmentLength(index, artifact.size), 0);
-    if (state.status === "ready" && fileSize === artifact.size && completed.size === segmentCount) {
-      verifiedBytes += artifact.size;
-    }
+    const inspection = inspectArtifactState(state, artifact, fileSize, MODEL_SEGMENT_SIZE);
+    resumableBytes += inspection.resumableBytes;
+    if (inspection.ready) verifiedBytes += artifact.size;
   }
   return {
     modelId: descriptor.id,
@@ -403,7 +381,22 @@ async function getCommunityResumableBytes(
 ) {
   if (!dependencies.getArtifactStates || !dependencies.getFileSize) return 0;
   const storageModel = getCommunityStorageModel(descriptor);
-  const candidates = descriptor.files
+  const candidates = getDescriptorDeliveryArtifacts(descriptor, storageModel);
+  const states = await dependencies.getArtifactStates();
+  const stateByKey = new Map(states.map((state) => [state.key, state]));
+  const durable = await Promise.all(candidates.map(async (artifact) => {
+    const state = stateByKey.get(artifact.key);
+    const fileSize = await dependencies.getFileSize!(storageModel, artifact);
+    return inspectArtifactState(state, artifact, fileSize, MODEL_SEGMENT_SIZE).resumableBytes;
+  }));
+  return durable.reduce((total, bytes) => total + bytes, 0);
+}
+
+function getDescriptorDeliveryArtifacts(
+  descriptor: CommunityModelDescriptor,
+  storageModel: { modelId: string; revision: string }
+) {
+  return descriptor.files
     .filter((file) => file.path === descriptor.format.graphPath || file.path.startsWith(`${descriptor.format.graphPath}_data`))
     .map((file) => toDeliveryArtifact(
       descriptor,
@@ -411,32 +404,6 @@ async function getCommunityResumableBytes(
       storageModel,
       file.path === descriptor.format.graphPath ? "graph" : "external"
     ));
-  const states = await dependencies.getArtifactStates();
-  const stateByKey = new Map(states.map((state) => [state.key, state]));
-  const durable = await Promise.all(candidates.map(async (artifact) => {
-    const state = stateByKey.get(artifact.key);
-    if (!state
-      || state.version !== 1
-      || state.size !== artifact.size
-      || state.sha256 !== artifact.sha256
-      || state.segmentSize !== MODEL_SEGMENT_SIZE
-      || !Array.isArray(state.completed)) return 0;
-    const fileSize = await dependencies.getFileSize!(storageModel, artifact);
-    const segmentCount = Math.ceil(artifact.size / MODEL_SEGMENT_SIZE);
-    const unique = new Set(state.completed);
-    if (fileSize > artifact.size
-      || unique.size !== state.completed.length
-      || state.completed.some((index) => !Number.isSafeInteger(index)
-        || index < 0
-        || index >= segmentCount
-        || index * MODEL_SEGMENT_SIZE + getSegmentLength(index, artifact.size) > fileSize)) return 0;
-    return state.completed.reduce((total, index) => total + getSegmentLength(index, artifact.size), 0);
-  }));
-  return durable.reduce((total, bytes) => total + bytes, 0);
-}
-
-function getSegmentLength(index: number, size: number) {
-  return Math.max(0, Math.min(MODEL_SEGMENT_SIZE, size - index * MODEL_SEGMENT_SIZE));
 }
 
 async function ensureStorageHeadroom(

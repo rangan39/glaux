@@ -5,6 +5,7 @@ import {
   type CommunityModelFile,
   type CommunityModelSummary
 } from "@/lib/model-catalog/types";
+import { isSafeRepositoryPath } from "@/lib/model-catalog/repository-path";
 
 const HUB_ORIGIN = "https://huggingface.co";
 const MAX_PAGE_SIZE = 50;
@@ -226,12 +227,6 @@ async function readJson(response: Response): Promise<unknown> {
 
 function invalidResponse(message: string) {
   return new HuggingFaceCatalogError("response", message);
-}
-
-function isSafeRepositoryPath(path: string) {
-  if (path.startsWith("/") || path.includes("\\") || path.includes("\0") || /%(?:00|2e|2f|5c)/i.test(path)) return false;
-  const parts = path.split("/");
-  return parts.every((part) => part.length > 0 && part !== "." && part !== "..");
 }
 
 function normalizeStringArray(value: unknown, maxItems: number, maxLength: number) {

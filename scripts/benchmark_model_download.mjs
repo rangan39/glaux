@@ -3,6 +3,14 @@
 import { performance } from "node:perf_hooks";
 
 const MiB = 1024 * 1024;
+const GiB = 1024 * MiB;
+const limits = {
+  sampleBytes: 512 * MiB,
+  trialCount: 10,
+  concurrency: 16,
+  concurrencyValues: 8,
+  totalTransferBytes: 8 * GiB
+};
 const url = process.env.GLAUX_BENCHMARK_URL
   ?? "https://huggingface.co/onnx-community/tiny-aya-global-ONNX/resolve/7fff1be9627e40f0d89c33f406882bdafb56ec90/onnx/model_q4f16.onnx_data";
 const sampleBytes = readPositiveInteger(process.env.GLAUX_BENCHMARK_BYTES, 64 * MiB);
@@ -12,10 +20,26 @@ const concurrencyValues = (process.env.GLAUX_BENCHMARK_CONCURRENCY ?? "1,2,4")
   .map((value) => readPositiveInteger(value.trim()))
   .filter((value, index, values) => values.indexOf(value) === index);
 
+const parsedUrl = new URL(url);
+if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+  throw new Error(`GLAUX_BENCHMARK_URL must use HTTP or HTTPS, received ${parsedUrl.protocol}`);
+}
+assertAtMost("GLAUX_BENCHMARK_BYTES", sampleBytes, limits.sampleBytes);
+assertAtMost("GLAUX_BENCHMARK_TRIALS", trialCount, limits.trialCount);
+assertAtMost("GLAUX_BENCHMARK_CONCURRENCY entries", concurrencyValues.length, limits.concurrencyValues);
+for (const concurrency of concurrencyValues) {
+  assertAtMost("GLAUX_BENCHMARK_CONCURRENCY value", concurrency, limits.concurrency);
+}
+const requestedTransferBytes = sampleBytes * trialCount * concurrencyValues.length;
+if (!Number.isSafeInteger(requestedTransferBytes)) throw new Error("The requested benchmark transfer is too large.");
+assertAtMost("Requested benchmark transfer", requestedTransferBytes, limits.totalTransferBytes);
+
 const probe = await requestRange(0, 0);
 const totalBytes = readTotalBytes(probe.headers.get("content-range"));
 await probe.body?.cancel();
 const bytesToRead = Math.min(sampleBytes, totalBytes);
+const plannedTransferBytes = bytesToRead * trialCount * concurrencyValues.length;
+console.error(`Planned transfer: ${formatBytes(plannedTransferBytes)} across ${trialCount * concurrencyValues.length} samples.`);
 const samples = [];
 
 for (let trial = 0; trial < trialCount; trial += 1) {
@@ -51,7 +75,7 @@ const summaries = concurrencyValues.map((concurrency) => {
   };
 });
 
-console.log(JSON.stringify({ url, totalBytes, sampleBytes: bytesToRead, trialCount, samples, summaries }, null, 2));
+console.log(JSON.stringify({ url, totalBytes, sampleBytes: bytesToRead, plannedTransferBytes, trialCount, samples, summaries }, null, 2));
 
 async function consumeRange(start, end) {
   const response = await requestRange(start, end);
@@ -104,6 +128,17 @@ function readPositiveInteger(value, fallback) {
   const parsed = Number(value);
   if (!Number.isSafeInteger(parsed) || parsed <= 0) throw new Error(`Expected a positive integer, received ${JSON.stringify(value)}.`);
   return parsed;
+}
+
+function assertAtMost(name, value, maximum) {
+  if (value > maximum) {
+    throw new Error(`${name} must not exceed ${maximum}, received ${value}.`);
+  }
+}
+
+function formatBytes(bytes) {
+  if (bytes >= GiB) return `${(bytes / GiB).toFixed(2)} GiB`;
+  return `${(bytes / MiB).toFixed(2)} MiB`;
 }
 
 function percentile(sorted, quantile) {

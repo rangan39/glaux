@@ -90,15 +90,15 @@ test("still resumes a paused download when the user stays on the same model", ()
   assert.deepEqual(plan.modelIdsToDelete, []);
 });
 
-test("startup preserves a single stored model", () => {
+test("startup schedules a single stored model for cleanup", () => {
   const plan = createStartupModelCleanupPlan([
     summary("global", "cached"),
     summary("earth", "missing")
   ]);
 
-  assert.equal(plan.requiresCleanup, false);
+  assert.equal(plan.requiresCleanup, true);
   assert.deepEqual(plan.storedModelIds, ["global"]);
-  assert.deepEqual(plan.modelIdsToDelete, []);
+  assert.deepEqual(plan.modelIdsToDelete, ["global", "earth"]);
 });
 
 test("startup schedules every registered model for idempotent legacy cleanup", () => {

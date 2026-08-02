@@ -4,7 +4,6 @@ import { useEffect, useEffectEvent, type Dispatch } from "react";
 import { cancelModelPreload, preloadModel, terminateRuntimeWorker } from "@/lib/interp-client";
 import { resolveModelProvider, type ModelManifest } from "@/lib/onnx-models";
 import type { RuntimeCapabilities } from "@/lib/onnx-types";
-import { rememberReadyModelId } from "@/lib/remembered-model";
 import { activityFromLog } from "@/lib/workbench-runtime";
 import type { WorkbenchSessionAction } from "@/lib/workbench-state";
 
@@ -42,7 +41,6 @@ export function useActiveModelPreload({
     }).then(() => {
       if (generationIdRef.current === loadId) {
         dispatch({ type: "field/set", field: "loadedModelId", value: model.id });
-        rememberReadyModelId(model.id);
       }
     }).catch((caught) => {
       if (generationIdRef.current === loadId) {

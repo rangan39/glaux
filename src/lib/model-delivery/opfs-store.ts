@@ -35,8 +35,11 @@ type StoredModel = { modelId: string; revision: string };
 type StoredArtifact = { externalPath: string };
 
 let databasePromise: Promise<IDBPDatabase<DeliveryDatabase>> | null = null;
-const MODEL_STORAGE_DIRECTORY = "sophon-models";
+export const MODEL_STORAGE_DIRECTORY = "sophon-models";
+export const MODEL_DELIVERY_DATABASE = "sophon-model-delivery";
+export const MODEL_RUNTIME_CACHE = "transformers-cache";
 const MODEL_STORAGE_VERSION = "v1";
+const MODEL_STORAGE_LOCK = "sophon-model-storage";
 
 export function supportsPersistentModelDelivery() {
   return typeof navigator !== "undefined"
@@ -136,6 +139,73 @@ export async function reconcileModelStorage(allowedModelIds: ReadonlySet<string>
     }
   }
   return [...removed].sort();
+}
+
+export type ModelStoragePurgeDependencies = {
+  deleteCache: () => Promise<unknown>;
+  deleteDatabase: () => Promise<void>;
+  deleteOpfs: () => Promise<void>;
+  verify: () => Promise<void>;
+};
+
+export async function runModelStoragePurge(dependencies: ModelStoragePurgeDependencies) {
+  const failures: unknown[] = [];
+  for (const operation of [dependencies.deleteCache, dependencies.deleteOpfs, dependencies.deleteDatabase]) {
+    try {
+      await operation();
+    } catch (error) {
+      failures.push(error);
+    }
+  }
+  if (failures.length > 0) {
+    throw new AggregateError(failures, "Glaux could not remove all model data from browser storage.");
+  }
+  await dependencies.verify();
+}
+
+export async function purgeAllModelStorage() {
+  const purge = () => runModelStoragePurge({
+    deleteCache: async () => {
+      if (typeof caches !== "undefined") await caches.delete(MODEL_RUNTIME_CACHE);
+    },
+    deleteDatabase: deleteDeliveryDatabase,
+    deleteOpfs: async () => {
+      if (typeof navigator === "undefined" || typeof navigator.storage?.getDirectory !== "function") return;
+      const root = await navigator.storage.getDirectory();
+      try {
+        await root.removeEntry(MODEL_STORAGE_DIRECTORY, { recursive: true });
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === "NotFoundError")) throw error;
+      }
+    },
+    verify: assertModelStorageEmpty
+  });
+  if (typeof navigator !== "undefined" && typeof navigator.locks?.request === "function") {
+    await navigator.locks.request(MODEL_STORAGE_LOCK, { mode: "exclusive" }, purge);
+  } else {
+    await purge();
+  }
+}
+
+export async function assertModelStorageEmpty() {
+  if (typeof caches !== "undefined" && (await caches.keys()).includes(MODEL_RUNTIME_CACHE)) {
+    throw new Error("The model runtime cache still exists after cleanup.");
+  }
+  if (typeof navigator !== "undefined" && typeof navigator.storage?.getDirectory === "function") {
+    const root = await navigator.storage.getDirectory();
+    try {
+      await root.getDirectoryHandle(MODEL_STORAGE_DIRECTORY);
+      throw new Error("The model file directory still exists after cleanup.");
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === "NotFoundError")) throw error;
+    }
+  }
+  if (typeof indexedDB !== "undefined" && typeof indexedDB.databases === "function") {
+    const databases = await indexedDB.databases();
+    if (databases.some(({ name }) => name === MODEL_DELIVERY_DATABASE)) {
+      throw new Error("The model checkpoint database still exists after cleanup.");
+    }
+  }
 }
 
 export function isLegacyBundledModelRequest(url: string) {
@@ -252,7 +322,7 @@ export async function openArtifactFile(model: StoredModel, artifact: StoredArtif
 }
 
 async function getDatabase() {
-  databasePromise ??= openDB<DeliveryDatabase>("sophon-model-delivery", 1, {
+  databasePromise ??= openDB<DeliveryDatabase>(MODEL_DELIVERY_DATABASE, 1, {
     upgrade(database) {
       if (!database.objectStoreNames.contains("artifacts")) database.createObjectStore("artifacts", { keyPath: "key" });
     },
@@ -266,6 +336,19 @@ async function getDatabase() {
     }
   });
   return databasePromise;
+}
+
+async function deleteDeliveryDatabase() {
+  const current = databasePromise;
+  databasePromise = null;
+  (await current?.catch(() => null))?.close();
+  if (typeof indexedDB === "undefined") return;
+  await new Promise<void>((resolve, reject) => {
+    const request = indexedDB.deleteDatabase(MODEL_DELIVERY_DATABASE);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error ?? new Error("The model checkpoint database could not be deleted."));
+    request.onblocked = () => reject(new Error("The model checkpoint database deletion was blocked by another tab."));
+  });
 }
 
 async function openModelStorageVersion(create = false) {

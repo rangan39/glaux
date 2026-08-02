@@ -61,17 +61,12 @@ export function createStartupModelCleanupPlan(
   cacheSummaries: readonly ModelCacheSummary[]
 ): StartupModelCleanupPlan {
   const storedModels = cacheSummaries.filter((summary) => summary.state !== "missing");
-  const requiresCleanup = storedModels.length > 1;
   return {
-    bytesToRemove: requiresCleanup
-      ? storedModels.reduce((total, source) => (
-        total + (source.state === "partial" ? source.resumableBytes : source.totalBytes)
-      ), 0)
-      : 0,
-    modelIdsToDelete: requiresCleanup
-      ? cacheSummaries.map((summary) => summary.modelId)
-      : [],
-    requiresCleanup,
+    bytesToRemove: storedModels.reduce((total, source) => (
+      total + (source.state === "partial" ? source.resumableBytes : source.totalBytes)
+    ), 0),
+    modelIdsToDelete: cacheSummaries.map((summary) => summary.modelId),
+    requiresCleanup: true,
     storedModelIds: storedModels.map((summary) => summary.modelId)
   };
 }
@@ -89,7 +84,6 @@ export async function runStartupModelCleanup(
   plan: StartupModelCleanupPlan,
   transaction: ModelCleanupTransaction
 ) {
-  if (!plan.requiresCleanup) return transaction.readCacheSummaries();
   return runModelStorageCleanup(plan.modelIdsToDelete, transaction);
 }
 

@@ -48,8 +48,10 @@ import { useModelRuntimeCapabilities } from "@/hooks/use-model-runtime";
 import { captureDialogScrollSnapshot, type DocumentScrollSnapshot, useDocumentScrollLock } from "@/hooks/use-document-scroll-lock";
 import { useProductTestHydration, useProductTestRoute } from "@/hooks/use-product-test-harness";
 import { useActiveModelPreload } from "@/hooks/use-active-model-preload";
+import { useModelDepartureLifecycle } from "@/hooks/use-model-departure-lifecycle";
 import { clearRememberedModelId, forgetRememberedModelId } from "@/lib/remembered-model";
 import { purgeAllModelStorage } from "@/lib/model-delivery/opfs-store";
+import { formatStoredModelDisclosure, getStoredModelSummary, shouldWarnForModelDeparture } from "@/lib/model-storage-awareness";
 import {
   activityFromLog,
   activityFromTelemetry,
@@ -165,6 +167,13 @@ export function GlauxWorkbench() {
     const source = availableModels.find((model) => model.id === sourceModelId);
     return source ? [source] : [];
   }) ?? [];
+  const storedModelSummary = getStoredModelSummary(cacheSummaries);
+  const storedModel = storedModelSummary
+    ? availableModels.find((model) => model.id === storedModelSummary.modelId)
+    : null;
+  const storedModelDisclosure = storedModelSummary
+    ? formatStoredModelDisclosure(storedModelSummary, storedModel?.label)
+    : null;
   const modelCompatibility = getModelCompatibility(capabilities, selectedModel);
   const modelReady = selectedModel !== null && loadedModelId === selectedModel.id;
   const runtimeStatus = getRuntimeStatus(capabilities, selectedModel, loadedModelId, runtimeActivity, modelLoadPaused, failedTurn, error);
@@ -258,7 +267,20 @@ export function GlauxWorkbench() {
     generationIdRef,
     model: selectedModel,
     paused: modelLoadPaused,
-    onStorageChanged: () => setStorageRevision((value) => value + 1)
+    onStorageChanged: () => {
+      setStorageRevision((value) => value + 1);
+      void getCachedModels().then(setCacheSummaries).catch(() => undefined);
+    }
+  });
+
+  useModelDepartureLifecycle({
+    warnBeforeLeaving: productTestState === null && shouldWarnForModelDeparture(cacheSummaries, { loading: isModelLoading, paused: modelLoadPaused }),
+    onDeparture: () => {
+      generationIdRef.current += 1;
+      clearRememberedModelId();
+      terminateRuntimeWorker();
+      void purgeAllModelStorage().catch(() => undefined);
+    }
   });
 
   useEffect(() => {
@@ -273,17 +295,6 @@ export function GlauxWorkbench() {
     textarea.style.height = "auto";
     textarea.style.height = `${Math.min(textarea.scrollHeight, PROMPT_MAX_HEIGHT)}px`;
   }, [prompt]);
-
-  useEffect(() => {
-    const cleanup = () => {
-      generationIdRef.current += 1;
-      clearRememberedModelId();
-      terminateRuntimeWorker();
-      void purgeAllModelStorage().catch(() => undefined);
-    };
-    window.addEventListener("pagehide", cleanup);
-    return () => window.removeEventListener("pagehide", cleanup);
-  }, []);
 
   function requestResetConversation() {
     if (messages.length > STARTER_MESSAGES.length) {
@@ -874,7 +885,8 @@ export function GlauxWorkbench() {
                     )}
                   </div>
                 </div>
-                <footer className="glaux-type-metadata mt-2 flex min-w-0 items-center gap-2 overflow-x-auto rounded-xl border border-glaux-glass-border bg-glaux-panel-deep px-2.5 py-1.5 font-mono text-[10px] uppercase leading-4 tracking-[0.04em] text-glaux-copy-metadata [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-typography-role="metadata">
+                {storedModelDisclosure ? <p className="glaux-type-metadata mt-2 flex min-w-0 items-center gap-1.5 rounded-lg border border-glaux-glass-border bg-glaux-panel-deep px-2.5 py-1 font-mono text-[10px] uppercase leading-4 tracking-[0.04em] text-glaux-copy-body" data-testid="model-storage-disclosure" data-typography-role="metadata"><Download aria-hidden="true" className="size-3.5 shrink-0 text-glaux-signal-soft" /><span className="truncate">{storedModelDisclosure}</span></p> : null}
+                <footer className={cn("glaux-type-metadata flex min-w-0 items-center gap-2 overflow-x-auto rounded-xl border border-glaux-glass-border bg-glaux-panel-deep px-2.5 py-1.5 font-mono text-[10px] uppercase leading-4 tracking-[0.04em] text-glaux-copy-metadata [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", storedModelDisclosure ? "mt-1" : "mt-2")} data-typography-role="metadata">
                   <span className={cn("flex shrink-0 items-center whitespace-nowrap text-glaux-copy-body", modelCompatibility === "incompatible" && "text-destructive")} id="prompt-help">
                     {downloadProgress ? (
                       downloadProgress.stage === "probe" ? (
@@ -905,7 +917,7 @@ export function GlauxWorkbench() {
                     <p data-state={browserStorage === undefined ? "checking" : browserStorage === null ? "unavailable" : "ready"} data-testid="browser-storage">
                       <span className="sr-only">Browser storage · </span><span className="tabular-nums text-glaux-copy-body">{storageLabel}</span>
                     </p>
-                    <a aria-label="Privacy" className="ml-1 inline-flex size-6 shrink-0 items-center justify-center rounded border border-glaux-glass-border bg-glaux-glass-tile text-glaux-copy-primary transition-colors hover:border-glaux-signal-bright/55 hover:text-glaux-signal-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-glaux-signal" data-typography-role="action" href={PRIVACY_PATH} title="Privacy"><ShieldCheck aria-hidden="true" className="size-3" /></a>
+                    <a aria-label="Privacy (opens in a new tab)" className="ml-1 inline-flex size-6 shrink-0 items-center justify-center rounded border border-glaux-glass-border bg-glaux-glass-tile text-glaux-copy-primary transition-colors hover:border-glaux-signal-bright/55 hover:text-glaux-signal-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-glaux-signal" data-typography-role="action" href={PRIVACY_PATH} rel="noreferrer" target="_blank" title="Privacy"><ShieldCheck aria-hidden="true" className="size-3" /></a>
                   </div>
                 </footer>
               </form>
@@ -983,10 +995,10 @@ function FirstRunCheck({ error, onRetry, status }: {
         : <LoaderCircle aria-hidden="true" className="size-5 shrink-0 animate-spin text-glaux-signal-soft motion-reduce:animate-none" />}
       <span className="min-w-0 flex-1">
         <span className="block text-sm font-medium text-glaux-copy-primary">
-          {failed ? "Old model files could not be removed" : cleaning ? "Cleaning up old model files" : "Checking this browser"}
+          {failed ? "Old model files could not be removed" : cleaning ? "Finishing model cleanup" : "Checking this browser"}
         </span>
         <span className="glaux-type-metadata mt-0.5 block text-glaux-copy-metadata" data-typography-role="metadata">
-          {failed ? error : cleaning ? "Removing legacy downloads before Glaux starts…" : "Looking for a model you have already downloaded…"}
+          {failed ? error : cleaning ? "Glaux found files from a previous session and is removing them before continuing…" : "Looking for a model you have already downloaded…"}
         </span>
       </span>
       {failed ? <Button className="ml-auto h-11 shrink-0 rounded-xl max-[359px]:basis-full sm:h-8" onClick={onRetry} size="sm" type="button" variant="sophon">Retry cleanup</Button> : null}
@@ -1141,7 +1153,7 @@ function FirstRunWelcome({ notice, onDismissNotice, onOpenModels }: {
               <a aria-label="Source (opens in a new tab)" className="inline-flex size-9 items-center justify-center rounded-lg border border-glaux-glass-border bg-glaux-glass-strong text-glaux-copy-primary transition-colors hover:border-glaux-signal-bright/55 hover:bg-glaux-glass-tile hover:text-glaux-signal-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-glaux-signal" href={PROJECT_REPOSITORY_URL} rel="noreferrer" target="_blank" title="Source">
                 <Code2 aria-hidden="true" className="size-4" />
               </a>
-              <a aria-label="Privacy" className="inline-flex size-9 items-center justify-center rounded-lg border border-glaux-glass-border bg-glaux-glass-strong text-glaux-copy-primary transition-colors hover:border-glaux-signal-bright/55 hover:bg-glaux-glass-tile hover:text-glaux-signal-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-glaux-signal" href={PRIVACY_PATH} title="Privacy">
+              <a aria-label="Privacy (opens in a new tab)" className="inline-flex size-9 items-center justify-center rounded-lg border border-glaux-glass-border bg-glaux-glass-strong text-glaux-copy-primary transition-colors hover:border-glaux-signal-bright/55 hover:bg-glaux-glass-tile hover:text-glaux-signal-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-glaux-signal" href={PRIVACY_PATH} rel="noreferrer" target="_blank" title="Privacy">
                 <ShieldCheck aria-hidden="true" className="size-4" />
               </a>
               <GlauxAcknowledgements ariaLabel="About & licenses" className="size-9 rounded-lg border border-glaux-glass-border bg-glaux-glass-strong hover:border-glaux-signal-bright/55 hover:bg-glaux-glass-tile sm:size-9" compact />

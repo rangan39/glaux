@@ -17,7 +17,10 @@ export default defineConfig({
   },
   projects: [
     { name: "desktop-chromium", use: { ...devices["Desktop Chrome"] } },
-    { name: "mobile-chromium", use: { ...devices["Pixel 5"] } }
+    { name: "desktop-webkit", use: { ...devices["Desktop Safari"] } },
+    { name: "desktop-firefox", use: { ...devices["Desktop Firefox"] } },
+    { name: "mobile-chromium", use: { ...devices["Pixel 5"] } },
+    { name: "mobile-webkit", use: { ...devices["iPhone 12"] } }
   ],
   webServer: externalBaseURL ? undefined : {
     command: `GLAUX_PRODUCT_TEST_DIST_DIR=.next-e2e npm run product:ui -- --hostname 127.0.0.1 --port ${port}`,

@@ -36,3 +36,12 @@ export function forgetRememberedModelId(modelId: string, storage: ModelPreferenc
     // Browser storage can be unavailable in restricted contexts.
   }
 }
+
+export function clearRememberedModelId(storage: Pick<Storage, "removeItem"> = window.localStorage) {
+  try {
+    storage.removeItem(READY_MODEL_STORAGE_KEY);
+    storage.removeItem(LEGACY_READY_MODEL_STORAGE_KEY);
+  } catch {
+    // Browser storage can be unavailable in restricted contexts.
+  }
+}

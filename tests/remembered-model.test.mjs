@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  clearRememberedModelId,
   forgetRememberedModelId,
   LEGACY_READY_MODEL_STORAGE_KEY,
   readRememberedModelId,
@@ -45,5 +46,14 @@ test("forgets a matching model from current and legacy keys", () => {
   ]);
 
   forgetRememberedModelId("hf:fixture@main", storage);
+  assert.equal(storage.values.size, 0);
+});
+
+test("clears all remembered model keys during lifecycle cleanup", () => {
+  const storage = createStorage([
+    [READY_MODEL_STORAGE_KEY, "hf:current@main"],
+    [LEGACY_READY_MODEL_STORAGE_KEY, "hf:legacy@main"]
+  ]);
+  clearRememberedModelId(storage);
   assert.equal(storage.values.size, 0);
 });

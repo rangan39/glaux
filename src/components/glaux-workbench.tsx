@@ -23,9 +23,7 @@ import { deleteSavedCommunityModelDescriptor, saveCommunityModelDescriptor, type
 import type { GenerationTelemetryEvent, ModelCacheSummary, OnnxLogEvent } from "@/lib/onnx-types";
 import {
   createModelReplacementPlan,
-  createStartupModelCleanupPlan,
   runModelReplacement,
-  runStartupModelCleanup,
   type ModelReplacementPhase
 } from "@/lib/model-replacement";
 import {
@@ -50,7 +48,8 @@ import { useModelRuntimeCapabilities } from "@/hooks/use-model-runtime";
 import { captureDialogScrollSnapshot, type DocumentScrollSnapshot, useDocumentScrollLock } from "@/hooks/use-document-scroll-lock";
 import { useProductTestHydration, useProductTestRoute } from "@/hooks/use-product-test-harness";
 import { useActiveModelPreload } from "@/hooks/use-active-model-preload";
-import { forgetRememberedModelId, readRememberedModelId } from "@/lib/remembered-model";
+import { clearRememberedModelId, forgetRememberedModelId } from "@/lib/remembered-model";
+import { purgeAllModelStorage } from "@/lib/model-delivery/opfs-store";
 import {
   activityFromLog,
   activityFromTelemetry,
@@ -81,7 +80,6 @@ export function GlauxWorkbench() {
   const { modelId: productTestModelId, runtimeEnabled, state: productTestState } = useProductTestRoute();
   const [session, dispatchSession] = useReducer(workbenchSessionReducer, INITIAL_WORKBENCH_SESSION);
   const {
-    autoRestoreEnabled,
     deletingModelId,
     error,
     failedTurn,
@@ -113,7 +111,6 @@ export function GlauxWorkbench() {
   const setDeletingModelId = (value: SetStateAction<string | null>) => setSessionField("deletingModelId", value);
   const setModelReplacementPhase = (value: SetStateAction<ModelReplacementPhase | null>) => setSessionField("modelReplacementPhase", value);
   const setResetConfirmationOpen = (value: SetStateAction<boolean>) => setSessionField("resetConfirmationOpen", value);
-  const setAutoRestoreEnabled = (value: SetStateAction<boolean>) => setSessionField("autoRestoreEnabled", value);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [developerMode, setDeveloperMode] = useState(false);
   const [communityModels, setCommunityModels] = useCommunityModelInventory(runtimeEnabled);
@@ -126,7 +123,7 @@ export function GlauxWorkbench() {
   const [capabilities, setCapabilities] = useModelRuntimeCapabilities(runtimeEnabled);
   const [cacheSummaries, setCacheSummaries] = useState<ModelCacheSummary[]>([]);
   const [cacheInventoryResolved, setCacheInventoryResolved] = useState(false);
-  const [startupCleanupStatus, setStartupCleanupStatus] = useState<StartupCleanupStatus>("idle");
+  const [startupCleanupStatus, setStartupCleanupStatus] = useState<StartupCleanupStatus>("cleaning");
   const [startupCleanupRetryRevision, setStartupCleanupRetryRevision] = useState(0);
   const [storageRevision, setStorageRevision] = useState(0);
   const [browserStorage, setBrowserStorage] = useBrowserStorage(runtimeEnabled, storageRevision);
@@ -155,8 +152,8 @@ export function GlauxWorkbench() {
   const availableModels = [...fixtureModels, ...communityModels, ...(previewModel && !communityModels.some((model) => model.id === previewModel.id) ? [previewModel] : [])];
   const selectedModel = availableModels.find((model) => model.id === modelId) ?? null;
   const loadingModel = selectedModel;
-  const modelLoadCancelLabel = isNetworkDownload ? "Pause model download" : "Cancel model loading";
-  const modelLoadCancelText = isNetworkDownload ? "Pause" : "Cancel";
+  const modelLoadCancelLabel = isNetworkDownload ? "Cancel model download" : "Cancel model loading";
+  const modelLoadCancelText = "Cancel";
   const pendingModelDownload = availableModels.find((model) => model.id === pendingModelDownloadId) ?? null;
   const pendingDeleteModel = communityModels.find((model) => model.id === pendingDeleteModelId) ?? null;
   const libraryModelCache = cacheSummaries.find((model) => model.modelId === libraryModelId);
@@ -223,89 +220,41 @@ export function GlauxWorkbench() {
   useEffect(() => {
     if (productTestState !== null) return;
     let active = true;
-    let inventoryTimedOut = false;
-    const inventoryFallbackTimer = window.setTimeout(() => {
-      if (!active) return;
-      inventoryTimedOut = true;
-      setCacheSummaries([]);
-      setCacheInventoryResolved(true);
-      dispatchSession({ type: "field/set", field: "notice", value: "Glaux couldn’t check for saved model data. You can still choose a model to download." });
-    }, 5_000);
     void (async () => {
-      let models = await getCachedModels();
-      if (!active || inventoryTimedOut) return;
-      window.clearTimeout(inventoryFallbackTimer);
-      setStartupCleanupStatus("idle");
-      const cleanupPlan = createStartupModelCleanupPlan(models);
-      if (cleanupPlan.requiresCleanup) {
-        if (!active) return;
-        setStartupCleanupStatus("cleaning");
-        dispatchSession({ type: "field/set", field: "error", value: null });
-        dispatchSession({ type: "field/set", field: "notice", value: null });
-        generationIdRef.current += 1;
-        try {
-          models = await runStartupModelCleanup(cleanupPlan, {
-            deleteStoredModel: async (modelToDelete) => {
-              await deleteCachedModel(modelToDelete);
-              forgetRememberedModelId(modelToDelete);
-            },
-            onPhaseChange: (phase) => dispatchSession({ type: "field/set", field: "modelReplacementPhase", value: phase }),
-            readCacheSummaries: getCachedModels,
-            stopActiveModel: async () => {
-              await cancelModelPreload().catch(() => terminateRuntimeWorker());
-              dispatchSession({ type: "model/stopped" });
-            }
-          });
-          if (!active) return;
-          setStorageRevision((value) => value + 1);
-          dispatchSession({ type: "field/set", field: "notice", value: "Old model files were removed. Choose a model to download." });
-          setStartupCleanupStatus("idle");
-        } catch (caught) {
-          if (!active) return;
-          const refreshed = await getCachedModels().catch(() => models);
-          setCacheSummaries(refreshed);
-          setStartupCleanupStatus("failed");
-          dispatchSession({ type: "field/set", field: "error", value: caught instanceof Error
-            ? caught.message
-            : "Glaux could not remove old model files." });
-          return;
-        } finally {
-          if (active) {
-            dispatchSession({ type: "field/set", field: "modelReplacementPhase", value: null });
-          }
-        }
+      generationIdRef.current += 1;
+      terminateRuntimeWorker();
+      dispatchSession({ type: "model/stopped" });
+      clearRememberedModelId();
+      await purgeAllModelStorage();
+      const models = await getCachedModels();
+      const remaining = models.filter((model) => model.state !== "missing");
+      if (remaining.length > 0) {
+        throw new Error(`Glaux could not finish removing saved model files for ${remaining.map((model) => model.modelId).join(", ")}.`);
       }
       if (!active) return;
       setCacheSummaries(models);
-      const rememberedModelId = readRememberedModelId();
-      const restorableModelId = models.some((model) => model.modelId === rememberedModelId && model.state === "cached")
-        ? rememberedModelId
-        : null;
-      if (rememberedModelId && !restorableModelId) forgetRememberedModelId(rememberedModelId);
-      dispatchSession({ type: "field/set", field: "modelId", value: (current) => {
-        if (current || !autoRestoreEnabled) return current;
-        return restorableModelId ?? current;
-      } });
-      if (autoRestoreEnabled && restorableModelId) setLibraryModelId((current) => current || restorableModelId);
       setCacheInventoryResolved(true);
+      setStartupCleanupStatus("idle");
+      setStorageRevision((value) => value + 1);
     })()
-      .catch(() => {
-        if (!active || inventoryTimedOut) return;
-        window.clearTimeout(inventoryFallbackTimer);
+      .catch((caught) => {
+        if (!active) return;
         setCacheSummaries([]);
-        setCacheInventoryResolved(true);
-        dispatchSession({ type: "field/set", field: "notice", value: "Glaux couldn’t check for saved model data. You can still choose a model to download." });
+        setCacheInventoryResolved(false);
+        setStartupCleanupStatus("failed");
+        dispatchSession({ type: "field/set", field: "error", value: caught instanceof Error
+          ? caught.message
+          : "Glaux could not remove saved model files." });
       });
     return () => {
       active = false;
-      window.clearTimeout(inventoryFallbackTimer);
     };
-  }, [autoRestoreEnabled, productTestState, startupCleanupRetryRevision, storageRevision]);
+  }, [productTestState, startupCleanupRetryRevision]);
 
   useActiveModelPreload({
     capabilities,
     dispatch: dispatchSession,
-    enabled: productTestState === null,
+    enabled: productTestState === null && startupCleanupStatus === "idle",
     generationIdRef,
     model: selectedModel,
     paused: modelLoadPaused,
@@ -325,9 +274,15 @@ export function GlauxWorkbench() {
     textarea.style.height = `${Math.min(textarea.scrollHeight, PROMPT_MAX_HEIGHT)}px`;
   }, [prompt]);
 
-  useEffect(() => () => {
-    generationIdRef.current += 1;
-    terminateRuntimeWorker();
+  useEffect(() => {
+    const cleanup = () => {
+      generationIdRef.current += 1;
+      clearRememberedModelId();
+      terminateRuntimeWorker();
+      void purgeAllModelStorage().catch(() => undefined);
+    };
+    window.addEventListener("pagehide", cleanup);
+    return () => window.removeEventListener("pagehide", cleanup);
   }, []);
 
   function requestResetConversation() {
@@ -529,22 +484,24 @@ export function GlauxWorkbench() {
     if (productTestState) setGeneration({ status: "loading", activity: createFixtureDownloadActivity("resume") });
   }
 
-  function cancelModelLoad() {
+  async function cancelModelLoad() {
     const cancelledModel = selectedModel;
-    const pausedNetworkDownload = isNetworkDownload;
     generationIdRef.current += 1;
-    if (!productTestState) void cancelModelPreload().catch(() => terminateRuntimeWorker());
-    setAutoRestoreEnabled(false);
-    setModelLoadPaused(Boolean(cancelledModel));
-    setLoadedModelId(null);
-    setGeneration({ status: "idle" });
-    setFailedTurn(null);
-    setError(null);
-    setNotice(cancelledModel
-      ? pausedNetworkDownload
-        ? `${cancelledModel.label} download paused. Glaux will check saved progress when you resume.`
-        : `${cancelledModel.label} loading paused. Downloaded files remain available in this browser.`
-      : pausedNetworkDownload ? "Model download paused." : "Model loading cancelled.");
+    if (!productTestState) {
+      await cancelModelPreload().catch(() => undefined);
+      terminateRuntimeWorker();
+      clearRememberedModelId();
+      try {
+        await purgeAllModelStorage();
+        setCacheSummaries(await getCachedModels());
+      } catch (caught) {
+        setStartupCleanupStatus("failed");
+        setError(caught instanceof Error ? caught.message : "Glaux could not remove the cancelled model download.");
+        return;
+      }
+    }
+    dispatchSession({ type: "model/stopped" });
+    setNotice(cancelledModel ? `${cancelledModel.label} loading cancelled. Downloaded files were removed.` : "Model loading cancelled.");
     setStorageRevision((value) => value + 1);
   }
 
@@ -808,6 +765,8 @@ export function GlauxWorkbench() {
                         error={startupCleanupStatus === "failed" ? error : null}
                         onRetry={() => {
                           setError(null);
+                          setStartupCleanupStatus("cleaning");
+                          setCacheInventoryResolved(false);
                           setStartupCleanupRetryRevision((value) => value + 1);
                         }}
                         status={startupCleanupStatus}

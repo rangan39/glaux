@@ -43,7 +43,6 @@
   "exclude": [
     "node_modules",
     ".next",
-    ".next-extension",
     "dist"
   ]
 }

@@ -32,23 +32,15 @@ test("recognizes the four model fixtures and rejects unknown model IDs", () => {
 test("enables fixtures only for an explicitly opted-in web development build", () => {
   assert.equal(isProductTestingBuild({
     nodeEnv: "development",
-    productTesting: "1",
-    chromeExtension: undefined
+    productTesting: "1"
   }), true);
   assert.equal(isProductTestingBuild({
     nodeEnv: "development",
-    productTesting: "0",
-    chromeExtension: undefined
+    productTesting: "0"
   }), false);
   assert.equal(isProductTestingBuild({
     nodeEnv: "production",
-    productTesting: "1",
-    chromeExtension: undefined
-  }), false);
-  assert.equal(isProductTestingBuild({
-    nodeEnv: "development",
-    productTesting: "1",
-    chromeExtension: "1"
+    productTesting: "1"
   }), false);
 });
 

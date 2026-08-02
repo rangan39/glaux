@@ -186,20 +186,17 @@ const PENDING_MESSAGE: ProductTestMessage = {
 
 export const PRODUCT_TESTING_BUILD = isProductTestingBuild({
   nodeEnv: process.env.NODE_ENV,
-  productTesting: process.env.NEXT_PUBLIC_GLAUX_PRODUCT_TESTING,
-  chromeExtension: process.env.NEXT_PUBLIC_GLAUX_CHROME_EXTENSION
+  productTesting: process.env.NEXT_PUBLIC_GLAUX_PRODUCT_TESTING
 });
 
 export function isProductTestingBuild({
   nodeEnv,
-  productTesting,
-  chromeExtension
+  productTesting
 }: {
   nodeEnv: string | undefined;
   productTesting: string | undefined;
-  chromeExtension: string | undefined;
 }) {
-  return nodeEnv === "development" && productTesting === "1" && chromeExtension !== "1";
+  return nodeEnv === "development" && productTesting === "1";
 }
 
 export function parseProductTestState(value: string | null | undefined): ProductTestState | null {

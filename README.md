@@ -6,6 +6,14 @@ Production app: [glaux-ai.vercel.app](https://glaux-ai.vercel.app)
 
 The application is MIT licensed. Model weights retain the license published by each Hugging Face repository.
 
+## What Glaux is
+
+Glaux is a privacy-first, browser-native model workbench that turns compatible Hugging Face ONNX repositories into locally installed, integrity-checked WebGPU chat runtimes. It presents itself as a focused chat application, but the core of the project is the model lifecycle: discovering a model, deciding whether it can run safely, pinning it to an immutable revision, downloading and verifying its artifacts, storing them locally, and running generation without blocking the interface.
+
+The browser acts as the complete runtime environment. IndexedDB stores catalog and descriptor metadata, the Origin Private File System stores model artifacts, a persistent Web Worker owns tokenization and inference, and WebGPU provides acceleration. Next.js serves the application shell rather than an inference backend.
+
+Glaux is designed around explicit trust boundaries. Model installation requires confirmation; compatibility and integrity checks fail closed; replacement, cancellation, refresh, and partial-download states are handled deliberately; and prompts and responses never leave the browser. Deterministic product fixtures, browser tests, bundle budgets, dependency audits, and developer telemetry make those guarantees testable rather than aspirational.
+
 ## Current product
 
 - Searches the `onnx-community` namespace from the browser and keeps a local searchable catalog in IndexedDB.

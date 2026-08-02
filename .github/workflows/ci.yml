@@ -27,7 +27,7 @@ jobs:
       - run: npm run audit:production
       - run: npm run build
       - run: npm run budget:bundle
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps chromium firefox webkit
       - run: npm run test:e2e
 
   dependency-review:

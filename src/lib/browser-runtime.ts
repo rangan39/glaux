@@ -18,6 +18,12 @@ type RuntimeNavigator = Navigator & {
   userAgentData?: { brands?: readonly { brand: string }[] };
 };
 
+type RuntimeEnvironment = {
+  navigator?: RuntimeNavigator;
+  crossOriginIsolated?: boolean;
+  wasmAvailable?: boolean;
+};
+
 let runtimeCapabilitiesPromise: Promise<{
   webgpu: boolean;
   wasm: boolean;
@@ -66,16 +72,28 @@ export function getRuntimeCapabilities() {
   return runtimeCapabilitiesPromise;
 }
 
-async function detectRuntimeCapabilities() {
-  const scope = globalThis as typeof globalThis & {
-    navigator?: RuntimeNavigator;
-    crossOriginIsolated?: boolean;
+export async function detectRuntimeCapabilities(environment?: RuntimeEnvironment) {
+  const scope = environment ?? {
+    navigator: (globalThis as typeof globalThis & { navigator?: RuntimeNavigator }).navigator,
+    crossOriginIsolated: (globalThis as typeof globalThis & { crossOriginIsolated?: boolean }).crossOriginIsolated,
+    wasmAvailable: typeof WebAssembly !== "undefined"
   };
   let adapter: AdapterLike | null = null;
+  const gpu = scope.navigator?.gpu;
   try {
-    adapter = await scope.navigator?.gpu?.requestAdapter?.({ powerPreference: "high-performance" }) ?? null;
+    adapter = await gpu?.requestAdapter?.({ powerPreference: "high-performance" }) ?? null;
   } catch {
-    // A denied or unavailable adapter is equivalent to no WebGPU capability.
+    // Some engines reject an unsupported power preference instead of returning null.
+  }
+  if (!adapter) {
+    try {
+      // Safari can reject a high-performance preference on an integrated GPU even
+      // when WebGPU is available. Let the browser choose its default adapter before
+      // reporting WebGPU as unavailable.
+      adapter = await gpu?.requestAdapter?.() ?? null;
+    } catch {
+      // A denied or unavailable default adapter means WebGPU is unavailable.
+    }
   }
   const userAgent = scope.navigator?.userAgent ?? "";
   const { browserEngine, hardwareTier } = classifyBrowserEnvironment({
@@ -86,7 +104,7 @@ async function detectRuntimeCapabilities() {
   const maxStorageBufferBindingSize = adapter?.limits?.maxStorageBufferBindingSize;
   return {
     webgpu: Boolean(adapter),
-    wasm: typeof WebAssembly !== "undefined",
+    wasm: scope.wasmAvailable ?? typeof WebAssembly !== "undefined",
     crossOriginIsolated: Boolean(scope.crossOriginIsolated),
     browserEngine,
     hardwareTier,

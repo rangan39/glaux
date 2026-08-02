@@ -3,7 +3,8 @@ import test from "node:test";
 import {
   classifyBrowserEnvironment,
   detectBrowserEngine,
-  detectHardwareTier
+  detectHardwareTier,
+  getRuntimeCapabilities
 } from "../src/lib/browser-runtime.ts";
 
 test("detects Chromium engines from user agent brands and desktop browser tokens", () => {
@@ -29,4 +30,29 @@ test("classifies phones and touch-based iPads as mobile hardware", () => {
     browserEngine: "chromium",
     hardwareTier: "desktop"
   });
+});
+
+test("falls back to the default WebGPU adapter when high-performance is unavailable", async () => {
+  const originalNavigator = globalThis.navigator;
+  const adapterRequests = [];
+  Object.defineProperty(globalThis, "navigator", {
+    configurable: true,
+    value: {
+      gpu: {
+        requestAdapter: async (options) => {
+          adapterRequests.push(options);
+          return options ? null : { limits: { maxStorageBufferBindingSize: 67_108_864 } };
+        }
+      },
+      maxTouchPoints: 0,
+      userAgent: "Mozilla/5.0 (Macintosh; Apple M1) AppleWebKit/605.1.15 Version/18.0 Safari/605.1.15"
+    }
+  });
+
+  try {
+    assert.equal((await getRuntimeCapabilities()).webgpu, true);
+    assert.deepEqual(adapterRequests, [{ powerPreference: "high-performance" }, undefined]);
+  } finally {
+    Object.defineProperty(globalThis, "navigator", { configurable: true, value: originalNavigator });
+  }
 });

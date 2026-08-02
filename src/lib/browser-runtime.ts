@@ -74,6 +74,10 @@ async function detectRuntimeCapabilities() {
   let adapter: AdapterLike | null = null;
   try {
     adapter = await scope.navigator?.gpu?.requestAdapter?.({ powerPreference: "high-performance" }) ?? null;
+    // Safari can reject a high-performance preference on an integrated GPU even
+    // when WebGPU is available. Let the browser choose its default adapter before
+    // reporting WebGPU as unavailable.
+    if (!adapter) adapter = await scope.navigator?.gpu?.requestAdapter?.() ?? null;
   } catch {
     // A denied or unavailable adapter is equivalent to no WebGPU capability.
   }

@@ -1,27 +1,16 @@
 .next/
 .next-e2e/
 .next-product-test/
-out/
 node_modules/
 .npm-cache/
 
 *.log
-.env
-.env.*
+.env*
 
-dist/
-coverage/
 playwright-report/
 test-results/
-artifacts/models/
-artifacts/model-build-venv/
-*.sophon-model
-*.sophon-model.sha256
-*.sophon-model.provenance.txt
 .DS_Store
 .vercel
-.env*
-!.env.example
 
 __pycache__/
 *.py[cod]

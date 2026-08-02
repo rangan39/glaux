@@ -47,17 +47,12 @@ export default function PrivacyPolicy() {
           <section>
             <h2>Retention and deletion</h2>
             <p>Conversation content lasts only for the current page session. Use <strong>Reset conversation</strong> to remove it immediately.</p>
-            <p>Downloaded or partially downloaded data for the selected model remains in browser storage until you switch models, delete it, the browser evicts it, you clear the extension&apos;s site data, or you uninstall the extension. Switching models removes all saved model files before starting the new download from scratch. If Glaux detects multiple model downloads left by an older version, it removes all of them before restoring a model. Open <strong>Models</strong> and use the delete control to remove the current model&apos;s weights, checkpoints, and cached runtime files. To remove all Glaux data, delete the saved model, reset the conversation, and uninstall Glaux from <code>chrome://extensions</code> or clear its stored data through Chrome&apos;s site-data controls.</p>
+            <p>Downloaded or partially downloaded data for the selected model remains in browser storage until you switch models, delete it, the browser evicts it, or you clear Glaux&apos;s site data. Switching models removes all saved model files before starting the new download from scratch. If Glaux detects multiple model downloads left by an older version, it removes all of them before restoring a model. Open <strong>Models</strong> and use the delete control to remove the current model&apos;s weights, checkpoints, and cached runtime files. To remove all Glaux data, delete the saved model, reset the conversation, and clear Glaux&apos;s stored site data through your browser settings.</p>
           </section>
 
           <section>
-            <h2>Permissions</h2>
-            <p>The extension uses <code>unlimitedStorage</code> so the user-selected multi-gigabyte model can remain available locally. Its host access is limited to Hugging Face and related CDN hosts used for model-weight downloads. Glaux does not request browsing history, active-tab, page-content, clipboard, identity, location, camera, or microphone access.</p>
-          </section>
-
-          <section>
-            <h2>Chrome Web Store Limited Use</h2>
-            <p>Glaux&apos;s use of information received from Chrome APIs complies with the Chrome Web Store User Data Policy, including the Limited Use requirements. Data is used only to provide the extension&apos;s single purpose, is not transferred for unrelated purposes, is not used for advertising, and is not made available for human reading.</p>
+            <h2>Browser capabilities</h2>
+            <p>Glaux uses browser storage, Web Workers, and WebGPU to download and run a model locally. Network access is limited to loading Glaux and requesting public model metadata and files from Hugging Face and its delivery hosts. Glaux does not request access to browsing history, other pages, the clipboard, identity, location, camera, or microphone.</p>
           </section>
 
           <section>

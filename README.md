@@ -88,18 +88,6 @@ npm run smoke:product-ui
 
 Fixture mode does not create the inference worker, contact model hosts, or write model bytes.
 
-## Chrome extension
-
-```bash
-npm run build:extension
-npm run smoke:extension
-npm run audit:extension
-```
-
-Load `dist/chrome-extension` from `chrome://extensions` with Developer mode enabled. The extension has its own storage origin, so models downloaded on localhost or the hosted app are not shared with it.
-
-See [chrome-extension/README.md](chrome-extension/README.md) for packaging and review details.
-
 ## Container
 
 ```bash

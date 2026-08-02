@@ -1,7 +1,6 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "entry": [
-    "chrome-extension/background.js",
     "scripts/**/*.mjs",
     "tests/**/*.mjs",
     "e2e/**/*.ts"

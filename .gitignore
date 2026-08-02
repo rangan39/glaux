@@ -1,6 +1,5 @@
 .next/
 .next-e2e/
-.next-extension/
 .next-product-test/
 out/
 node_modules/
@@ -16,7 +15,6 @@ playwright-report/
 test-results/
 artifacts/models/
 artifacts/model-build-venv/
-artifacts/chrome-web-store/
 *.sophon-model
 *.sophon-model.sha256
 *.sophon-model.provenance.txt

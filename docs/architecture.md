@@ -50,7 +50,4 @@ Some source filenames, CSS classes, DOM IDs, and browser-storage keys still use 
 The same browser runtime is delivered as:
 
 - a Next.js web application hosted on Vercel;
-- a Manifest V3 Chrome extension built from the production export;
 - a containerized frontend for self-hosting.
-
-The extension has a separate browser origin, so its downloaded models and local state are not shared with the hosted app or localhost.

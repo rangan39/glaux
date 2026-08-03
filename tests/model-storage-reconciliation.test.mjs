@@ -54,7 +54,7 @@ test("identifies failed storage backends and explains how to recover", async () 
   }), (error) => {
     assert.equal(
       error.message,
-      "Glaux could not remove downloaded model files and download checkpoints from browser storage. Another Glaux tab or a restored browser session is still using that storage. Close other Glaux tabs and retry cleanup, then use Reset Glaux storage if needed."
+      "Glaux could not remove downloaded model files and download checkpoints from browser storage. Another Glaux tab or a restored browser session is still using that storage. Close other Glaux tabs, then use Reset Glaux storage."
     );
     return true;
   });

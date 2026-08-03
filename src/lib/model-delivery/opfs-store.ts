@@ -57,6 +57,10 @@ const MODEL_STORAGE_STAGE_TIMEOUTS_MS: Record<Exclude<ModelStorageCleanupStage, 
   verification: 30_000
 };
 
+export function getModelStorageCleanupTimeoutMs(stage: ModelStorageCleanupStage) {
+  return stage === "waiting-for-lock" ? MODEL_STORAGE_LOCK_TIMEOUT_MS : MODEL_STORAGE_STAGE_TIMEOUTS_MS[stage];
+}
+
 export class ModelStorageCleanupTimeoutError extends Error {
   readonly stage: ModelStorageCleanupStage;
   readonly timeoutMs: number;
@@ -248,9 +252,9 @@ export function getModelStoragePurgeErrorMessage(failures: readonly ModelStorage
     : `${labels.slice(0, -1).join(", ")} and ${labels.at(-1)}`;
   const summary = `Glaux could not remove ${failedStorage} from browser storage.`;
   if (failures.some(({ error }) => isBlockedStorageError(error))) {
-    return `${summary} Another Glaux tab or a restored browser session is still using that storage. Close other Glaux tabs and retry cleanup, then use Reset Glaux storage if needed.`;
+    return `${summary} Another Glaux tab or a restored browser session is still using that storage. Close other Glaux tabs, then use Reset Glaux storage.`;
   }
-  return `${summary} Retry cleanup, then use Reset Glaux storage if Safari still cannot release the files.`;
+  return `${summary} Use Reset Glaux storage to start fresh.`;
 }
 
 export async function retryModelStorageDeletion(

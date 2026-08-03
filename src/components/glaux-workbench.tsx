@@ -50,7 +50,7 @@ import { useProductTestHydration, useProductTestRoute } from "@/hooks/use-produc
 import { useActiveModelPreload } from "@/hooks/use-active-model-preload";
 import { useModelDepartureLifecycle } from "@/hooks/use-model-departure-lifecycle";
 import { clearModelCleanupRequired, clearRememberedModelId, forgetRememberedModelId, markModelCleanupRequired } from "@/lib/remembered-model";
-import { purgeAllModelStorage, withModelStorageDeadline, type ModelStorageCleanupStage } from "@/lib/model-delivery/opfs-store";
+import { getModelStorageCleanupTimeoutMs, purgeAllModelStorage, withModelStorageDeadline, type ModelStorageCleanupStage } from "@/lib/model-delivery/opfs-store";
 import { formatStoredModelDisclosure, getStoredModelSummary, shouldWarnForModelDeparture } from "@/lib/model-storage-awareness";
 import { isModelStorageReady, type StartupCleanupStatus } from "@/lib/model-storage-lifecycle";
 import {
@@ -119,7 +119,7 @@ export function GlauxWorkbench() {
   const [cleanupDiagnostics, setCleanupDiagnostics] = useState("");
   const [cleanupStage, setCleanupStage] = useState<ModelStorageCleanupStage>("waiting-for-lock");
   const [startupCleanupStatus, setStartupCleanupStatus] = useState<StartupCleanupStatus>("cleaning");
-  const [startupCleanupRetryRevision, setStartupCleanupRetryRevision] = useState(0);
+  const [startupCleanupRevision, setStartupCleanupRevision] = useState(0);
   const modelStorageReady = isModelStorageReady(runtimeEnabled, startupCleanupStatus);
   const [communityModels, setCommunityModels] = useCommunityModelInventory(modelStorageReady);
   const [checkingCommunityModel, setCheckingCommunityModel] = useState<string | null>(null);
@@ -280,7 +280,7 @@ export function GlauxWorkbench() {
     return () => {
       active = false;
     };
-  }, [productTestState, startupCleanupRetryRevision]);
+  }, [productTestState, startupCleanupRevision]);
 
   useActiveModelPreload({
     capabilities,
@@ -308,7 +308,7 @@ export function GlauxWorkbench() {
       setCacheSummaries([]);
       setCacheInventoryResolved(false);
       setStartupCleanupStatus("cleaning");
-      setStartupCleanupRetryRevision((value) => value + 1);
+      setStartupCleanupRevision((value) => value + 1);
     },
     onDeparture: () => {
       generationIdRef.current += 1;
@@ -840,13 +840,6 @@ export function GlauxWorkbench() {
                         diagnostics={cleanupDiagnostics}
                         error={startupCleanupStatus === "failed" ? error : null}
                         onReset={() => void resetGlauxStorage()}
-                        onRetry={() => {
-                          setCleanupDiagnostics("");
-                          setError(null);
-                          setStartupCleanupStatus("cleaning");
-                          setCacheInventoryResolved(false);
-                          setStartupCleanupRetryRevision((value) => value + 1);
-                        }}
                         stage={cleanupStage}
                         status={startupCleanupStatus}
                       />
@@ -1057,11 +1050,10 @@ export function GlauxWorkbench() {
   );
 }
 
-function FirstRunCheck({ diagnostics, error, onReset, onRetry, stage, status }: {
+function FirstRunCheck({ diagnostics, error, onReset, stage, status }: {
   diagnostics: string;
   error: string | null;
   onReset: () => void;
-  onRetry: () => void;
   stage: ModelStorageCleanupStage;
   status: StartupCleanupStatus;
 }) {
@@ -1077,18 +1069,29 @@ function FirstRunCheck({ diagnostics, error, onReset, onRetry, stage, status }: 
           {failed ? "Model cleanup needs attention" : resetting ? "Resetting Glaux storage" : cleanupStageTitle(stage)}
         </span>
         <span className="glaux-type-metadata mt-0.5 block text-glaux-copy-metadata" data-typography-role="metadata">
-          {failed ? error : resetting ? "The browser is clearing Glaux model storage before the app starts fresh…" : cleanupStageDetail(stage)}
+          {failed ? error : resetting ? "The browser is clearing Glaux model storage before the app starts fresh…" : <CleanupProgressDetail key={stage} stage={stage} />}
         </span>
       </span>
       {failed ? (
         <span className="ml-auto flex shrink-0 flex-wrap gap-2 max-[359px]:basis-full">
-          <Button className="h-11 grow rounded-xl sm:h-8" onClick={onRetry} size="sm" type="button" variant="outline">Retry cleanup</Button>
           <Button className="h-11 grow rounded-xl sm:h-8" onClick={onReset} size="sm" type="button" variant="sophon">Reset Glaux storage</Button>
           {diagnostics ? <Button className="h-11 grow rounded-xl sm:h-8" onClick={() => void navigator.clipboard.writeText(diagnostics)} size="sm" type="button" variant="ghost">Copy diagnostics</Button> : null}
         </span>
       ) : null}
     </div>
   );
+}
+
+function CleanupProgressDetail({ stage }: { stage: ModelStorageCleanupStage }) {
+  const [startedAt] = useState(() => performance.now());
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setElapsedSeconds(Math.floor((performance.now() - startedAt) / 1_000));
+    }, 1_000);
+    return () => window.clearInterval(timer);
+  }, [startedAt]);
+  return cleanupStageDetail(stage, elapsedSeconds);
 }
 
 function cleanupStageTitle(stage: ModelStorageCleanupStage) {
@@ -1100,10 +1103,20 @@ function cleanupStageTitle(stage: ModelStorageCleanupStage) {
   return "Verifying clean model storage";
 }
 
-function cleanupStageDetail(stage: ModelStorageCleanupStage) {
-  if (stage === "waiting-for-lock") return "Glaux is waiting for another tab or session to finish using model storage…";
-  if (stage === "verification") return "Glaux is confirming that no downloaded model data remains…";
-  return "Glaux is cleaning browser storage before continuing…";
+function cleanupStageDetail(stage: ModelStorageCleanupStage, elapsedSeconds: number) {
+  const timeoutSeconds = Math.ceil(getModelStorageCleanupTimeoutMs(stage) / 1_000);
+  const remainingSeconds = Math.max(0, timeoutSeconds - elapsedSeconds);
+  const timing = `${elapsedSeconds}s elapsed · Recovery available in at most ${remainingSeconds}s`;
+  if (stage === "waiting-for-lock") return `Waiting for another Glaux tab or session to release model storage. ${timing}.`;
+  const steps: Record<Exclude<ModelStorageCleanupStage, "waiting-for-lock">, { detail: string; number: number }> = {
+    cache: { detail: "Deleting cached runtime files", number: 1 },
+    opfs: { detail: "Deleting downloaded model files", number: 2 },
+    checkpoints: { detail: "Deleting resumable download checkpoints", number: 3 },
+    descriptors: { detail: "Deleting current and legacy model catalog records", number: 4 },
+    verification: { detail: "Confirming that no downloaded model data remains", number: 5 }
+  };
+  const current = steps[stage];
+  return `Step ${current.number} of 5 · ${current.detail}. ${timing}.`;
 }
 
 function createCleanupDiagnostics(error: unknown) {

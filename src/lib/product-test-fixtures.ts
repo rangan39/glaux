@@ -17,7 +17,7 @@ export const PRODUCT_TEST_MODEL_IDS = [
 export const PRODUCT_TEST_MODELS: readonly ModelManifest[] = PRODUCT_TEST_MODEL_IDS.map((id, index) => ({
   id,
   label: `Fixture ${String.fromCharCode(65 + index)}`,
-  description: "Deterministic ONNX Community product-test model.",
+  description: "Deterministic ONNX Community test model.",
   licenseLabel: "Test fixture",
   parameterLabel: "Fixture",
   verification: "experimental",

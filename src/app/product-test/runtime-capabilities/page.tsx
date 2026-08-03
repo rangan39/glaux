@@ -7,7 +7,7 @@ export default function RuntimeCapabilitiesProductTestPage() {
 
   return (
     <main>
-      <h1>Runtime capabilities product test</h1>
+      <h1>Runtime capabilities test</h1>
       <RuntimeCapabilitiesProbe />
     </main>
   );

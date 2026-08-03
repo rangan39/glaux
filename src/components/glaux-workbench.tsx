@@ -1,8 +1,9 @@
 "use client";
 
+import Image from "next/image";
 import { type FormEvent, type KeyboardEvent, type SetStateAction, useEffect, useReducer, useRef, useState } from "react";
 import { AlertTriangle, Download, ExternalLink, Gauge, Hammer, HardDrive, LifeBuoy, LoaderCircle, MoonStar, PanelLeft, Pencil, RotateCcw, SendHorizontal, ShieldCheck, Sparkles, Square, Star, Trash2 } from "lucide-react";
-import { GitHubIcon, HuggingFaceIcon } from "@/components/brand-icons";
+import { GitHubIcon } from "@/components/brand-icons";
 import { GlauxAcknowledgements } from "@/components/glaux-acknowledgements";
 import { ConfirmationDialog } from "@/components/confirmation-dialog";
 import { GlauxModelSidebar } from "@/components/glaux-model-sidebar";
@@ -79,7 +80,7 @@ import {
 } from "@/lib/model-action-copy";
 
 const PROMPT_MAX_HEIGHT = 192;
-export function GlauxWorkbench() {
+export function GlauxWorkbench({ githubStarCount = null }: { githubStarCount?: number | null }) {
   const { modelId: productTestModelId, runtimeEnabled, state: productTestState } = useProductTestRoute();
   const [session, dispatchSession] = useReducer(workbenchSessionReducer, INITIAL_WORKBENCH_SESSION);
   const {
@@ -801,10 +802,11 @@ export function GlauxWorkbench() {
 
           <div className={cn("items-center [&_button:hover]:translate-y-0", selectedModel ? "col-start-2 row-start-1 flex w-auto justify-end gap-1 [&_button]:gap-1 sm:col-span-2 sm:col-start-auto sm:row-start-auto sm:w-full sm:gap-2 lg:col-span-1 lg:w-auto lg:shrink-0 lg:gap-3 lg:[&_button]:gap-2" : "flex shrink-0 gap-1.5 sm:gap-3")} data-testid="workbench-actions">
             <Button asChild className="h-10 rounded-xl px-2.5 sm:px-3" size="sm" variant="sophon">
-              <a aria-label="Star Glaux on GitHub (opens in a new tab)" data-testid="github-star-link" href={PROJECT_REPOSITORY_URL} rel="noreferrer" target="_blank" title="Star Glaux on GitHub">
+              <a aria-label={`Star Glaux on GitHub${githubStarCount === null ? "" : ` · ${githubStarCount.toLocaleString("en-US")} stars`} (opens in a new tab)`} data-testid="github-star-link" href={PROJECT_REPOSITORY_URL} rel="noreferrer" target="_blank" title="Star Glaux on GitHub">
                 <GitHubIcon aria-hidden="true" className="size-4" />
                 <span className="hidden sm:inline">Star</span>
                 <Star aria-hidden="true" className="hidden size-3.5 sm:block" />
+                {githubStarCount === null ? null : <span aria-hidden="true" className="border-l border-glaux-glass-border pl-2 font-mono text-xs tabular-nums">{githubStarCount.toLocaleString("en-US")}</span>}
               </a>
             </Button>
             {generation.status === "loading" ? <Button aria-label={modelLoadCancelLabel} className="size-10 rounded-xl p-0" onClick={cancelModelLoad} size="sm" title={modelLoadCancelLabel} type="button" variant="sophon"><Square aria-hidden="true" className="size-3 fill-current" /><span className="sr-only">{modelLoadCancelText}</span></Button> : null}
@@ -1242,7 +1244,7 @@ function FirstRunWelcome({ notice, onDismissNotice, onOpenModels }: {
 
           <div className="mt-4 rounded-xl border border-glaux-glass-border bg-glaux-glass-tile p-3 sm:grid sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:gap-3" data-testid="first-run-recommended">
             <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-lg border border-glaux-glass-border bg-glaux-panel-deep text-glaux-signal-soft" data-testid="first-run-recommended-icon">
-              <HuggingFaceIcon className="size-5 text-[#FFD21E]" />
+              <Image alt="" className="size-6" height={24} src="/hugging-face.svg" width={24} />
             </span>
             <div className="mt-3 min-w-0 sm:mt-0" data-testid="first-run-recommended-details">
               <div className="flex flex-wrap items-center gap-1.5">

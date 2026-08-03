@@ -19,7 +19,7 @@ The UI and worker communicate with typed messages. The worker owns the active Tr
 
 ## Model discovery
 
-The sidebar exposes three views: model search, selected-model details, and Dev Mode. Search queries the public Hugging Face API for repositories in the `onnx-community` namespace. With an empty query, Glaux shows five popular compatible text-generation models. Results and hydrated metadata are cached in IndexedDB to make subsequent browsing responsive.
+The sidebar exposes responsive Popular, Lightweight, and All Models catalog views, selected-model details, and Dev Mode. Catalog queries use the public Hugging Face API for repositories in the `onnx-community` namespace. Results and hydrated metadata are cached in IndexedDB to make subsequent browsing responsive. Model details open when download begins, while Dev Mode remains unavailable until the model runtime is ready.
 
 Catalog presence does not imply runtime compatibility. Before download, Glaux resolves the selected repository to an immutable revision and builds a descriptor that validates the declared task, supported architecture, chat template, tokenizer resources, ONNX graph, external data, sizes, and available integrity metadata. Unsupported or incomplete repositories fail closed with an actionable error.
 
@@ -27,7 +27,7 @@ Catalog presence does not imply runtime compatibility. Before download, Glaux re
 
 Users explicitly approve model downloads. Glaux preflights browser storage, then streams the pinned repository files from Hugging Face into the Origin Private File System. Resumable checkpoints and cache inventory live in IndexedDB. Browser Cache Storage holds runtime assets where required by Transformers.js.
 
-Glaux keeps one complete or partial model at a time. Replacing it requires confirmation and removes the previous model data before the new transfer begins. Clearing site data removes the local catalog, descriptors, checkpoints, model files, and runtime caches. Storage persistence and eviction remain controlled by the browser.
+Glaux keeps one complete or partial model at a time. Replacing it requires confirmation and removes the previous model data before the new transfer begins. Model storage is session-scoped: departure cleanup is best effort, and every fresh page load performs an exclusive, bounded purge followed by physical verification before model use is enabled. If cleanup cannot be verified, the in-app reset flow asks the browser to clear same-origin storage and repeats the audit. Storage implementation and eviction remain controlled by the browser.
 
 ## Inference
 

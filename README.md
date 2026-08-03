@@ -2,7 +2,7 @@
 
 Glaux is an open-source local AI workspace for running compatible Hugging Face ONNX Community text-generation models directly in a browser with WebGPU. Prompts and generated responses stay in the browser; Glaux has no inference server, account system, analytics, or cloud fallback.
 
-Production app: [glaux-ai.vercel.app](https://glaux-ai.vercel.app)
+Production app: [glaux.rangan39.sh](https://glaux.rangan39.sh)
 
 The application is MIT licensed. Model weights retain the license published by each Hugging Face repository.
 
@@ -17,13 +17,16 @@ Glaux is designed around explicit trust boundaries. Model installation requires 
 ## Current product
 
 - Searches the `onnx-community` namespace from the browser and keeps a local searchable catalog in IndexedDB.
-- Shows five popular text-generation models when the search field is empty.
+- Provides responsive, paginated Popular, Lightweight, and All Models catalog views with browser-side filtering.
 - Pins a selected repository to an immutable Hugging Face revision and validates its task, architecture, chat template, graph, file sizes, and integrity metadata before download.
 - Downloads ONNX graphs and external tensor data directly into browser-private OPFS storage with resumable checkpoints.
 - Runs tokenization and WebGPU inference in a persistent Web Worker through Transformers.js and ONNX Runtime Web.
 - Stores one model at a time and confirms replacement before deleting the existing model.
-- Restores compatible downloaded community models across browser sessions.
-- Provides model search, Hugging Face model details, and developer inspection views in the sidebar.
+- Treats model storage as session-scoped: departure cleanup is best effort, and every fresh page load performs an authoritative purge and verification before model selection is enabled.
+- Opens the selected model’s details as soon as download begins, reports download/loading state in yellow, and turns green only after the runtime is ready.
+- Provides model search, pinned Hugging Face model details, deletion controls, and developer inspection views in the sidebar.
+- Downloads model files without allocating the inference runtime automatically on mobile; users explicitly load the downloaded model when ready.
+- Falls back to an in-app, same-origin browser-storage reset when normal cleanup cannot be verified.
 - Reports token timing, TTFT, decode throughput, TPOT, and end-to-end generation latency.
 - Supports token- and word-level response inspection in Dev Mode.
 
@@ -78,7 +81,9 @@ See [docs/architecture.md](docs/architecture.md) for runtime and compatibility d
 
 Community model descriptors and catalog metadata are stored in IndexedDB. Model files are streamed into the Origin Private File System. Downloads are pinned to immutable revisions, preflighted against browser quota, and checked against the integrity metadata available from Hugging Face. Glaux keeps one model download at a time; selecting another model removes the previous model’s complete or partial data only after confirmation.
 
-Clearing site data removes the local catalog, saved descriptors, checkpoints, models, and runtime caches. Browser eviction behavior remains under browser control.
+Downloaded model data is intentionally ephemeral. Glaux records an outstanding cleanup obligation before delivery begins, attempts cleanup during page departure, and starts every new visit by exclusively deleting and physically verifying Cache Storage, OPFS model files, IndexedDB checkpoints, and saved model descriptors. Model selection and inference stay disabled until that audit succeeds.
+
+Cleanup stages have bounded deadlines and visible progress. If another tab, a suspended session, or a browser storage operation prevents verification, Glaux fails closed and offers **Reset Glaux storage**. That same-origin endpoint asks the browser to clear the origin’s storage with `Clear-Site-Data`, reloads the application, and repeats the clean-state audit. Browser eviction and the underlying storage implementation remain under browser control.
 
 ## Product-test states
 
@@ -88,7 +93,7 @@ Start deterministic development fixtures without downloading a model:
 npm run product:ui
 ```
 
-Fixture URLs use `?sophon-product-test=<state>`. Available states are `checking`, `legacy-cleanup`, `legacy-cleanup-error`, `confirmation`, `replacement-confirmation`, `replacement-deleting`, `downloading`, `paused`, `verifying`, `ready`, `retry-success`, `generating`, `stopped`, `error`, and `reset`. Add `&sophon-product-model=` with one of `hf:fixture-alpha`, `hf:fixture-beta`, `hf:fixture-gamma`, or `hf:fixture-delta` to select a deterministic model fixture.
+Fixture URLs use `?sophon-product-test=<state>`. Available states are `checking`, `legacy-cleanup`, `legacy-cleanup-error`, `cleanup-timeout`, `confirmation`, `replacement-confirmation`, `replacement-deleting`, `downloading`, `paused`, `verifying`, `ready`, `retry-success`, `generating`, `stopped`, `error`, and `reset`. Add `&sophon-product-model=` with one of `hf:fixture-alpha`, `hf:fixture-beta`, `hf:fixture-gamma`, or `hf:fixture-delta` to select a deterministic model fixture.
 
 ```bash
 npm run smoke:product-ui
@@ -99,12 +104,12 @@ Fixture mode does not create the inference worker, contact model hosts, or write
 ## Project layout
 
 ```text
-src/components/glaux-workbench.tsx       Main chat workspace
-src/components/glaux-model-sidebar.tsx   Search, details, and Dev Mode views
-src/lib/model-catalog/                Browser catalog and immutable descriptors
-src/lib/model-delivery/               OPFS downloads and cache inventory
-src/lib/onnx-runner.ts                Transformers.js pipeline orchestration
-src/workers/onnx-worker.ts            Browser inference worker
+src/components/glaux-workbench.tsx      Main chat workspace and storage lifecycle
+src/components/glaux-model-sidebar.tsx  Catalog, model details, and Dev Mode views
+src/lib/model-catalog/                   Browser catalog and immutable descriptors
+src/lib/model-delivery/                  OPFS delivery, cleanup, and cache inventory
+src/lib/onnx-runner.ts                   Transformers.js pipeline orchestration
+src/workers/onnx-worker.ts               Browser download and inference worker
 ```
 
 The historical lowercase `sophon-*` storage namespaces remain internal compatibility identifiers so existing installations can still find and remove legacy model data. The active design-system namespace is `glaux-*`.

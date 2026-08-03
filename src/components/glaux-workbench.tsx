@@ -52,6 +52,7 @@ import { useModelDepartureLifecycle } from "@/hooks/use-model-departure-lifecycl
 import { clearRememberedModelId, forgetRememberedModelId } from "@/lib/remembered-model";
 import { purgeAllModelStorage } from "@/lib/model-delivery/opfs-store";
 import { formatStoredModelDisclosure, getStoredModelSummary, shouldWarnForModelDeparture } from "@/lib/model-storage-awareness";
+import { isModelStorageReady } from "@/lib/model-storage-lifecycle";
 import {
   activityFromLog,
   activityFromTelemetry,
@@ -115,7 +116,10 @@ export function GlauxWorkbench() {
   const setResetConfirmationOpen = (value: SetStateAction<boolean>) => setSessionField("resetConfirmationOpen", value);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [developerMode, setDeveloperMode] = useState(false);
-  const [communityModels, setCommunityModels] = useCommunityModelInventory(runtimeEnabled);
+  const [startupCleanupStatus, setStartupCleanupStatus] = useState<StartupCleanupStatus>("cleaning");
+  const [startupCleanupRetryRevision, setStartupCleanupRetryRevision] = useState(0);
+  const modelStorageReady = isModelStorageReady(runtimeEnabled, startupCleanupStatus);
+  const [communityModels, setCommunityModels] = useCommunityModelInventory(modelStorageReady);
   const [checkingCommunityModel, setCheckingCommunityModel] = useState<string | null>(null);
   const [previewSelection, setPreviewSelection] = useState<CommunityModelPreviewSelection | null>(null);
   const [libraryModelId, setLibraryModelId] = useState("");
@@ -125,8 +129,6 @@ export function GlauxWorkbench() {
   const [capabilities, setCapabilities] = useModelRuntimeCapabilities(runtimeEnabled);
   const [cacheSummaries, setCacheSummaries] = useState<ModelCacheSummary[]>([]);
   const [cacheInventoryResolved, setCacheInventoryResolved] = useState(false);
-  const [startupCleanupStatus, setStartupCleanupStatus] = useState<StartupCleanupStatus>("cleaning");
-  const [startupCleanupRetryRevision, setStartupCleanupRetryRevision] = useState(0);
   const [storageRevision, setStorageRevision] = useState(0);
   const [browserStorage, setBrowserStorage] = useBrowserStorage(runtimeEnabled, storageRevision);
   const generationIdRef = useRef(0);

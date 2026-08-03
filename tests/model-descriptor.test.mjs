@@ -6,11 +6,15 @@ register("./alias-loader.mjs", import.meta.url);
 
 const {
   assessCommunityModelCompatibility,
+  COMMUNITY_MODEL_DATABASE,
   CommunityModelDescriptorError,
   CommunityModelDescriptorStoreError,
   createCommunityModelDescriptor,
+  deleteCommunityModelDatabases,
   deleteSavedCommunityModelDescriptor,
+  getRemainingCommunityModelDatabases,
   getSavedCommunityModelDescriptor,
+  LEGACY_COMMUNITY_MODEL_DATABASE,
   listSavedCommunityModelDescriptors,
   parseCommunityModelDescriptor,
   saveCommunityModelDescriptor
@@ -154,6 +158,35 @@ test("persists, reads, lists, and deletes immutable descriptors", async () => {
 
   await deleteSavedCommunityModelDescriptor(qwen.id, storage);
   assert.equal(await getSavedCommunityModelDescriptor(qwen.id, storage), null);
+});
+
+test("purges current and legacy descriptor databases", async () => {
+  const deleted = [];
+  await deleteCommunityModelDatabases(async (name) => { deleted.push(name); });
+  assert.deepEqual(deleted, [COMMUNITY_MODEL_DATABASE, LEGACY_COMMUNITY_MODEL_DATABASE]);
+});
+
+test("attempts both descriptor databases when one deletion fails", async () => {
+  const deleted = [];
+  await assert.rejects(
+    deleteCommunityModelDatabases(async (name) => {
+      deleted.push(name);
+      if (name === COMMUNITY_MODEL_DATABASE) throw new Error("blocked");
+    }),
+    AggregateError
+  );
+  assert.deepEqual(deleted, [COMMUNITY_MODEL_DATABASE, LEGACY_COMMUNITY_MODEL_DATABASE]);
+});
+
+test("detects current and legacy descriptor database residue", () => {
+  assert.deepEqual(
+    getRemainingCommunityModelDatabases([
+      { name: "unrelated" },
+      { name: COMMUNITY_MODEL_DATABASE },
+      { name: LEGACY_COMMUNITY_MODEL_DATABASE }
+    ]).map(({ name }) => name),
+    [COMMUNITY_MODEL_DATABASE, LEGACY_COMMUNITY_MODEL_DATABASE]
+  );
 });
 
 test("refuses to overwrite a different descriptor with the same immutable identity", async () => {

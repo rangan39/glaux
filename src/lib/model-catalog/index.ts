@@ -22,8 +22,12 @@ export {
   parseCommunityModelDescriptor
 } from "@/lib/model-catalog/descriptor";
 export {
+  COMMUNITY_MODEL_DATABASE,
   CommunityModelDescriptorStoreError,
+  LEGACY_COMMUNITY_MODEL_DATABASE,
+  deleteCommunityModelDatabases,
   deleteSavedCommunityModelDescriptor,
+  getRemainingCommunityModelDatabases,
   getSavedCommunityModelDescriptor,
   listSavedCommunityModelDescriptors,
   saveCommunityModelDescriptor,

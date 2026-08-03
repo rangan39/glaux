@@ -17,10 +17,11 @@ test("purges every model storage backend before verifying", async () => {
   await runModelStoragePurge({
     deleteCache: async () => { events.push("cache"); },
     deleteDatabase: async () => { events.push("database"); },
+    deleteDescriptors: async () => { events.push("descriptors"); },
     deleteOpfs: async () => { events.push("opfs"); },
     verify: async () => { events.push("verify"); }
   });
-  assert.deepEqual(events, ["cache", "opfs", "database", "verify"]);
+  assert.deepEqual(events, ["cache", "opfs", "database", "descriptors", "verify"]);
 });
 
 test("attempts every backend and skips verification when any purge fails", async () => {
@@ -28,16 +29,18 @@ test("attempts every backend and skips verification when any purge fails", async
   await assert.rejects(runModelStoragePurge({
     deleteCache: async () => { events.push("cache"); throw new Error("cache failed"); },
     deleteDatabase: async () => { events.push("database"); throw new Error("database failed"); },
+    deleteDescriptors: async () => { events.push("descriptors"); throw new Error("descriptors failed"); },
     deleteOpfs: async () => { events.push("opfs"); },
     verify: async () => { events.push("verify"); }
   }), AggregateError);
-  assert.deepEqual(events, ["cache", "opfs", "database"]);
+  assert.deepEqual(events, ["cache", "opfs", "database", "descriptors"]);
 });
 
 test("fails closed when physical storage verification finds residue", async () => {
   await assert.rejects(runModelStoragePurge({
     deleteCache: async () => {},
     deleteDatabase: async () => {},
+    deleteDescriptors: async () => {},
     deleteOpfs: async () => {},
     verify: async () => { throw new Error("residual files"); }
   }), /residual files/);

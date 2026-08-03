@@ -7,6 +7,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getModelRuntimeProfile, type ModelManifest } from "@/lib/onnx-models";
 import type { ModelCacheState, RuntimeCapabilities } from "@/lib/onnx-types";
+import { getReadySidebarModelId } from "@/lib/model-sidebar-navigation";
 import { cn } from "@/lib/utils";
 import type { TokenInspectMode } from "@/components/token-lens";
 import {
@@ -49,9 +50,22 @@ export function GlauxModelSidebar({ capabilities, communityModels = [], disabled
   const [view, setView] = useState<SidebarView>("popular");
   const [catalogView, setCatalogView] = useState<CatalogView>("popular");
   const [dismissedDetailsForModelId, setDismissedDetailsForModelId] = useState<string | null>(null);
+  const readyModelIdRef = useRef<string | null>(null);
+  const readyModelId = getReadySidebarModelId({ cacheState: modelCacheState, loaded: modelLoaded, modelId });
   const displayedView = modelCacheState === "cached" && modelId && dismissedDetailsForModelId !== modelId
     ? "details"
     : view === "details" && modelCacheState === "missing" ? catalogView : view;
+  useEffect(() => {
+    if (!readyModelId) {
+      readyModelIdRef.current = null;
+      return;
+    }
+    if (readyModelIdRef.current === readyModelId) return;
+    readyModelIdRef.current = readyModelId;
+    setDismissedDetailsForModelId(null);
+    setView("details");
+    onInspectModeChange?.(false);
+  }, [onInspectModeChange, readyModelId]);
   function selectView(nextView: SidebarView) {
     if (isCatalogView(nextView)) setCatalogView(nextView);
     setDismissedDetailsForModelId(nextView === "details" ? null : modelId);

@@ -250,6 +250,7 @@ export function GlauxWorkbench() {
     })()
       .catch((caught) => {
         if (!active) return;
+        console.error("Glaux startup model-storage cleanup failed.", caught);
         setCacheSummaries([]);
         setCacheInventoryResolved(false);
         setStartupCleanupStatus("failed");
@@ -277,6 +278,18 @@ export function GlauxWorkbench() {
 
   useModelDepartureLifecycle({
     warnBeforeLeaving: productTestState === null && shouldWarnForModelDeparture(cacheSummaries, { loading: isModelLoading, paused: modelLoadPaused }),
+    onPageRestore: () => {
+      if (productTestState !== null) return;
+      generationIdRef.current += 1;
+      terminateRuntimeWorker();
+      dispatchSession({ type: "model/stopped" });
+      clearRememberedModelId();
+      setError(null);
+      setCacheSummaries([]);
+      setCacheInventoryResolved(false);
+      setStartupCleanupStatus("cleaning");
+      setStartupCleanupRetryRevision((value) => value + 1);
+    },
     onDeparture: () => {
       generationIdRef.current += 1;
       clearRememberedModelId();

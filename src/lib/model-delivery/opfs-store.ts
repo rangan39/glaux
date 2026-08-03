@@ -153,19 +153,52 @@ export type ModelStoragePurgeDependencies = {
   verify: () => Promise<void>;
 };
 
+type ModelStoragePurgeFailure = {
+  label: string;
+  error: unknown;
+};
+
 export async function runModelStoragePurge(dependencies: ModelStoragePurgeDependencies) {
-  const failures: unknown[] = [];
-  for (const operation of [dependencies.deleteCache, dependencies.deleteOpfs, dependencies.deleteDatabase, dependencies.deleteDescriptors]) {
+  const failures: ModelStoragePurgeFailure[] = [];
+  const operations = [
+    { label: "cached model files", run: dependencies.deleteCache },
+    { label: "downloaded model files", run: dependencies.deleteOpfs },
+    { label: "download checkpoints", run: dependencies.deleteDatabase },
+    { label: "saved model details", run: dependencies.deleteDescriptors }
+  ];
+  for (const operation of operations) {
     try {
-      await operation();
+      await operation.run();
     } catch (error) {
-      failures.push(error);
+      failures.push({ label: operation.label, error });
     }
   }
   if (failures.length > 0) {
-    throw new AggregateError(failures, "Glaux could not remove all model data from browser storage.");
+    throw new AggregateError(
+      failures.map(({ error }) => error),
+      getModelStoragePurgeErrorMessage(failures)
+    );
   }
   await dependencies.verify();
+}
+
+export function getModelStoragePurgeErrorMessage(failures: readonly ModelStoragePurgeFailure[]) {
+  const labels = failures.map(({ label }) => label);
+  const failedStorage = labels.length === 1
+    ? labels[0]
+    : `${labels.slice(0, -1).join(", ")} and ${labels.at(-1)}`;
+  const summary = `Glaux could not remove ${failedStorage} from browser storage.`;
+  if (failures.some(({ error }) => isBlockedStorageError(error))) {
+    return `${summary} Another Glaux tab or a restored browser session is still using that storage. Close every Glaux tab, fully close the browser, then reopen Glaux and retry cleanup.`;
+  }
+  return `${summary} Close other Glaux tabs and retry. If it continues, fully close and reopen the browser or clear Glaux's website data.`;
+}
+
+function isBlockedStorageError(error: unknown): boolean {
+  if (error instanceof AggregateError) return error.errors.some(isBlockedStorageError);
+  if (!(error instanceof Error)) return false;
+  return /block(?:ed|ing)|another (?:glaux )?tab|still (?:open|using)/i.test(error.message)
+    || isBlockedStorageError(error.cause);
 }
 
 export async function purgeAllModelStorage() {

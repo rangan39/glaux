@@ -3,7 +3,15 @@ import { register } from "node:module";
 import test from "node:test";
 
 register("./alias-loader.mjs", import.meta.url);
-const { getModelStoragePurgeErrorMessage, isLegacyBundledModelRequest, retryModelStorageDeletion, runModelStoragePurge } = await import("../src/lib/model-delivery/opfs-store.ts");
+const {
+  getModelStoragePurgeErrorMessage,
+  isLegacyBundledModelRequest,
+  ModelStorageCleanupTimeoutError,
+  retryModelStorageDeletion,
+  runModelStoragePurge,
+  runWithModelStorageLock,
+  withModelStorageDeadline
+} = await import("../src/lib/model-delivery/opfs-store.ts");
 
 test("identifies only obsolete bundled model cache requests", () => {
   assert.equal(isLegacyBundledModelRequest("https://glaux.example/model-runtime/shared/tokenizer.json"), true);
@@ -96,4 +104,66 @@ test("fails closed when physical storage verification finds residue", async () =
     deleteOpfs: async () => {},
     verify: async () => { throw new Error("residual files"); }
   }), /residual files/);
+});
+
+test("reports each cleanup stage in order", async () => {
+  const stages = [];
+  await runModelStoragePurge({
+    deleteCache: async () => {},
+    deleteDatabase: async () => {},
+    deleteDescriptors: async () => {},
+    deleteOpfs: async () => {},
+    verify: async () => {}
+  }, { onStage: ({ stage }) => stages.push(stage) });
+  assert.deepEqual(stages, ["cache", "opfs", "checkpoints", "descriptors", "verification"]);
+});
+
+test("times out a storage operation that never settles", async () => {
+  await assert.rejects(
+    withModelStorageDeadline(new Promise(() => {}), "opfs", 5),
+    (error) => error instanceof ModelStorageCleanupTimeoutError
+      && error.stage === "opfs"
+      && error.lockAcquired === true
+  );
+});
+
+test("does not start later cleanup stages after an indeterminate timeout", async () => {
+  const events = [];
+  await assert.rejects(runModelStoragePurge({
+    deleteCache: async () => { events.push("cache"); },
+    deleteOpfs: async () => { events.push("opfs"); await new Promise(() => {}); },
+    deleteDatabase: async () => { events.push("database"); },
+    deleteDescriptors: async () => { events.push("descriptors"); },
+    verify: async () => { events.push("verify"); }
+  }, { stageTimeoutsMs: { opfs: 5 } }), ModelStorageCleanupTimeoutError);
+  assert.deepEqual(events, ["cache", "opfs"]);
+});
+
+test("aborts lock acquisition when another session never releases it", async () => {
+  let taskStarted = false;
+  const locks = {
+    request: async (_name, { signal }, callback) => new Promise((resolve, reject) => {
+      signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+      void callback;
+      void resolve;
+    })
+  };
+  await assert.rejects(
+    runWithModelStorageLock(locks, async () => { taskStarted = true; }, { lockTimeoutMs: 5 }),
+    (error) => error instanceof ModelStorageCleanupTimeoutError
+      && error.stage === "waiting-for-lock"
+      && error.lockAcquired === false
+  );
+  assert.equal(taskStarted, false);
+});
+
+test("runs cleanup when the storage lock becomes available before its deadline", async () => {
+  const stages = [];
+  const locks = { request: async (_name, _options, callback) => callback() };
+  const result = await runWithModelStorageLock(locks, async () => "clean", {
+    lockTimeoutMs: 100,
+    onStage: ({ stage }) => stages.push(stage)
+  });
+  assert.equal(result, "clean");
+  assert.deepEqual(stages, ["waiting-for-lock"]);
 });

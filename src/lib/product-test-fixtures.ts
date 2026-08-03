@@ -39,6 +39,7 @@ export const PRODUCT_TEST_STATES = [
   "checking",
   "legacy-cleanup",
   "legacy-cleanup-error",
+  "cleanup-timeout",
   "confirmation",
   "replacement-confirmation",
   "replacement-deleting",
@@ -215,7 +216,7 @@ export function createProductTestSnapshot(state: ProductTestState, activeModelId
     };
   }
 
-  if (state === "legacy-cleanup" || state === "legacy-cleanup-error") {
+  if (state === "legacy-cleanup" || state === "legacy-cleanup-error" || state === "cleanup-timeout") {
     const legacyCaches = cacheSummaries("cached", MODEL_BYTES, MODEL_BYTES, MODEL_ID).map((summary) => (
       summary.modelId === "hf:fixture-beta"
         ? { ...summary, state: "cached" as const, resumableBytes: MODEL_BYTES, verifiedBytes: MODEL_BYTES }
@@ -223,10 +224,12 @@ export function createProductTestSnapshot(state: ProductTestState, activeModelId
     ));
     return {
       ...snapshot,
-      error: state === "legacy-cleanup-error"
-        ? "The browser could not remove old model files from browser storage."
-        : null,
-      startupCleanupStatus: state === "legacy-cleanup-error" ? "failed" : "cleaning",
+      error: state === "cleanup-timeout"
+        ? "Glaux timed out waiting for another session to release model storage."
+        : state === "legacy-cleanup-error"
+          ? "The browser could not remove old model files from browser storage."
+          : null,
+      startupCleanupStatus: state === "legacy-cleanup-error" || state === "cleanup-timeout" ? "failed" : "cleaning",
       modelReplacementPhase: state === "legacy-cleanup" ? "deleting" : null,
       cacheSummaries: legacyCaches,
       cacheInventoryResolved: false

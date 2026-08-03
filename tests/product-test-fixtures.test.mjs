@@ -52,6 +52,8 @@ test("provides complete deterministic lifecycle snapshots", () => {
   assert.equal(snapshots.get("legacy-cleanup").cacheInventoryResolved, false);
   assert.equal(snapshots.get("legacy-cleanup-error").startupCleanupStatus, "failed");
   assert.match(snapshots.get("legacy-cleanup-error").error, /could not remove/i);
+  assert.equal(snapshots.get("cleanup-timeout").startupCleanupStatus, "failed");
+  assert.match(snapshots.get("cleanup-timeout").error, /timed out waiting/i);
   assert.equal(snapshots.get("confirmation").pendingModelDownloadId, "hf:fixture-alpha");
   assert.equal(snapshots.get("replacement-confirmation").pendingModelDownloadId, "hf:fixture-beta");
   assert.equal(snapshots.get("replacement-confirmation").modelId, "hf:fixture-alpha");

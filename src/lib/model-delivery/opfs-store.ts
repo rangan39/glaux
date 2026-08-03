@@ -45,6 +45,48 @@ export const MODEL_RUNTIME_CACHE = "transformers-cache";
 const MODEL_STORAGE_VERSION = "v1";
 export const MODEL_STORAGE_LOCK = "glaux:model-storage";
 const MODEL_STORAGE_DELETE_RETRY_DELAYS_MS = [150, 500, 1_200] as const;
+const MODEL_STORAGE_LOCK_TIMEOUT_MS = 15_000;
+
+export type ModelStorageCleanupStage = "waiting-for-lock" | "cache" | "opfs" | "checkpoints" | "descriptors" | "verification";
+
+const MODEL_STORAGE_STAGE_TIMEOUTS_MS: Record<Exclude<ModelStorageCleanupStage, "waiting-for-lock">, number> = {
+  cache: 30_000,
+  opfs: 120_000,
+  checkpoints: 30_000,
+  descriptors: 30_000,
+  verification: 30_000
+};
+
+export class ModelStorageCleanupTimeoutError extends Error {
+  readonly stage: ModelStorageCleanupStage;
+  readonly timeoutMs: number;
+  readonly lockAcquired: boolean;
+
+  constructor(stage: ModelStorageCleanupStage, timeoutMs: number, lockAcquired: boolean) {
+    super(stage === "waiting-for-lock"
+      ? "Glaux timed out waiting for another session to release model storage."
+      : `Glaux could not confirm that ${modelStorageStageLabel(stage)} finished within ${Math.ceil(timeoutMs / 1_000)} seconds.`);
+    this.name = "ModelStorageCleanupTimeoutError";
+    this.stage = stage;
+    this.timeoutMs = timeoutMs;
+    this.lockAcquired = lockAcquired;
+  }
+}
+
+export type ModelStorageCleanupProgress = {
+  stage: ModelStorageCleanupStage;
+  lockAcquired: boolean;
+};
+
+export type ModelStorageCleanupOptions = {
+  lockTimeoutMs?: number;
+  onStage?: (progress: ModelStorageCleanupProgress) => void;
+  stageTimeoutsMs?: Partial<Record<Exclude<ModelStorageCleanupStage, "waiting-for-lock">, number>>;
+};
+
+type ModelStorageLockManager = {
+  request: <T>(name: string, options: LockOptions, callback: () => Promise<T>) => Promise<T>;
+};
 
 export function supportsPersistentModelDelivery() {
   return typeof navigator !== "undefined"
@@ -159,18 +201,28 @@ type ModelStoragePurgeFailure = {
   error: unknown;
 };
 
-export async function runModelStoragePurge(dependencies: ModelStoragePurgeDependencies) {
+export async function runModelStoragePurge(
+  dependencies: ModelStoragePurgeDependencies,
+  options: ModelStorageCleanupOptions = {}
+) {
   const failures: ModelStoragePurgeFailure[] = [];
   const operations = [
-    { label: "cached model files", run: dependencies.deleteCache },
-    { label: "downloaded model files", run: dependencies.deleteOpfs },
-    { label: "download checkpoints", run: dependencies.deleteDatabase },
-    { label: "saved model details", run: dependencies.deleteDescriptors }
+    { label: "cached model files", stage: "cache" as const, run: dependencies.deleteCache },
+    { label: "downloaded model files", stage: "opfs" as const, run: dependencies.deleteOpfs },
+    { label: "download checkpoints", stage: "checkpoints" as const, run: dependencies.deleteDatabase },
+    { label: "saved model details", stage: "descriptors" as const, run: dependencies.deleteDescriptors }
   ];
   for (const operation of operations) {
     try {
-      await operation.run();
+      options.onStage?.({ stage: operation.stage, lockAcquired: true });
+      await withModelStorageDeadline(
+        operation.run(),
+        operation.stage,
+        options.stageTimeoutsMs?.[operation.stage] ?? MODEL_STORAGE_STAGE_TIMEOUTS_MS[operation.stage],
+        true
+      );
     } catch (error) {
+      if (error instanceof ModelStorageCleanupTimeoutError) throw error;
       failures.push({ label: operation.label, error });
     }
   }
@@ -180,7 +232,13 @@ export async function runModelStoragePurge(dependencies: ModelStoragePurgeDepend
       getModelStoragePurgeErrorMessage(failures)
     );
   }
-  await dependencies.verify();
+  options.onStage?.({ stage: "verification", lockAcquired: true });
+  await withModelStorageDeadline(
+    dependencies.verify(),
+    "verification",
+    options.stageTimeoutsMs?.verification ?? MODEL_STORAGE_STAGE_TIMEOUTS_MS.verification,
+    true
+  );
 }
 
 export function getModelStoragePurgeErrorMessage(failures: readonly ModelStoragePurgeFailure[]) {
@@ -218,7 +276,7 @@ function isBlockedStorageError(error: unknown): boolean {
     || isBlockedStorageError(error.cause);
 }
 
-export async function purgeAllModelStorage() {
+export async function purgeAllModelStorage(options: ModelStorageCleanupOptions = {}) {
   const purge = () => runModelStoragePurge({
     deleteCache: async () => {
       if (typeof caches !== "undefined") await caches.delete(MODEL_RUNTIME_CACHE);
@@ -237,12 +295,53 @@ export async function purgeAllModelStorage() {
       });
     },
     verify: assertModelStorageEmpty
-  });
+  }, options);
   if (typeof navigator !== "undefined" && typeof navigator.locks?.request === "function") {
-    await navigator.locks.request(MODEL_STORAGE_LOCK, { mode: "exclusive" }, purge);
+    await runWithModelStorageLock(navigator.locks, purge, options);
   } else {
     await purge();
   }
+}
+
+export async function runWithModelStorageLock<T>(
+  locks: ModelStorageLockManager,
+  task: () => Promise<T>,
+  options: ModelStorageCleanupOptions = {}
+) {
+  options.onStage?.({ stage: "waiting-for-lock", lockAcquired: false });
+  const controller = new AbortController();
+  const timeoutMs = options.lockTimeoutMs ?? MODEL_STORAGE_LOCK_TIMEOUT_MS;
+  const timeout = setTimeout(() => controller.abort(new ModelStorageCleanupTimeoutError("waiting-for-lock", timeoutMs, false)), timeoutMs);
+  try {
+    return await locks.request(MODEL_STORAGE_LOCK, { mode: "exclusive", signal: controller.signal }, task);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export async function withModelStorageDeadline<T>(
+  operation: Promise<T>,
+  stage: Exclude<ModelStorageCleanupStage, "waiting-for-lock">,
+  timeoutMs: number,
+  lockAcquired = true
+) {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timeout = setTimeout(() => reject(new ModelStorageCleanupTimeoutError(stage, timeoutMs, lockAcquired)), timeoutMs);
+  });
+  try {
+    return await Promise.race([operation, deadline]);
+  } finally {
+    if (timeout !== undefined) clearTimeout(timeout);
+  }
+}
+
+function modelStorageStageLabel(stage: Exclude<ModelStorageCleanupStage, "waiting-for-lock">) {
+  if (stage === "cache") return "removing cached runtime files";
+  if (stage === "opfs") return "removing downloaded model files";
+  if (stage === "checkpoints") return "removing download checkpoints";
+  if (stage === "descriptors") return "removing saved model details";
+  return "verifying model storage";
 }
 
 function waitForModelStorageRelease(delayMs: number) {

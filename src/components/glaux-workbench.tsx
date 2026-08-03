@@ -50,7 +50,7 @@ import { useProductTestHydration, useProductTestRoute } from "@/hooks/use-produc
 import { useActiveModelPreload } from "@/hooks/use-active-model-preload";
 import { useModelDepartureLifecycle } from "@/hooks/use-model-departure-lifecycle";
 import { clearModelCleanupRequired, clearRememberedModelId, forgetRememberedModelId, markModelCleanupRequired } from "@/lib/remembered-model";
-import { purgeAllModelStorage } from "@/lib/model-delivery/opfs-store";
+import { purgeAllModelStorage, withModelStorageDeadline, type ModelStorageCleanupStage } from "@/lib/model-delivery/opfs-store";
 import { formatStoredModelDisclosure, getStoredModelSummary, shouldWarnForModelDeparture } from "@/lib/model-storage-awareness";
 import { isModelStorageReady, type StartupCleanupStatus } from "@/lib/model-storage-lifecycle";
 import {
@@ -117,6 +117,7 @@ export function GlauxWorkbench() {
   const [developerMode, setDeveloperMode] = useState(false);
   const [runtimeLoadApprovedModelId, setRuntimeLoadApprovedModelId] = useState<string | null>(null);
   const [cleanupDiagnostics, setCleanupDiagnostics] = useState("");
+  const [cleanupStage, setCleanupStage] = useState<ModelStorageCleanupStage>("waiting-for-lock");
   const [startupCleanupStatus, setStartupCleanupStatus] = useState<StartupCleanupStatus>("cleaning");
   const [startupCleanupRetryRevision, setStartupCleanupRetryRevision] = useState(0);
   const modelStorageReady = isModelStorageReady(runtimeEnabled, startupCleanupStatus);
@@ -241,9 +242,14 @@ export function GlauxWorkbench() {
       terminateRuntimeWorker();
       dispatchSession({ type: "model/stopped" });
       clearRememberedModelId();
-      await purgeAllModelStorage();
-      if (active) setStartupCleanupStatus("verifying");
-      const models = await getCachedModels();
+      await purgeAllModelStorage({
+        onStage: ({ stage }) => {
+          if (!active) return;
+          setCleanupStage(stage);
+          setStartupCleanupStatus(stage === "verification" ? "verifying" : "cleaning");
+        }
+      });
+      const models = await withModelStorageDeadline(getCachedModels(), "verification", 30_000);
       const remaining = models.filter((model) => model.state !== "missing");
       if (remaining.length > 0) {
         throw new Error(`Glaux could not finish removing saved model files for ${remaining.map((model) => model.modelId).join(", ")}.`);
@@ -841,6 +847,7 @@ export function GlauxWorkbench() {
                           setCacheInventoryResolved(false);
                           setStartupCleanupRetryRevision((value) => value + 1);
                         }}
+                        stage={cleanupStage}
                         status={startupCleanupStatus}
                       />
                     )
@@ -1050,14 +1057,14 @@ export function GlauxWorkbench() {
   );
 }
 
-function FirstRunCheck({ diagnostics, error, onReset, onRetry, status }: {
+function FirstRunCheck({ diagnostics, error, onReset, onRetry, stage, status }: {
   diagnostics: string;
   error: string | null;
   onReset: () => void;
   onRetry: () => void;
+  stage: ModelStorageCleanupStage;
   status: StartupCleanupStatus;
 }) {
-  const cleaning = status === "cleaning";
   const failed = status === "failed";
   const resetting = status === "resetting-origin";
   return (
@@ -1067,10 +1074,10 @@ function FirstRunCheck({ diagnostics, error, onReset, onRetry, status }: {
         : <LoaderCircle aria-hidden="true" className="size-5 shrink-0 animate-spin text-glaux-signal-soft motion-reduce:animate-none" />}
       <span className="min-w-0 flex-1">
         <span className="block text-sm font-medium text-glaux-copy-primary">
-          {failed ? "Old model files could not be removed" : resetting ? "Resetting Glaux storage" : cleaning ? "Finishing model cleanup" : "Checking this browser"}
+          {failed ? "Model cleanup needs attention" : resetting ? "Resetting Glaux storage" : cleanupStageTitle(stage)}
         </span>
         <span className="glaux-type-metadata mt-0.5 block text-glaux-copy-metadata" data-typography-role="metadata">
-          {failed ? error : resetting ? "The browser is clearing Glaux model storage before the app starts fresh…" : cleaning ? "Glaux found files from a previous session and is removing them before continuing…" : "Looking for a model you have already downloaded…"}
+          {failed ? error : resetting ? "The browser is clearing Glaux model storage before the app starts fresh…" : cleanupStageDetail(stage)}
         </span>
       </span>
       {failed ? (
@@ -1084,11 +1091,33 @@ function FirstRunCheck({ diagnostics, error, onReset, onRetry, status }: {
   );
 }
 
+function cleanupStageTitle(stage: ModelStorageCleanupStage) {
+  if (stage === "waiting-for-lock") return "Waiting for model storage";
+  if (stage === "cache") return "Removing cached runtime files";
+  if (stage === "opfs") return "Removing downloaded model files";
+  if (stage === "checkpoints") return "Removing download checkpoints";
+  if (stage === "descriptors") return "Removing saved model details";
+  return "Verifying clean model storage";
+}
+
+function cleanupStageDetail(stage: ModelStorageCleanupStage) {
+  if (stage === "waiting-for-lock") return "Glaux is waiting for another tab or session to finish using model storage…";
+  if (stage === "verification") return "Glaux is confirming that no downloaded model data remains…";
+  return "Glaux is cleaning browser storage before continuing…";
+}
+
 function createCleanupDiagnostics(error: unknown) {
   const serialize = (value: unknown): unknown => value instanceof AggregateError
     ? { name: value.name, message: value.message, errors: value.errors.map(serialize) }
     : value instanceof Error
-      ? { name: value.name, message: value.message, cause: value.cause ? serialize(value.cause) : undefined }
+      ? {
+          name: value.name,
+          message: value.message,
+          cause: value.cause ? serialize(value.cause) : undefined,
+          stage: "stage" in value ? String(value.stage) : undefined,
+          timeoutMs: "timeoutMs" in value ? Number(value.timeoutMs) : undefined,
+          lockAcquired: "lockAcquired" in value ? Boolean(value.lockAcquired) : undefined
+        }
       : { value: String(value) };
   const navigation = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
   return JSON.stringify({

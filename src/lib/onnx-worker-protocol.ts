@@ -19,6 +19,7 @@ type WorkerRequestInputMap = {
     options: Pick<OnnxRunOptions, "maxNewTokens" | "temperature" | "topK">;
   };
   cancel: { type: "cancel"; targetRequestId: string };
+  download: { type: "download"; modelId: string };
   preload: { type: "preload"; modelId: string };
   "cache-status": { type: "cache-status" };
   "delete-cache": { type: "delete-cache"; modelId: string };
@@ -34,6 +35,7 @@ export type WorkerResultMap = {
   capabilities: RuntimeCapabilities;
   generate: OnnxRunResponse;
   cancel: GenerationCancelResult;
+  download: { ok: true };
   preload: { ok: true };
   "cache-status": { models: ModelCacheSummary[] };
   "delete-cache": ModelCacheDeleteResult;
@@ -50,7 +52,7 @@ export function isWorkerRequest(value: unknown): value is WorkerRequest {
 
   if (value.type === "capabilities") return true;
   if (value.type === "cancel") return typeof value.targetRequestId === "string" && value.targetRequestId.length > 0;
-  if (value.type === "preload") return typeof value.modelId === "string" && value.modelId.length > 0;
+  if (value.type === "download" || value.type === "preload") return typeof value.modelId === "string" && value.modelId.length > 0;
   if (value.type === "cache-status") return true;
   if (value.type === "delete-cache") return typeof value.modelId === "string" && value.modelId.length > 0;
   if (value.type === "generate") {

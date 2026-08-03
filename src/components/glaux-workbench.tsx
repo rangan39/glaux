@@ -49,10 +49,10 @@ import { captureDialogScrollSnapshot, type DocumentScrollSnapshot, useDocumentSc
 import { useProductTestHydration, useProductTestRoute } from "@/hooks/use-product-test-harness";
 import { useActiveModelPreload } from "@/hooks/use-active-model-preload";
 import { useModelDepartureLifecycle } from "@/hooks/use-model-departure-lifecycle";
-import { clearRememberedModelId, forgetRememberedModelId } from "@/lib/remembered-model";
+import { clearModelCleanupRequired, clearRememberedModelId, forgetRememberedModelId, markModelCleanupRequired } from "@/lib/remembered-model";
 import { purgeAllModelStorage } from "@/lib/model-delivery/opfs-store";
 import { formatStoredModelDisclosure, getStoredModelSummary, shouldWarnForModelDeparture } from "@/lib/model-storage-awareness";
-import { isModelStorageReady } from "@/lib/model-storage-lifecycle";
+import { isModelStorageReady, type StartupCleanupStatus } from "@/lib/model-storage-lifecycle";
 import {
   activityFromLog,
   activityFromTelemetry,
@@ -77,7 +77,6 @@ import {
   modelName
 } from "@/lib/model-action-copy";
 
-type StartupCleanupStatus = "idle" | "cleaning" | "failed";
 const PROMPT_MAX_HEIGHT = 192;
 export function GlauxWorkbench() {
   const { modelId: productTestModelId, runtimeEnabled, state: productTestState } = useProductTestRoute();
@@ -116,6 +115,8 @@ export function GlauxWorkbench() {
   const setResetConfirmationOpen = (value: SetStateAction<boolean>) => setSessionField("resetConfirmationOpen", value);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [developerMode, setDeveloperMode] = useState(false);
+  const [runtimeLoadApprovedModelId, setRuntimeLoadApprovedModelId] = useState<string | null>(null);
+  const [cleanupDiagnostics, setCleanupDiagnostics] = useState("");
   const [startupCleanupStatus, setStartupCleanupStatus] = useState<StartupCleanupStatus>("cleaning");
   const [startupCleanupRetryRevision, setStartupCleanupRetryRevision] = useState(0);
   const modelStorageReady = isModelStorageReady(runtimeEnabled, startupCleanupStatus);
@@ -155,6 +156,7 @@ export function GlauxWorkbench() {
   const fixtureModels = productTestState ? PRODUCT_TEST_MODELS : [];
   const availableModels = [...fixtureModels, ...communityModels, ...(previewModel && !communityModels.some((model) => model.id === previewModel.id) ? [previewModel] : [])];
   const selectedModel = availableModels.find((model) => model.id === modelId) ?? null;
+  const selectedModelCache = cacheSummaries.find((model) => model.modelId === selectedModel?.id);
   const loadingModel = selectedModel;
   const modelLoadCancelLabel = isNetworkDownload ? "Cancel model download" : "Cancel model loading";
   const modelLoadCancelText = "Cancel";
@@ -177,6 +179,9 @@ export function GlauxWorkbench() {
     ? formatStoredModelDisclosure(storedModelSummary, storedModel?.label)
     : null;
   const modelCompatibility = getModelCompatibility(capabilities, selectedModel);
+  const mobileModelAwaitingLoad = capabilities?.hardwareTier === "mobile"
+    && selectedModelCache?.state === "cached"
+    && loadedModelId !== selectedModel?.id;
   const modelReady = selectedModel !== null && loadedModelId === selectedModel.id;
   const runtimeStatus = getRuntimeStatus(capabilities, selectedModel, loadedModelId, runtimeActivity, modelLoadPaused, failedTurn, error);
   const displayedRuntimeStatus = checkingCommunityModel
@@ -210,7 +215,7 @@ export function GlauxWorkbench() {
     || pendingModelDownload !== null
     || pendingDeleteModel !== null;
   const replacingModel = modelReplacementPhase !== null;
-  const storageReconciliationBlocked = startupCleanupStatus === "cleaning" || startupCleanupStatus === "failed";
+  const storageReconciliationBlocked = startupCleanupStatus !== "idle";
 
   useDocumentScrollLock(blockingDialogOpen, dialogScrollSnapshotRef);
 
@@ -237,20 +242,28 @@ export function GlauxWorkbench() {
       dispatchSession({ type: "model/stopped" });
       clearRememberedModelId();
       await purgeAllModelStorage();
+      if (active) setStartupCleanupStatus("verifying");
       const models = await getCachedModels();
       const remaining = models.filter((model) => model.state !== "missing");
       if (remaining.length > 0) {
         throw new Error(`Glaux could not finish removing saved model files for ${remaining.map((model) => model.modelId).join(", ")}.`);
       }
       if (!active) return;
+      clearModelCleanupRequired();
       setCacheSummaries(models);
       setCacheInventoryResolved(true);
       setStartupCleanupStatus("idle");
       setStorageRevision((value) => value + 1);
+      const location = new URL(window.location.href);
+      if (location.searchParams.has("storage-reset")) {
+        location.searchParams.delete("storage-reset");
+        window.history.replaceState(window.history.state, "", `${location.pathname}${location.search}${location.hash}`);
+      }
     })()
       .catch((caught) => {
         if (!active) return;
         console.error("Glaux startup model-storage cleanup failed.", caught);
+        setCleanupDiagnostics(createCleanupDiagnostics(caught));
         setCacheSummaries([]);
         setCacheInventoryResolved(false);
         setStartupCleanupStatus("failed");
@@ -269,6 +282,7 @@ export function GlauxWorkbench() {
     enabled: productTestState === null && startupCleanupStatus === "idle",
     generationIdRef,
     model: selectedModel,
+    runtimeLoadApproved: capabilities?.hardwareTier !== "mobile" || runtimeLoadApprovedModelId === selectedModel?.id,
     paused: modelLoadPaused,
     onStorageChanged: () => {
       setStorageRevision((value) => value + 1);
@@ -451,6 +465,8 @@ export function GlauxWorkbench() {
       return;
     }
 
+    markModelCleanupRequired(targetModelId);
+
     if (previewDescriptor?.id === targetModelId) {
       try {
         await saveCommunityModelDescriptor(previewDescriptor);
@@ -519,6 +535,7 @@ export function GlauxWorkbench() {
       clearRememberedModelId();
       try {
         await purgeAllModelStorage();
+        clearModelCleanupRequired();
         setCacheSummaries(await getCachedModels());
       } catch (caught) {
         setStartupCleanupStatus("failed");
@@ -529,6 +546,32 @@ export function GlauxWorkbench() {
     dispatchSession({ type: "model/stopped" });
     setNotice(cancelledModel ? `${cancelledModel.label} loading cancelled. Downloaded files were removed.` : "Model loading cancelled.");
     setStorageRevision((value) => value + 1);
+  }
+
+  async function resetGlauxStorage() {
+    setError(null);
+    setCacheSummaries([]);
+    setCacheInventoryResolved(false);
+    setStartupCleanupStatus("resetting-origin");
+    generationIdRef.current += 1;
+    terminateRuntimeWorker();
+    dispatchSession({ type: "model/stopped" });
+    clearRememberedModelId();
+    try {
+      const response = await fetch("/api/storage/reset", {
+        method: "POST",
+        cache: "no-store",
+        credentials: "same-origin",
+        headers: { "X-Glaux-Storage-Reset": "1" }
+      });
+      if (!response.ok) throw new Error(`Glaux storage reset returned ${response.status}.`);
+      window.location.replace("/?storage-reset=attempted");
+    } catch (caught) {
+      console.error("Glaux browser-managed storage reset failed.", caught);
+      setCleanupDiagnostics(createCleanupDiagnostics(caught));
+      setStartupCleanupStatus("failed");
+      setError("The browser could not reset Glaux storage. Try the in-app reset again or copy the diagnostics for support.");
+    }
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -767,7 +810,7 @@ export function GlauxWorkbench() {
         <div aria-atomic="true" aria-live="polite" className="sr-only" role="status">{displayedRuntimeStatus.label}</div>
 
         <div className={cn("flex flex-1", selectedModel ? "min-h-0" : "min-h-fit")}>
-          <GlauxModelSidebar capabilities={capabilities} communityModels={availableModels} disabled={isRunning || replacingModel || storageReconciliationBlocked} inspectMetrics={hoveredInspectMetrics} inspectMode={developerMode} inspectDisplayMode={inspectDisplayMode} mobileOpen={modelSidebarOpen} modelCacheState={libraryModelCache?.state} modelId={libraryModelId} modelLoaded={loadedModelId === libraryModelId && libraryModelCache?.state === "cached"} onCommunityModelAdded={addCommunityModel} onCommunityModelCheckChange={setCheckingCommunityModel} onCommunityModelCleared={clearCommunityModelPreview} onDeleteModel={requestDeleteModel} onInspectDisplayModeChange={setInspectDisplayMode} onInspectModeChange={setDeveloperMode} onMobileOpenChange={setModelSidebarOpen} previewModelId={previewSelection?.details.revision ? `${previewSelection.details.repo}@${previewSelection.details.revision}` : ""} previewModelUnsupported={previewSelection?.compatibility.status === "unsupported"} />
+          <GlauxModelSidebar capabilities={capabilities} communityModels={availableModels} disabled={isRunning || replacingModel || storageReconciliationBlocked} inspectMetrics={hoveredInspectMetrics} inspectMode={developerMode} inspectDisplayMode={inspectDisplayMode} mobileOpen={modelSidebarOpen} modelCacheState={libraryModelCache?.state} modelId={libraryModelId} modelLoaded={loadedModelId === libraryModelId && libraryModelCache?.state === "cached"} onCommunityModelAdded={addCommunityModel} onCommunityModelCheckChange={setCheckingCommunityModel} onCommunityModelCleared={clearCommunityModelPreview} onDeleteModel={requestDeleteModel} onInspectDisplayModeChange={setInspectDisplayMode} onInspectModeChange={setDeveloperMode} onLoadModel={(nextModelId) => setRuntimeLoadApprovedModelId(nextModelId)} onMobileOpenChange={setModelSidebarOpen} previewModelId={previewSelection?.details.revision ? `${previewSelection.details.repo}@${previewSelection.details.revision}` : ""} previewModelUnsupported={previewSelection?.compatibility.status === "unsupported"} />
           <section aria-busy={isBusy} aria-label={previewModel ? "Model preview" : "Conversation"} className={cn("glaux-reveal glaux-reveal-workspace relative flex min-w-0 flex-1 flex-col", selectedModel && "h-full min-h-0")}>
             <div className={cn("flex-1", selectedModel ? "min-h-0 overflow-y-auto overscroll-contain" : "overflow-visible")} data-testid="conversation-scroll">
               <div className="mx-auto flex min-w-0 w-full max-w-6xl flex-col px-4 py-6 sm:px-12 sm:py-9">
@@ -788,8 +831,11 @@ export function GlauxWorkbench() {
                       />
                     ) : (
                       <FirstRunCheck
+                        diagnostics={cleanupDiagnostics}
                         error={startupCleanupStatus === "failed" ? error : null}
+                        onReset={() => void resetGlauxStorage()}
                         onRetry={() => {
+                          setCleanupDiagnostics("");
                           setError(null);
                           setStartupCleanupStatus("cleaning");
                           setCacheInventoryResolved(false);
@@ -841,7 +887,15 @@ export function GlauxWorkbench() {
             {selectedModel && !previewModel ? (
               <div className="glaux-glass-strong glaux-reveal glaux-reveal-composer z-10 shrink-0 border-x-0 border-b-0 p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] sm:p-4 sm:pb-[max(1rem,env(safe-area-inset-bottom))]" data-testid="composer-panel">
               <form className="mx-auto max-w-6xl" onSubmit={submitPrompt}>
-                {modelLoadPaused && selectedModel ? (
+                {mobileModelAwaitingLoad && selectedModel ? (
+                  <div className="glaux-glass-tile mb-2 flex items-center gap-2 rounded-xl border-glaux-signal-bright/30 px-3 py-2 text-sm text-glaux-copy-body sm:mb-3 sm:gap-3 sm:px-4 sm:py-3" role="status">
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-medium leading-5 text-glaux-copy-primary">Model downloaded</span>
+                      <span className="glaux-type-metadata mt-0.5 block text-glaux-copy-metadata" data-typography-role="metadata">Load it when you are ready to allocate the model in this device&apos;s memory.</span>
+                    </span>
+                    <Button className="h-11 shrink-0 rounded-xl px-3 sm:h-9" onClick={() => setRuntimeLoadApprovedModelId(selectedModel.id)} type="button" variant="sophon">Load model</Button>
+                  </div>
+                ) : modelLoadPaused && selectedModel ? (
                   <div className="glaux-glass-tile mb-2 flex items-center gap-2 rounded-xl border-glaux-warning/30 px-3 py-2 text-sm text-glaux-copy-body sm:mb-3 sm:gap-3 sm:px-4 sm:py-3" role="status">
                     <span className="min-w-0 flex-1">
                       <span className="block font-medium leading-5 text-glaux-copy-primary">Model download paused</span>
@@ -996,13 +1050,16 @@ export function GlauxWorkbench() {
   );
 }
 
-function FirstRunCheck({ error, onRetry, status }: {
+function FirstRunCheck({ diagnostics, error, onReset, onRetry, status }: {
+  diagnostics: string;
   error: string | null;
+  onReset: () => void;
   onRetry: () => void;
   status: StartupCleanupStatus;
 }) {
   const cleaning = status === "cleaning";
   const failed = status === "failed";
+  const resetting = status === "resetting-origin";
   return (
     <div className="glaux-glass-tile mx-auto flex w-full max-w-xl flex-wrap items-center gap-3 rounded-2xl px-5 py-4" role={failed ? "alert" : "status"}>
       {failed
@@ -1010,15 +1067,37 @@ function FirstRunCheck({ error, onRetry, status }: {
         : <LoaderCircle aria-hidden="true" className="size-5 shrink-0 animate-spin text-glaux-signal-soft motion-reduce:animate-none" />}
       <span className="min-w-0 flex-1">
         <span className="block text-sm font-medium text-glaux-copy-primary">
-          {failed ? "Old model files could not be removed" : cleaning ? "Finishing model cleanup" : "Checking this browser"}
+          {failed ? "Old model files could not be removed" : resetting ? "Resetting Glaux storage" : cleaning ? "Finishing model cleanup" : "Checking this browser"}
         </span>
         <span className="glaux-type-metadata mt-0.5 block text-glaux-copy-metadata" data-typography-role="metadata">
-          {failed ? error : cleaning ? "Glaux found files from a previous session and is removing them before continuing…" : "Looking for a model you have already downloaded…"}
+          {failed ? error : resetting ? "The browser is clearing Glaux model storage before the app starts fresh…" : cleaning ? "Glaux found files from a previous session and is removing them before continuing…" : "Looking for a model you have already downloaded…"}
         </span>
       </span>
-      {failed ? <Button className="ml-auto h-11 shrink-0 rounded-xl max-[359px]:basis-full sm:h-8" onClick={onRetry} size="sm" type="button" variant="sophon">Retry cleanup</Button> : null}
+      {failed ? (
+        <span className="ml-auto flex shrink-0 flex-wrap gap-2 max-[359px]:basis-full">
+          <Button className="h-11 grow rounded-xl sm:h-8" onClick={onRetry} size="sm" type="button" variant="outline">Retry cleanup</Button>
+          <Button className="h-11 grow rounded-xl sm:h-8" onClick={onReset} size="sm" type="button" variant="sophon">Reset Glaux storage</Button>
+          {diagnostics ? <Button className="h-11 grow rounded-xl sm:h-8" onClick={() => void navigator.clipboard.writeText(diagnostics)} size="sm" type="button" variant="ghost">Copy diagnostics</Button> : null}
+        </span>
+      ) : null}
     </div>
   );
+}
+
+function createCleanupDiagnostics(error: unknown) {
+  const serialize = (value: unknown): unknown => value instanceof AggregateError
+    ? { name: value.name, message: value.message, errors: value.errors.map(serialize) }
+    : value instanceof Error
+      ? { name: value.name, message: value.message, cause: value.cause ? serialize(value.cause) : undefined }
+      : { value: String(value) };
+  const navigation = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+  return JSON.stringify({
+    capturedAt: new Date().toISOString(),
+    error: serialize(error),
+    navigationType: navigation?.type ?? "unknown",
+    userAgent: navigator.userAgent,
+    wasDiscarded: (document as Document & { wasDiscarded?: boolean }).wasDiscarded ?? false
+  }, null, 2);
 }
 
 function ModelPreview({ compatibility, model, onDownload, selection }: {

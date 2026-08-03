@@ -69,6 +69,17 @@ export async function preloadOnnxModel(modelId: string, onLog: (event: OnnxLogEv
   await getPipeline(model, await resolveProvider(model), onLog, signal);
 }
 
+export async function downloadOnnxModel(modelId: string, onLog: (event: OnnxLogEvent) => void = () => undefined, signal?: AbortSignal) {
+  const descriptor = await getSavedCommunityModelDescriptor(modelId);
+  if (!descriptor) throw new Error(`The community model descriptor is missing or invalid: ${modelId}`);
+  await prepareCommunityModelDelivery(descriptor, (progress) => onLog({
+    phase: "download",
+    level: "info",
+    message: progress.stage === "validate" ? "Verifying model files" : "Downloading model files",
+    progress
+  }), signal);
+}
+
 export async function deleteOnnxModelCache(modelId: string, signal?: AbortSignal) {
   const matching = [...pipelineCache.entries()].filter(([key]) => key.startsWith(`${modelId}:`));
   for (const [key] of matching) pipelineCache.delete(key);

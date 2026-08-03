@@ -5,6 +5,7 @@ import {
   deleteModelStorage,
   getAllArtifactStates,
   getArtifactFileSize,
+  MODEL_STORAGE_LOCK,
   openArtifactFile,
   supportsPersistentModelDelivery
 } from "@/lib/model-delivery/opfs-store";
@@ -87,7 +88,7 @@ export async function prepareCommunityModelDelivery(
   }
   const storageModel = getCommunityStorageModel(descriptor);
 
-  return withCommunityModelLock(storageModel.modelId, async () => {
+  return withCommunityModelLock(async () => {
     throwIfAborted(signal);
     const resumableBytes = await getCommunityResumableBytes(descriptor, dependencies);
     await ensureStorageHeadroom(descriptor.format.totalBytes, resumableBytes, dependencies.estimateStorage);
@@ -201,7 +202,7 @@ export function getCommunityStorageModel(value: CommunityModelDescriptor) {
 
 export async function deleteCommunityModelDelivery(value: CommunityModelDescriptor, signal?: AbortSignal) {
   const storageModel = getCommunityStorageModel(value);
-  await withCommunityModelLock(storageModel.modelId, async () => {
+  await withCommunityModelLock(async () => {
     throwIfAborted(signal);
     await deleteModelStorage(storageModel);
   }, signal);
@@ -425,12 +426,11 @@ function requireDescriptor(value: CommunityModelDescriptor) {
 }
 
 async function withCommunityModelLock<T>(
-  modelId: string,
   task: () => Promise<T>,
   signal?: AbortSignal
 ): Promise<T> {
   if (typeof navigator === "undefined" || typeof navigator.locks?.request !== "function") return task();
-  return navigator.locks.request(`sophon-community-model:${modelId}`, { mode: "exclusive", signal }, task);
+  return navigator.locks.request(MODEL_STORAGE_LOCK, { mode: "exclusive", signal }, task);
 }
 
 function sameUrl(left: string, right: string) {

@@ -43,7 +43,8 @@ export const MODEL_STORAGE_DIRECTORY = "sophon-models";
 export const MODEL_DELIVERY_DATABASE = "sophon-model-delivery";
 export const MODEL_RUNTIME_CACHE = "transformers-cache";
 const MODEL_STORAGE_VERSION = "v1";
-const MODEL_STORAGE_LOCK = "sophon-model-storage";
+export const MODEL_STORAGE_LOCK = "glaux:model-storage";
+const MODEL_STORAGE_DELETE_RETRY_DELAYS_MS = [150, 500, 1_200] as const;
 
 export function supportsPersistentModelDelivery() {
   return typeof navigator !== "undefined"
@@ -189,9 +190,25 @@ export function getModelStoragePurgeErrorMessage(failures: readonly ModelStorage
     : `${labels.slice(0, -1).join(", ")} and ${labels.at(-1)}`;
   const summary = `Glaux could not remove ${failedStorage} from browser storage.`;
   if (failures.some(({ error }) => isBlockedStorageError(error))) {
-    return `${summary} Another Glaux tab or a restored browser session is still using that storage. Close every Glaux tab, fully close the browser, then reopen Glaux and retry cleanup.`;
+    return `${summary} Another Glaux tab or a restored browser session is still using that storage. Close other Glaux tabs and retry cleanup, then use Reset Glaux storage if needed.`;
   }
-  return `${summary} Close other Glaux tabs and retry. If it continues, fully close and reopen the browser or clear Glaux's website data.`;
+  return `${summary} Retry cleanup, then use Reset Glaux storage if Safari still cannot release the files.`;
+}
+
+export async function retryModelStorageDeletion(
+  operation: () => Promise<void>,
+  wait: (delayMs: number) => Promise<void> = waitForModelStorageRelease,
+  delays: readonly number[] = MODEL_STORAGE_DELETE_RETRY_DELAYS_MS
+) {
+  for (const delay of delays) {
+    try {
+      await operation();
+      return;
+    } catch {
+      await wait(delay);
+    }
+  }
+  await operation();
 }
 
 function isBlockedStorageError(error: unknown): boolean {
@@ -210,12 +227,14 @@ export async function purgeAllModelStorage() {
     deleteDescriptors: purgeCommunityModelDescriptors,
     deleteOpfs: async () => {
       if (typeof navigator === "undefined" || typeof navigator.storage?.getDirectory !== "function") return;
-      const root = await navigator.storage.getDirectory();
-      try {
-        await root.removeEntry(MODEL_STORAGE_DIRECTORY, { recursive: true });
-      } catch (error) {
-        if (!(error instanceof DOMException && error.name === "NotFoundError")) throw error;
-      }
+      await retryModelStorageDeletion(async () => {
+        const root = await navigator.storage.getDirectory();
+        try {
+          await root.removeEntry(MODEL_STORAGE_DIRECTORY, { recursive: true });
+        } catch (error) {
+          if (!(error instanceof DOMException && error.name === "NotFoundError")) throw error;
+        }
+      });
     },
     verify: assertModelStorageEmpty
   });
@@ -224,6 +243,10 @@ export async function purgeAllModelStorage() {
   } else {
     await purge();
   }
+}
+
+function waitForModelStorageRelease(delayMs: number) {
+  return new Promise<void>((resolve) => window.setTimeout(resolve, delayMs));
 }
 
 export async function assertModelStorageEmpty() {

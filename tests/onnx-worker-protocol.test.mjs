@@ -59,6 +59,9 @@ test("accepts targeted cancellation requests and validates acknowledgements", ()
 });
 
 test("accepts explicit model preloads and validates completion", () => {
+  assert.equal(isWorkerRequest({ type: "download", requestId: "download-1", modelId: "hf:fixture-alpha" }), true);
+  assert.equal(isWorkerRequest({ type: "download", requestId: "download-2", modelId: "" }), false);
+  assert.equal(isWorkerResult("download", { ok: true }), true);
   assert.equal(isWorkerRequest({ type: "preload", requestId: "preload-1", modelId: "hf:fixture-alpha" }), true);
   assert.equal(isWorkerRequest({ type: "preload", requestId: "preload-2", modelId: "" }), false);
   assert.equal(isWorkerResult("preload", { ok: true }), true);

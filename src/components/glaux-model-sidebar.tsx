@@ -42,10 +42,11 @@ type Props = {
   onDeleteModel?: (modelId: string) => void;
   onInspectDisplayModeChange?: (mode: TokenInspectMode | null) => void;
   onInspectModeChange?: (enabled: boolean) => void;
+  onLoadModel?: (modelId: string) => void;
   onMobileOpenChange: (open: boolean) => void;
 };
 
-export function GlauxModelSidebar({ capabilities, communityModels = [], disabled = false, inspectDisplayMode = null, inspectMetrics, inspectMode = false, mobileOpen, modelCacheState = "missing", modelId, modelLoaded = false, onCommunityModelAdded, onCommunityModelCheckChange, onCommunityModelCleared, onDeleteModel, onInspectDisplayModeChange, onInspectModeChange, onMobileOpenChange, previewModelId = "", previewModelUnsupported = false }: Props) {
+export function GlauxModelSidebar({ capabilities, communityModels = [], disabled = false, inspectDisplayMode = null, inspectMetrics, inspectMode = false, mobileOpen, modelCacheState = "missing", modelId, modelLoaded = false, onCommunityModelAdded, onCommunityModelCheckChange, onCommunityModelCleared, onDeleteModel, onInspectDisplayModeChange, onInspectModeChange, onLoadModel, onMobileOpenChange, previewModelId = "", previewModelUnsupported = false }: Props) {
   const [expanded, setExpanded] = useState(true);
   const [view, setView] = useState<SidebarView>("popular");
   const [catalogView, setCatalogView] = useState<CatalogView>("popular");
@@ -72,7 +73,7 @@ export function GlauxModelSidebar({ capabilities, communityModels = [], disabled
     setView(nextView);
     onInspectModeChange?.(nextView === "dev");
   }
-  const panelProps = { capabilities, communityModels, disabled, inspectDisplayMode, inspectMetrics, inspectMode, modelCacheState, modelId, modelLoaded, onBackToCatalog: () => selectView(catalogView), onCommunityModelAdded, onCommunityModelCheckChange, onCommunityModelCleared, onDeleteModel, onInspectDisplayModeChange, onInspectModeChange, onSelectView: selectView, previewModelId, previewModelUnsupported, view: displayedView };
+  const panelProps = { capabilities, communityModels, disabled, inspectDisplayMode, inspectMetrics, inspectMode, modelCacheState, modelId, modelLoaded, onBackToCatalog: () => selectView(catalogView), onCommunityModelAdded, onCommunityModelCheckChange, onCommunityModelCleared, onDeleteModel, onInspectDisplayModeChange, onInspectModeChange, onLoadModel, onSelectView: selectView, previewModelId, previewModelUnsupported, view: displayedView };
   return <>
     <aside aria-label="Model library" className={cn("glaux-glass-strong glaux-reveal glaux-reveal-sidebar hidden h-full shrink-0 flex-col overflow-hidden border-y-0 border-l-0 transition-[width] duration-200 motion-reduce:transition-none lg:flex lg:h-[calc(100svh-74px)]", expanded ? "w-72" : "w-[4.75rem]")} data-state={expanded ? "expanded" : "collapsed"} id="model-library-desktop">
       <ModelPanel {...panelProps} expanded={expanded} onToggle={() => setExpanded((value) => !value)} />
@@ -92,7 +93,7 @@ type PanelProps = Omit<Props, "mobileOpen" | "onMobileOpenChange"> & { expanded:
 function isCatalogView(view: SidebarView): view is CatalogView {
   return view === "popular" || view === "lightweight" || view === "all";
 }
-function ModelPanel({ capabilities, communityModels = [], disabled = false, expanded, inspectDisplayMode = null, inspectMetrics, inspectMode = false, mobile = false, modelCacheState = "missing", modelId, modelLoaded = false, onBackToCatalog, onClose, onCommunityModelAdded, onCommunityModelCheckChange, onCommunityModelCleared, onDeleteModel, onInspectDisplayModeChange, onInspectModeChange, onSelectView, onToggle, previewModelId = "", previewModelUnsupported = false, view }: PanelProps) {
+function ModelPanel({ capabilities, communityModels = [], disabled = false, expanded, inspectDisplayMode = null, inspectMetrics, inspectMode = false, mobile = false, modelCacheState = "missing", modelId, modelLoaded = false, onBackToCatalog, onClose, onCommunityModelAdded, onCommunityModelCheckChange, onCommunityModelCleared, onDeleteModel, onInspectDisplayModeChange, onInspectModeChange, onLoadModel, onSelectView, onToggle, previewModelId = "", previewModelUnsupported = false, view }: PanelProps) {
   const hasLocalFiles = modelCacheState !== "missing";
   const requestedView: SidebarView = inspectMode ? "dev" : view;
   const activeView: SidebarView = requestedView === "dev" && !modelLoaded
@@ -135,12 +136,12 @@ function ModelPanel({ capabilities, communityModels = [], disabled = false, expa
         {expanded ? <CommunityCatalog disabled={disabled} mode={activeView === "all" ? "alphabetical" : activeView === "lightweight" ? "lightweight" : "popular"} onAdded={onCommunityModelAdded} onCheckChange={onCommunityModelCheckChange} onCleared={onCommunityModelCleared} selectedModelId={previewModelId} selectedModelUnsupported={previewModelUnsupported} /> : null}
       </div>
     </fieldset> : null}
-    {expanded && activeView === "details" ? <ModelDetails cacheState={modelCacheState} disabled={disabled} model={detailModel} onDelete={onDeleteModel} profile={detailProfile} /> : null}
+    {expanded && activeView === "details" ? <ModelDetails cacheState={modelCacheState} disabled={disabled} loaded={modelLoaded} model={detailModel} onDelete={onDeleteModel} onLoad={onLoadModel} profile={detailProfile} /> : null}
     {expanded && activeView === "dev" ? <DeveloperTools inspectDisplayMode={inspectDisplayMode} inspectMetrics={inspectMetrics} onInspectDisplayModeChange={onInspectDisplayModeChange} /> : null}
   </>;
 }
 
-function ModelDetails({ cacheState, disabled, model, onDelete, profile }: { cacheState: ModelCacheState; disabled: boolean; model?: ModelManifest; onDelete?: (modelId: string) => void; profile: ReturnType<typeof getModelRuntimeProfile> | null }) {
+function ModelDetails({ cacheState, disabled, loaded, model, onDelete, onLoad, profile }: { cacheState: ModelCacheState; disabled: boolean; loaded: boolean; model?: ModelManifest; onDelete?: (modelId: string) => void; onLoad?: (modelId: string) => void; profile: ReturnType<typeof getModelRuntimeProfile> | null }) {
   if (!model || !profile) {
     return <section aria-label="Model details" className="min-h-0 flex-1 overflow-y-auto p-3"><div className="rounded-xl border border-glaux-glass-border bg-glaux-panel-deep p-3"><p className="text-sm font-medium text-glaux-copy-primary">No model selected</p><p className="mt-1 text-xs leading-5 text-glaux-copy-metadata">Choose a model from Popular Models to review its files, license, and runtime requirements.</p></div></section>;
   }
@@ -163,6 +164,7 @@ function ModelDetails({ cacheState, disabled, model, onDelete, profile }: { cach
       <p className="mt-1 text-xs leading-5 text-glaux-copy-metadata">{model.description}</p>
       <dl className="mt-2 divide-y divide-glaux-glass-border overflow-hidden rounded-md border border-glaux-glass-border bg-glaux-panel">{details.map(([label, value]) => <div className="grid grid-cols-[4.75rem_minmax(0,1fr)] gap-2 px-2 py-2" key={label}><dt className="text-[10px] font-medium uppercase leading-4 tracking-[0.05em] text-glaux-copy-metadata">{label}</dt><dd className="min-w-0 break-words text-xs leading-4 text-glaux-copy-primary">{value}</dd></div>)}</dl>
       <Button asChild className="glaux-type-action mt-3 w-full !font-mono uppercase tracking-[0.06em]" size="sm" variant="sophon"><a href={`https://huggingface.co/${model.source.repo}`} rel="noreferrer" target="_blank"><ExternalLink aria-hidden="true" />View on Hugging Face</a></Button>
+      {cacheState === "cached" && !loaded ? <Button className="glaux-type-action mt-2 w-full !font-mono uppercase tracking-[0.06em]" disabled={disabled || !onLoad} onClick={() => onLoad?.(model.id)} size="sm" type="button" variant="sophon">Load model</Button> : null}
       <Button aria-label={`Delete ${model.label} from this browser`} className="glaux-type-action mt-2 w-full border-destructive/35 !font-mono uppercase tracking-[0.06em] text-destructive hover:border-destructive/60 hover:bg-destructive/10 hover:text-destructive" disabled={disabled || !onDelete} onClick={() => onDelete?.(model.id)} size="sm" type="button" variant="sophon"><Trash2 aria-hidden="true" />Delete model</Button>
     </div>
   </section>;

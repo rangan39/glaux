@@ -1,11 +1,15 @@
 "use client";
 
 import { useEffect, useEffectEvent, type Dispatch } from "react";
-import { cancelModelPreload, preloadModel, terminateRuntimeWorker } from "@/lib/interp-client";
+import { cancelModelPreload, downloadModel, preloadModel, terminateRuntimeWorker } from "@/lib/interp-client";
 import { resolveModelProvider, type ModelManifest } from "@/lib/onnx-models";
 import type { RuntimeCapabilities } from "@/lib/onnx-types";
 import { activityFromLog } from "@/lib/workbench-runtime";
 import type { WorkbenchSessionAction } from "@/lib/workbench-state";
+
+export function shouldDeferRuntimeLoad(hardwareTier: RuntimeCapabilities["hardwareTier"], runtimeLoadApproved: boolean) {
+  return hardwareTier === "mobile" && !runtimeLoadApproved;
+}
 
 export function useActiveModelPreload({
   capabilities,
@@ -13,6 +17,7 @@ export function useActiveModelPreload({
   enabled,
   generationIdRef,
   model,
+  runtimeLoadApproved,
   paused,
   onStorageChanged
 }: {
@@ -21,6 +26,7 @@ export function useActiveModelPreload({
   enabled: boolean;
   generationIdRef: { current: number };
   model: ModelManifest | null;
+  runtimeLoadApproved: boolean;
   paused: boolean;
   onStorageChanged: () => void;
 }) {
@@ -34,13 +40,15 @@ export function useActiveModelPreload({
         dispatch({ type: "field/set", field: "generation", value: { status: "loading", activity: { detail: `${model.label} · ${model.format.sizeLabel}`, label: "Preparing local model", phase: "runtime" } } });
       }
     });
-    void preloadModel(model.id, (event) => {
+    const downloadOnly = shouldDeferRuntimeLoad(capabilities.hardwareTier, runtimeLoadApproved);
+    const prepare = downloadOnly ? downloadModel : preloadModel;
+    void prepare(model.id, (event) => {
       if (generationIdRef.current === loadId) {
         dispatch({ type: "field/set", field: "generation", value: (current) => current.status === "loading" ? { ...current, activity: activityFromLog(event) } : current });
       }
     }).then(() => {
       if (generationIdRef.current === loadId) {
-        dispatch({ type: "field/set", field: "loadedModelId", value: model.id });
+        if (!downloadOnly) dispatch({ type: "field/set", field: "loadedModelId", value: model.id });
       }
     }).catch((caught) => {
       if (generationIdRef.current === loadId) {
@@ -56,5 +64,5 @@ export function useActiveModelPreload({
       if (generationIdRef.current === loadId) generationIdRef.current += 1;
       void cancelModelPreload().catch(() => terminateRuntimeWorker());
     };
-  }, [capabilities, dispatch, enabled, generationIdRef, model, paused]);
+  }, [capabilities, dispatch, enabled, generationIdRef, model, paused, runtimeLoadApproved]);
 }

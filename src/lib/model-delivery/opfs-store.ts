@@ -4,6 +4,10 @@ import {
   ModelDeliveryUnavailableError,
   toModelStorageOperationError
 } from "@/lib/model-delivery/errors";
+import {
+  assertCommunityModelDescriptorsEmpty,
+  purgeCommunityModelDescriptors
+} from "@/lib/model-catalog/descriptor-store";
 
 interface DeliveryDatabase extends DBSchema {
   artifacts: { key: string; value: ArtifactDownloadState };
@@ -144,13 +148,14 @@ export async function reconcileModelStorage(allowedModelIds: ReadonlySet<string>
 export type ModelStoragePurgeDependencies = {
   deleteCache: () => Promise<unknown>;
   deleteDatabase: () => Promise<void>;
+  deleteDescriptors: () => Promise<void>;
   deleteOpfs: () => Promise<void>;
   verify: () => Promise<void>;
 };
 
 export async function runModelStoragePurge(dependencies: ModelStoragePurgeDependencies) {
   const failures: unknown[] = [];
-  for (const operation of [dependencies.deleteCache, dependencies.deleteOpfs, dependencies.deleteDatabase]) {
+  for (const operation of [dependencies.deleteCache, dependencies.deleteOpfs, dependencies.deleteDatabase, dependencies.deleteDescriptors]) {
     try {
       await operation();
     } catch (error) {
@@ -169,6 +174,7 @@ export async function purgeAllModelStorage() {
       if (typeof caches !== "undefined") await caches.delete(MODEL_RUNTIME_CACHE);
     },
     deleteDatabase: deleteDeliveryDatabase,
+    deleteDescriptors: purgeCommunityModelDescriptors,
     deleteOpfs: async () => {
       if (typeof navigator === "undefined" || typeof navigator.storage?.getDirectory !== "function") return;
       const root = await navigator.storage.getDirectory();
@@ -206,6 +212,7 @@ export async function assertModelStorageEmpty() {
       throw new Error("The model checkpoint database still exists after cleanup.");
     }
   }
+  await assertCommunityModelDescriptorsEmpty();
 }
 
 export function isLegacyBundledModelRequest(url: string) {

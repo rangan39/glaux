@@ -10,7 +10,7 @@ import {
   PRODUCT_TEST_STATES
 } from "../src/lib/product-test-fixtures.ts";
 
-test("recognizes every documented product-test state and rejects unknown values", () => {
+test("recognizes every documented lifecycle state and rejects unknown values", () => {
   assert.deepEqual(
     PRODUCT_TEST_STATES.map((state) => parseProductTestState(state)),
     [...PRODUCT_TEST_STATES]

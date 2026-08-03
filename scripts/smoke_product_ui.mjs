@@ -57,7 +57,7 @@ try {
         value: class ProductTestWorkerGuard {
           constructor() {
             window.__sophonProductTestWorkerCount += 1;
-            throw new Error("Product-test fixtures must not construct a model worker.");
+            throw new Error("Lifecycle fixtures must not construct a model worker.");
           }
         }
       });
@@ -100,10 +100,10 @@ try {
     assert.deepEqual(externalRequests, [], `${viewport.name} fixtures made external requests.`);
     assert.deepEqual(runtimeErrors, [], `${viewport.name} fixtures emitted runtime errors.`);
     await context.close();
-    console.log(`✓ ${viewport.name} product fixtures cover all lifecycle states`);
+    console.log(`✓ ${viewport.name} fixtures cover all lifecycle states`);
   }
   await assertModelThemes(browser);
-  console.log(`Product UI fixture smoke test passed: ${baseUrl}`);
+  console.log(`Lifecycle fixture smoke test passed: ${baseUrl}`);
 } finally {
   await browser.close();
 }
@@ -116,7 +116,7 @@ async function assertModelThemes(browser) {
       configurable: true,
       value: class ProductTestWorkerGuard {
         constructor() {
-          throw new Error("Product-test theme fixtures must not construct a model worker.");
+          throw new Error("Theme fixtures must not construct a model worker.");
         }
       }
     });

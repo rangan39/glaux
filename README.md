@@ -12,9 +12,9 @@ Glaux is a privacy-first, browser-native model workbench that turns compatible H
 
 The browser acts as the complete runtime environment. IndexedDB stores catalog and descriptor metadata, the Origin Private File System stores model artifacts, a persistent Web Worker owns tokenization and inference, and WebGPU provides acceleration. Next.js serves the application shell rather than an inference backend.
 
-Glaux is designed around explicit trust boundaries. Model installation requires confirmation; compatibility and integrity checks fail closed; replacement, cancellation, refresh, and partial-download states are handled deliberately; and prompts and responses never leave the browser. Deterministic product fixtures, browser tests, bundle budgets, dependency audits, and developer telemetry make those guarantees testable rather than aspirational.
+Glaux is designed around explicit trust boundaries. Model installation requires confirmation; compatibility and integrity checks fail closed; replacement, cancellation, refresh, and partial-download states are handled deliberately; and prompts and responses never leave the browser. Deterministic lifecycle fixtures, browser tests, bundle budgets, dependency audits, and developer telemetry make those guarantees testable rather than aspirational.
 
-## Current product
+## What Glaux does
 
 - Searches the `onnx-community` namespace from the browser and keeps a local searchable catalog in IndexedDB.
 - Provides responsive, paginated Popular, Lightweight, and All Models catalog views with browser-side filtering.
@@ -58,7 +58,7 @@ npm run budget:bundle     # client bundle-size guard
 npm run audit:production  # production dependency audit
 ```
 
-Browser smoke tests expect a running local app. In a second terminal, run `npm run dev` (or start the product-test server below), then use `npm run smoke:markdown` or set `GLAUX_SMOKE_MODEL` to a saved Hugging Face model ID and run `npm run smoke:prompt`. Run the deterministic product fixture checks with `npm run smoke:product-ui`, and the Playwright suite with `npm run test:e2e`.
+Browser smoke tests expect a running local app. In a second terminal, run `npm run dev` (or start the deterministic fixture server below), then use `npm run smoke:markdown` or set `GLAUX_SMOKE_MODEL` to a saved Hugging Face model ID and run `npm run smoke:prompt`. Run the deterministic lifecycle fixture checks with `npm run smoke:product-ui`, and the Playwright suite with `npm run test:e2e`.
 
 ## Browser-only architecture
 
@@ -85,7 +85,7 @@ Downloaded model data is intentionally ephemeral. Glaux records an outstanding c
 
 Cleanup stages have bounded deadlines and visible progress. If another tab, a suspended session, or a browser storage operation prevents verification, Glaux fails closed and offers **Reset Glaux storage**. That same-origin endpoint asks the browser to clear the origin’s storage with `Clear-Site-Data`, reloads the application, and repeats the clean-state audit. Browser eviction and the underlying storage implementation remain under browser control.
 
-## Product-test states
+## Lifecycle test states
 
 Start deterministic development fixtures without downloading a model:
 

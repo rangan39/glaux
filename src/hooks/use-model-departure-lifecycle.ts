@@ -7,11 +7,17 @@ export function requestDepartureConfirmation(event: BeforeUnloadEvent) {
   event.returnValue = true;
 }
 
-export function useModelDepartureLifecycle({ onDeparture, warnBeforeLeaving }: {
+export function shouldReconcileAfterPageShow(event: Pick<PageTransitionEvent, "persisted">) {
+  return event.persisted;
+}
+
+export function useModelDepartureLifecycle({ onDeparture, onPageRestore, warnBeforeLeaving }: {
   onDeparture: () => void;
+  onPageRestore: () => void;
   warnBeforeLeaving: boolean;
 }) {
   const runDepartureCleanup = useEffectEvent(onDeparture);
+  const runPageRestoreCleanup = useEffectEvent(onPageRestore);
 
   useEffect(() => {
     if (!warnBeforeLeaving) return;
@@ -21,7 +27,14 @@ export function useModelDepartureLifecycle({ onDeparture, warnBeforeLeaving }: {
 
   useEffect(() => {
     const cleanup = () => runDepartureCleanup();
+    const reconcile = (event: PageTransitionEvent) => {
+      if (shouldReconcileAfterPageShow(event)) runPageRestoreCleanup();
+    };
     window.addEventListener("pagehide", cleanup);
-    return () => window.removeEventListener("pagehide", cleanup);
+    window.addEventListener("pageshow", reconcile);
+    return () => {
+      window.removeEventListener("pagehide", cleanup);
+      window.removeEventListener("pageshow", reconcile);
+    };
   }, []);
 }

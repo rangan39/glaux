@@ -11,3 +11,15 @@ export function getReadySidebarModelId({
 }) {
   return cacheState === "cached" && loaded && modelId ? modelId : null;
 }
+
+export function getActiveSidebarModelId({
+  cacheState,
+  loading,
+  modelId
+}: {
+  cacheState: ModelCacheState;
+  loading: boolean;
+  modelId: string;
+}) {
+  return modelId && (loading || cacheState !== "missing") ? modelId : null;
+}

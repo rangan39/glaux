@@ -34,6 +34,7 @@ const WORKER_TIMEOUTS: Record<WorkerRequestType, { idleMs: number; overallMs: nu
   capabilities: { idleMs: 10_000, overallMs: 10_000 },
   generate: { idleMs: 30 * 60_000, overallMs: 60 * 60_000 },
   cancel: { idleMs: 10_000, overallMs: 10_000 },
+  download: { idleMs: 2 * 60_000, overallMs: 6 * 60 * 60_000 },
   preload: { idleMs: 2 * 60_000, overallMs: 6 * 60 * 60_000 },
   // Cache inventory is only a startup convenience. Never let a stalled worker block model selection.
   // The overall ceiling is deliberately separate from the progress watchdog: worker logs must not extend it.
@@ -84,6 +85,16 @@ export async function cancelGeneration(targetRequestId = activeGenerationRequest
 
 export async function preloadModel(modelId: string, onLog?: (event: OnnxLogEvent) => void) {
   const request = dispatchWorkerRequest({ type: "preload", modelId }, onLog);
+  activePreloadRequestId = request.requestId;
+  try {
+    await request.promise;
+  } finally {
+    if (activePreloadRequestId === request.requestId) activePreloadRequestId = null;
+  }
+}
+
+export async function downloadModel(modelId: string, onLog?: (event: OnnxLogEvent) => void) {
+  const request = dispatchWorkerRequest({ type: "download", modelId }, onLog);
   activePreloadRequestId = request.requestId;
   try {
     await request.promise;

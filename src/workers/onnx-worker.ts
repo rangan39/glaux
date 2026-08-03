@@ -48,7 +48,7 @@ self.onmessage = (message: MessageEvent<unknown>) => {
     return;
   }
 
-  if (request.type === "generate" || request.type === "preload" || request.type === "delete-cache") {
+  if (request.type === "download" || request.type === "generate" || request.type === "preload" || request.type === "delete-cache") {
     requestControllers.set(request.requestId, new AbortController());
   }
 
@@ -64,9 +64,19 @@ async function runQueuedRequest(request: Exclude<WorkerRequest, { type: "capabil
     }
     const {
       deleteOnnxModelCache,
+      downloadOnnxModel,
       preloadOnnxModel,
       runOnnxTextModel
     } = await import("@/lib/onnx-runner");
+    if (request.type === "download") {
+      await downloadOnnxModel(
+        request.modelId,
+        (event) => postLog(request.requestId, event),
+        requestControllers.get(request.requestId)?.signal
+      );
+      complete(request.requestId, { ok: true });
+      return;
+    }
     if (request.type === "generate") {
       const controller = requestControllers.get(request.requestId);
       complete(request.requestId, await runOnnxTextModel(request.messages, {

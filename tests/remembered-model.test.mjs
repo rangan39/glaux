@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  clearModelCleanupRequired,
   clearRememberedModelId,
   forgetRememberedModelId,
   LEGACY_READY_MODEL_STORAGE_KEY,
+  markModelCleanupRequired,
+  MODEL_CLEANUP_REQUIRED_KEY,
   readRememberedModelId,
   READY_MODEL_STORAGE_KEY,
   rememberReadyModelId
@@ -56,4 +59,15 @@ test("clears all remembered model keys during lifecycle cleanup", () => {
   ]);
   clearRememberedModelId(storage);
   assert.equal(storage.values.size, 0);
+});
+
+test("tracks an outstanding model cleanup obligation until physical cleanup succeeds", () => {
+  const storage = createStorage();
+  markModelCleanupRequired("hf:fixture@main", storage);
+  assert.deepEqual(JSON.parse(storage.values.get(MODEL_CLEANUP_REQUIRED_KEY)), {
+    modelId: "hf:fixture@main",
+    schemaVersion: 1
+  });
+  clearModelCleanupRequired(storage);
+  assert.equal(storage.values.has(MODEL_CLEANUP_REQUIRED_KEY), false);
 });

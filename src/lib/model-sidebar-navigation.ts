@@ -1,0 +1,13 @@
+import type { ModelCacheState } from "@/lib/onnx-types";
+
+export function getReadySidebarModelId({
+  cacheState,
+  loaded,
+  modelId
+}: {
+  cacheState: ModelCacheState;
+  loaded: boolean;
+  modelId: string;
+}) {
+  return cacheState === "cached" && loaded && modelId ? modelId : null;
+}

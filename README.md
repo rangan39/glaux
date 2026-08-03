@@ -4,7 +4,7 @@ Glaux is an open-source local AI workspace for running compatible Hugging Face O
 
 Production app: [glaux.rangan39.sh](https://glaux.rangan39.sh)
 
-[![Watch the Glaux browser-only local AI workspace demo](https://img.youtube.com/vi/Uf8GytVp5sw/maxresdefault.jpg)](https://youtu.be/Uf8GytVp5sw)
+[![Watch the Glaux browser-only local AI workspace demo](https://img.youtube.com/vi/Uf8GytVp5sw/maxresdefault.jpg?v=20260803)](https://youtu.be/Uf8GytVp5sw)
 
 **[Watch the Glaux video demo on YouTube](https://youtu.be/Uf8GytVp5sw)**
 
